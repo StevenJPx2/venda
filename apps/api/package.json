@@ -1,0 +1,23 @@
+{
+  "name": "@venda/api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --local",
+    "build": "wrangler deploy --dry-run",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "test": "vitest run",
+    "db:migrate:local": "wrangler d1 migrations apply VENDA_DB --local",
+    "db:migrate:remote": "wrangler d1 migrations apply VENDA_DB --remote",
+    "db:seed": "node scripts/seed.mjs"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "latest",
+    "typescript": "5.9.3",
+    "vitest": "latest",
+    "wrangler": "latest"
+  }
+}

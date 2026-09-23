@@ -1,0 +1,21 @@
+{
+  "name": "venda",
+  "private": true,
+  "packageManager": "pnpm@10.15.0",
+  "scripts": {
+    "dev": "pnpm --parallel --filter @venda/api --filter @venda/admin dev",
+    "build": "pnpm --filter @venda/admin build && pnpm --filter @venda/landing build && pnpm --filter @venda/api build",
+    "test": "pnpm --filter @venda/api test",
+    "typecheck": "pnpm --filter @venda/admin typecheck && pnpm --filter @venda/landing typecheck && pnpm --filter @venda/api typecheck",
+    "lint": "pnpm --filter \"./apps/*\" run lint && eslint .",
+    "lint:fix": "pnpm --filter \"./apps/*\" run lint:fix && eslint . --fix",
+    "check": "pnpm lint && pnpm typecheck && pnpm test",
+    "db:migrate:local": "pnpm --filter @venda/api db:migrate:local",
+    "db:migrate:remote": "pnpm --filter @venda/api db:migrate:remote"
+  },
+  "devDependencies": {
+    "eslint": "^10.11.0",
+    "globals": "^17.12.0",
+    "typescript-eslint": "^8.70.1"
+  }
+}

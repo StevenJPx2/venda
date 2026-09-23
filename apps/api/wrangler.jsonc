@@ -1,0 +1,22 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "venda-api",
+  "main": "src/index.ts",
+  "account_id": "7bb7dff27822397d46162181bfedf38d",
+  "compatibility_date": "2026-09-22",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "ADMIN_EMAIL": "admin@venda.stevenjohn.co"
+  },
+  "routes": [{ "pattern": "api.venda.stevenjohn.co", "custom_domain": true }],
+  "d1_databases": [
+    {
+      "binding": "VENDA_DB",
+      "database_name": "venda-content",
+      "database_id": "3a853945-a4ad-42c0-be8e-f8b397b15c32",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [{ "binding": "VENDA_MEDIA", "bucket_name": "venda-media" }],
+  "kv_namespaces": [{ "binding": "VENDA_CACHE", "id": "1460fe543eae4e49b16f6c3c8a1c4e23" }]
+}
