@@ -1,0 +1,20 @@
+{
+  "name": "@venda/schema",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Collection field definitions and entry validation shared by the Venda API and admin.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vitest": "latest"
+  }
+}
