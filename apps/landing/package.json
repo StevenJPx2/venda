@@ -13,7 +13,6 @@
   },
   "dependencies": {
     "@nuxt/ui": "4.11.2",
-    "@venda/nuxt": "workspace:*",
     "@vue/shared": "3.5.43",
     "nuxt": "4.5.2",
     "tailwindcss": "4.3.3",

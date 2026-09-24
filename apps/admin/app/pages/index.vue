@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, shallowRef } from 'vue';
-import type { Collection, Entry, Media } from '~/types';
+import type { Collection, Entry, EntryStatus, Media } from '~/types';
 
 interface SessionResponse {
   email: string | null;
@@ -12,29 +12,22 @@ interface CollectionResponse {
 
 const { api } = useVendaApi();
 const toast = useToast();
-const route = useRoute();
-const router = useRouter();
 
 const email = shallowRef('');
 const loggedIn = shallowRef(false);
 const loading = shallowRef(true);
+const saving = shallowRef(false);
 const uploading = shallowRef(false);
 const error = shallowRef('');
 const collections = shallowRef<Collection[]>([]);
 const selected = shallowRef<Collection | null>(null);
 const entries = shallowRef<Entry[]>([]);
+const editingEntry = shallowRef<Entry | null>(null);
 const media = shallowRef<Media[]>([]);
-const sidebarCollapsed = shallowRef(false);
 
 const publishedCount = computed(() => entries.value.filter(entry => entry.status === 'published').length);
 const draftCount = computed(() => entries.value.filter(entry => entry.status === 'draft').length);
-// Derived from the configured API base so self-hosted installs link to themselves.
-// A relative base (single-Worker install) resolves against the current origin.
-const apiBase = useRuntimeConfig().public.apiBase;
-const publicUrl = computed(() => {
-  if (!selected.value || !import.meta.client) return '';
-  return new URL(`${apiBase}/content/${selected.value.slug}`, window.location.origin).toString();
-});
+const publicUrl = computed(() => selected.value ? `https://api.venda.stevenjohn.co/api/content/${selected.value.slug}` : '');
 
 async function checkSession(): Promise<void> {
   try {
@@ -77,9 +70,7 @@ async function loadCollections(): Promise<void> {
   const result = await api<Collection[]>('/collections');
   collections.value = result;
 
-  // Returning from the editor or data model reopens the same collection.
-  const wanted = selected.value?.id ?? (typeof route.query.collection === 'string' ? route.query.collection : undefined);
-  const next = result.find(collection => collection.id === wanted) ?? result[0];
+  const next = selected.value ? result.find(collection => collection.id === selected.value?.id) : result[0];
 
   if (next) {
     await selectCollection(next);
@@ -91,7 +82,7 @@ async function loadCollections(): Promise<void> {
 
 async function selectCollection(collection: Collection): Promise<void> {
   selected.value = collection;
-  void router.replace({ query: { ...route.query, collection: collection.id } });
+  editingEntry.value = null;
   entries.value = await api<Entry[]>(`/collections/${collection.id}/entries`);
 }
 
@@ -115,6 +106,33 @@ async function createCollection(payload: { name: string; slug?: string }): Promi
   }
 }
 
+async function saveEntry(draft: { slug: string; data: Record<string, unknown>; status: EntryStatus }): Promise<void> {
+  if (!selected.value) return;
+
+  saving.value = true;
+  error.value = '';
+  const wasEditing = Boolean(editingEntry.value);
+
+  try {
+    const path = editingEntry.value ? `/entries/${editingEntry.value.id}` : `/collections/${selected.value.id}/entries`;
+    const method = editingEntry.value ? 'PATCH' : 'POST';
+
+    await api(path, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(draft)
+    });
+
+    editingEntry.value = null;
+    await refreshEntries();
+    toast.add({ title: wasEditing ? 'Entry updated' : 'Entry created', color: 'success', icon: 'i-lucide-circle-check' });
+  } catch {
+    error.value = 'The entry could not be saved. Check its slug and JSON data.';
+  } finally {
+    saving.value = false;
+  }
+}
+
 async function refreshEntries(): Promise<void> {
   if (!selected.value) return;
 
@@ -122,15 +140,15 @@ async function refreshEntries(): Promise<void> {
 }
 
 function editEntry(entry: Entry): void {
-  void navigateTo(`/editor/${entry.collectionId}/${entry.id}`);
+  editingEntry.value = entry;
 }
 
 async function deleteEntry(entry: Entry): Promise<void> {
-  const name = selected.value ? entryTitle(selected.value.schema, entry) : entry.slug;
-  if (!window.confirm(`Delete “${name}”? This cannot be undone.`)) return;
+  if (!window.confirm(`Delete “${entry.slug}”? This cannot be undone.`)) return;
 
   try {
     await api(`/entries/${entry.id}`, { method: 'DELETE' });
+    if (editingEntry.value?.id === entry.id) editingEntry.value = null;
     await refreshEntries();
     toast.add({ title: 'Entry deleted', color: 'success', icon: 'i-lucide-trash-2' });
   } catch {
@@ -169,7 +187,7 @@ onMounted(checkSession);
   <VendaLoginPanel v-else-if="!loggedIn" :loading="loading" :error="error" @submit="login" />
 
   <UDashboardGroup v-else storage="local" storage-key="venda-dashboard">
-    <UDashboardSidebar v-model:collapsed="sidebarCollapsed" resizable collapsible :default-size="22" :min-size="18" :max-size="30" :ui="{ footer: 'border-t border-default' }">
+    <UDashboardSidebar resizable collapsible :default-size="22" :min-size="18" :max-size="30" :ui="{ footer: 'border-t border-default' }">
       <template #header="{ collapsed }">
         <div class="flex items-center gap-2" :class="collapsed ? 'justify-center w-full' : ''">
           <div class="grid size-7 shrink-0 place-items-center rounded-lg bg-primary text-sm font-bold text-inverted">V</div>
@@ -181,7 +199,6 @@ onMounted(checkSession);
         <VendaCollectionSidebar
           :collections="collections"
           :selected-id="selected?.id ?? null"
-          :collapsed="sidebarCollapsed"
           @select="selectCollection"
           @create="createCollection"
         />
@@ -272,16 +289,15 @@ onMounted(checkSession);
                 <div class="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p class="text-base font-semibold text-highlighted">Entries</p>
-                    <p class="mt-1 text-sm text-muted">/{{ selected.slug }} · {{ entries.length }} total · {{ selected.schema.fields.length }} fields</p>
+                    <p class="mt-1 text-sm text-muted">/{{ selected.slug }} · {{ entries.length }} total</p>
                   </div>
-                  <div class="flex items-center gap-2">
-                    <UButton label="Data model" icon="i-lucide-shapes" color="neutral" variant="outline" size="sm" :to="`/collections/${selected.id}/model`" />
-                    <UButton label="New entry" icon="i-lucide-plus" size="sm" :to="`/editor/${selected.id}/new`" />
-                  </div>
+                  <UBadge color="primary" variant="subtle" icon="i-lucide-database">D1 content</UBadge>
                 </div>
               </template>
-              <VendaEntryList :entries="entries" :schema="selected.schema" @edit="editEntry" @delete="deleteEntry" />
+              <VendaEntryList :entries="entries" @edit="editEntry" @delete="deleteEntry" />
             </UCard>
+
+            <VendaEntryEditor :entry="editingEntry" :saving="saving" @submit="saveEntry" @cancel="editingEntry = null" />
 
             <VendaMediaPanel :items="media" :uploading="uploading" @upload="uploadMedia" />
           </template>
