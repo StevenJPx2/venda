@@ -1,0 +1,39 @@
+{
+  "name": "venda",
+  "version": "0.1.0",
+  "description": "Self-host Venda, a Cloudflare-native headless CMS, on your own Cloudflare account.",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/StevenJPx2/venda.git",
+    "directory": "packages/cli"
+  },
+  "keywords": ["cms", "headless-cms", "cloudflare", "workers", "self-hosted", "cli"],
+  "bin": {
+    "venda": "./dist/cli.js"
+  },
+  "files": ["dist", "server"],
+  "engines": {
+    "node": ">=20.12"
+  },
+  "scripts": {
+    "build": "pnpm run build:cli && pnpm run build:server",
+    "build:cli": "tsc -p tsconfig.build.json",
+    "build:server": "node scripts/build-server.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "prepack": "pnpm run build"
+  },
+  "dependencies": {
+    "@clack/prompts": "^1.8.1",
+    "wrangler": "^4.138.0"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "typescript": "5.9.3",
+    "vitest": "latest"
+  }
+}
