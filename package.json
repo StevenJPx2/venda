@@ -4,11 +4,11 @@
   "packageManager": "pnpm@10.15.0",
   "scripts": {
     "dev": "pnpm --parallel --filter @venda/api --filter @venda/admin dev",
-    "build": "pnpm --filter @venda/admin build && pnpm --filter @venda/landing build && pnpm --filter @venda/api build",
-    "test": "pnpm --filter @venda/api test",
-    "typecheck": "pnpm --filter @venda/admin typecheck && pnpm --filter @venda/landing typecheck && pnpm --filter @venda/api typecheck",
-    "lint": "pnpm --filter \"./apps/*\" run lint && eslint .",
-    "lint:fix": "pnpm --filter \"./apps/*\" run lint:fix && eslint . --fix",
+    "build": "pnpm --filter @venda/nuxt build && pnpm --filter @venda/admin build && pnpm --filter @venda/landing build && pnpm --filter @venda/api build && pnpm --filter venda build",
+    "test": "pnpm --filter @venda/schema test && pnpm --filter @venda/api test && pnpm --filter @venda/admin test && pnpm --filter @venda/nuxt test && pnpm --filter venda test",
+    "typecheck": "pnpm --filter @venda/schema typecheck && pnpm --filter @venda/nuxt typecheck && pnpm --filter @venda/admin typecheck && pnpm --filter @venda/landing typecheck && pnpm --filter @venda/api typecheck && pnpm --filter venda typecheck",
+    "lint": "pnpm --filter \"./apps/*\" --filter \"./packages/*\" run lint && eslint .",
+    "lint:fix": "pnpm --filter \"./apps/*\" --filter \"./packages/*\" run lint:fix && eslint . --fix",
     "check": "pnpm lint && pnpm typecheck && pnpm test",
     "db:migrate:local": "pnpm --filter @venda/api db:migrate:local",
     "db:migrate:remote": "pnpm --filter @venda/api db:migrate:remote"

@@ -1,10 +1,12 @@
+import type { CollectionSchema } from '@venda/schema';
+
 export type EntryStatus = 'draft' | 'published';
 
 export interface Collection {
   id: string;
   name: string;
   slug: string;
-  schema: Record<string, unknown>;
+  schema: CollectionSchema;
 }
 
 export interface Entry {

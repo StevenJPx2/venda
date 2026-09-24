@@ -14,6 +14,9 @@
     "db:migrate:remote": "wrangler d1 migrations apply VENDA_DB --remote",
     "db:seed": "node scripts/seed.mjs"
   },
+  "dependencies": {
+    "@venda/schema": "workspace:*"
+  },
   "devDependencies": {
     "@cloudflare/workers-types": "latest",
     "typescript": "5.9.3",

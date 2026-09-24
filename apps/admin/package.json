@@ -6,6 +6,7 @@
     "dev": "nuxt dev",
     "build": "nuxt build",
     "typecheck": "nuxt typecheck",
+    "test": "vitest run",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "postinstall": "nuxt prepare",
@@ -13,6 +14,7 @@
   },
   "dependencies": {
     "@nuxt/ui": "4.11.2",
+    "@venda/schema": "workspace:*",
     "@vue/shared": "3.5.43",
     "nuxt": "latest",
     "tailwindcss": "4.3.3",
@@ -20,8 +22,10 @@
   },
   "devDependencies": {
     "@nuxt/eslint": "^1.17.0",
+    "@tiptap/vue-3": "3.31.3",
     "@types/node": "latest",
     "typescript": "5.9.3",
+    "vitest": "latest",
     "vue-tsc": "latest",
     "wrangler": "latest"
   }
