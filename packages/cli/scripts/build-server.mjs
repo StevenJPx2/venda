@@ -8,7 +8,7 @@ const rootDir = resolve(packageDir, '../..');
 const serverDir = join(packageDir, 'server');
 const adminDir = join(rootDir, 'apps/admin/.output/public');
 const apiConfig = join(rootDir, 'apps/api/wrangler.jsonc');
-const apiMigrations = join(rootDir, 'apps/api/migrations');
+const apiMigrations = join(rootDir, 'packages/core/migrations');
 
 function run(command, args, options = {}) {
   return new Promise((resolvePromise, reject) => {

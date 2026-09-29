@@ -7,7 +7,7 @@ Venda is a small, Cloudflare-native headless CMS. The admin and landing site are
 - `apps/admin` — Nuxt UI admin dashboard, deployed with Nitro's `cloudflare_module` preset.
 - `apps/landing` — Nuxt UI marketing site, same preset.
 - `apps/api` — Worker API with cookie sessions, D1 repositories, R2 uploads, and KV cache invalidation.
-- `apps/api/migrations` — numbered D1 migrations for collections, entries, and media.
+- `packages/core` — framework-neutral CMS core (`createVenda().fetch`) with Cloudflare and Node adapters; `packages/core/migrations` holds the numbered SQL migrations.
 - `apps/api/scripts/seed.mjs` — idempotent sample-data seeder (`VENDA_ADMIN_PASSWORD=… pnpm --filter @venda/api db:seed`; add `-- --update` to overwrite existing seed entries).
 
 - `packages/schema` — **`@venda/schema`**, the content model: field definitions, schema parsing and entry validation, shared by the API and the admin so both enforce the same rules.

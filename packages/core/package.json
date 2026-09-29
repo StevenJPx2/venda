@@ -1,0 +1,26 @@
+{
+  "name": "@venda/core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Framework-neutral Venda CMS: one Web-standard request handler over pluggable database, storage and cache services.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./cloudflare": "./src/adapters/cloudflare.ts",
+    "./node": "./src/adapters/node.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
+  },
+  "dependencies": {
+    "@venda/schema": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "typescript": "5.9.3",
+    "vitest": "latest"
+  }
+}

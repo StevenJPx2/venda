@@ -1,5 +1,6 @@
 import { SchemaError, parseSchema, validateEntryData, type CollectionSchema, type FieldError } from '@venda/schema';
-import type { Env, Status } from './types';
+import type { Database } from './runtime';
+import type { Status } from './types';
 
 const EMPTY_SCHEMA: CollectionSchema = { version: 1, fields: [] };
 
@@ -22,8 +23,8 @@ export function schemaInput(raw: unknown): { schema: CollectionSchema } | { erro
   }
 }
 
-export async function collectionSchema(env: Env, collectionId: string): Promise<CollectionSchema | null> {
-  const row = await env.VENDA_DB.prepare('SELECT schema_json FROM collections WHERE id = ?').bind(collectionId).first<{ schema_json: string }>();
+export async function collectionSchema(db: Database, collectionId: string): Promise<CollectionSchema | null> {
+  const row = await db.first<{ schema_json: string }>('SELECT schema_json FROM collections WHERE id = ?', collectionId);
   return row ? storedSchema(row.schema_json) : null;
 }
 

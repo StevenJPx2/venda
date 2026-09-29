@@ -15,7 +15,7 @@
       "binding": "VENDA_DB",
       "database_name": "venda-content",
       "database_id": "3a853945-a4ad-42c0-be8e-f8b397b15c32",
-      "migrations_dir": "migrations"
+      "migrations_dir": "../../packages/core/migrations"
     }
   ],
   "r2_buckets": [{ "binding": "VENDA_MEDIA", "bucket_name": "venda-media" }],

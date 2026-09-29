@@ -9,13 +9,13 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "test": "vitest run",
+    "test": "vitest run --passWithNoTests",
     "db:migrate:local": "wrangler d1 migrations apply VENDA_DB --local",
     "db:migrate:remote": "wrangler d1 migrations apply VENDA_DB --remote",
     "db:seed": "node scripts/seed.mjs"
   },
   "dependencies": {
-    "@venda/schema": "workspace:*"
+    "@venda/core": "workspace:*"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "latest",

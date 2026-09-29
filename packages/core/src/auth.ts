@@ -1,4 +1,7 @@
-import type { Env } from './types';
+import type { KeyValue } from './runtime';
+
+/** Where sessions live and the key that signs their cookies. */
+export interface SessionStore { kv: KeyValue; secret: string }
 
 const SESSION_TTL = 60 * 60 * 24 * 7;
 
@@ -22,32 +25,32 @@ export async function secretsMatch(given: string, expected: string): Promise<boo
   return difference === 0;
 }
 
-export async function createSession(email: string, env: Env): Promise<string> {
+export async function createSession(email: string, store: SessionStore): Promise<string> {
   const token = `${crypto.randomUUID()}.${Date.now()}`;
-  const signature = await digest(token, env.SESSION_SECRET);
-  await env.VENDA_CACHE.put(`session:${token}`, email, { expirationTtl: SESSION_TTL });
+  const signature = await digest(token, store.secret);
+  await store.kv.put(`session:${token}`, email, { ttlSeconds: SESSION_TTL });
   return `${token}.${signature}`;
 }
 
 /** The verified session token from the cookie, or null when absent or forged. */
-async function sessionToken(request: Request, env: Env): Promise<string | null> {
+async function sessionToken(request: Request, store: SessionStore): Promise<string | null> {
   const cookie = request.headers.get('Cookie')?.match(/venda_session=([^;]+)/)?.[1];
   if (!cookie) return null;
   const pieces = cookie.split('.');
   if (pieces.length !== 3) return null;
   const token = `${pieces[0]}.${pieces[1]}`;
-  return (await secretsMatch(pieces[2]!, await digest(token, env.SESSION_SECRET))) ? token : null;
+  return (await secretsMatch(pieces[2]!, await digest(token, store.secret))) ? token : null;
 }
 
-export async function sessionEmail(request: Request, env: Env): Promise<string | null> {
-  const token = await sessionToken(request, env);
-  return token ? env.VENDA_CACHE.get(`session:${token}`) : null;
+export async function sessionEmail(request: Request, store: SessionStore): Promise<string | null> {
+  const token = await sessionToken(request, store);
+  return token ? store.kv.get(`session:${token}`) : null;
 }
 
 /** Revokes the session server-side so a copied cookie stops working after logout. */
-export async function destroySession(request: Request, env: Env): Promise<void> {
-  const token = await sessionToken(request, env);
-  if (token) await env.VENDA_CACHE.delete(`session:${token}`);
+export async function destroySession(request: Request, store: SessionStore): Promise<void> {
+  const token = await sessionToken(request, store);
+  if (token) await store.kv.delete(`session:${token}`);
 }
 
 export function sessionCookie(value: string): string { return `venda_session=${value}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${SESSION_TTL}`; }
