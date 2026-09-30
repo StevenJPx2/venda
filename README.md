@@ -118,11 +118,16 @@ The self-hosted install serves the admin and API from the same origin, uses a re
 
 ## API
 
-- `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`
+- `POST /api/auth/login`, `POST /api/auth/logout`, `GET/PATCH /api/auth/me` (profile and password)
+- `GET/PATCH/DELETE /api/users/:id`, `GET /api/users` (administrators)
+- `GET/POST /api/invitations`, `DELETE /api/invitations/:id`; `GET/POST /api/auth/invitations/:token` to view and accept
+- `GET/POST /api/tokens`, `DELETE /api/tokens/:id` (your API tokens)
 - `GET/POST /api/collections`, `PATCH /api/collections/:id` (name and data model)
 - `GET/POST /api/collections/:id/entries`, `GET/PATCH/DELETE /api/entries/:id`
 - `POST /api/media`, `GET /api/media/:key`
 - `GET /api/content/:collection` and `GET /api/content/:collection/:slug` are public delivery endpoints (published entries only).
+
+Admin endpoints accept a session cookie or an API token (`Authorization: Bearer venda_…`). Every request is checked against the caller's role — administrator, editor, author or contributor — and a token is further limited to its scopes. Authors and contributors act only on entries they created; contributors cannot publish. The configured `ADMIN_EMAIL`/`ADMIN_PASSWORD` always signs in as an administrator, so access can be recovered by rotating that secret.
 
 Invalid schemas are rejected with `400`; entries that break their collection's schema get `422` with a `fields` array naming each problem. Entry `data` is stored as JSON, so changing the data model never needs a database migration.
 

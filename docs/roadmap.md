@@ -105,13 +105,13 @@ Status: `[ ]` not started · `[~]` partial · `[x]` done.
 - [ ] External media providers
 
 ### 6. Users and authentication
-- [~] Single admin login with server-side sessions
-- [ ] Multiple users and invitations
-- [ ] Roles: Administrator, Editor, Author, Contributor (plus custom capabilities)
+- [x] Server-side sessions, revoked on password, role or status changes
+- [x] Multiple users and invitations
+- [x] Roles: Administrator, Editor, Author, Contributor, enforced as capabilities
 - [ ] Passkeys (WebAuthn) as the primary login
 - [ ] OAuth sign-in (Google first, then GitHub and others)
 - [ ] Magic-link email sign-in and pluggable email providers
-- [ ] API tokens with scopes for scripts and CI
+- [x] API tokens with scopes for scripts and CI
 - [ ] Audit log
 
 ### 7. Agents and automation

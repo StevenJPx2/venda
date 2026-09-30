@@ -167,7 +167,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', warnOnUnload));
         aria-label="Title"
         :ui="{ base: 'p-0 text-4xl font-bold tracking-tight text-highlighted placeholder:text-dimmed resize-none' }"
       />
-      <UEmpty v-if="!formFields.length && !titleDef" icon="i-lucide-shapes" title="This collection has no fields yet" description="Add fields in the data model to start writing." />
+      <UEmpty v-if="!formFields.length && !titleDef" icon="i-lucide-shapes" title="This collection has no fields yet" :description="session.can('schema:manage') ? 'Add fields in the data model to start writing.' : 'Ask an administrator to add fields to this collection.'" />
     </div>
 
     <section v-if="formFields.length" class="mx-auto w-full max-w-[760px] space-y-5 px-6 pb-16" aria-labelledby="entry-fields-heading" data-testid="entry-fields">
