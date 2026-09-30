@@ -1,6 +1,6 @@
 import type { FieldError } from '@venda/schema';
 import { allows, DELETE_CONTENT, EDIT, PUBLISH } from '../auth/permissions';
-import { collectionSchema, entryErrors } from '../content-model';
+import { collectionSchema, entryErrors, normalizeEntryData } from '../content-model';
 import type { Actor, RequestContext } from '../context';
 import { HttpError, json, notFound, readJson } from '../http';
 import { route } from '../router';
@@ -40,8 +40,13 @@ async function listEntries(ctx: RequestContext): Promise<Response> {
   await ctx.require('content:read');
   const { db } = ctx.services.config;
   const collectionId = ctx.params.id ?? '';
-  if (!(await collectionSchema(db, collectionId))) throw notFound('Collection not found');
-  return json((await db.all('SELECT * FROM entries WHERE collection_id = ? ORDER BY updated_at DESC', collectionId)).map(toEntry));
+  const schema = await collectionSchema(db, collectionId);
+  if (!schema) throw notFound('Collection not found');
+  const rows = await db.all('SELECT * FROM entries WHERE collection_id = ? ORDER BY updated_at DESC', collectionId);
+  return json(rows.map(row => {
+    const entry = toEntry(row);
+    return { ...entry, data: normalizeEntryData(schema, entry.data) };
+  }));
 }
 
 async function createEntry(ctx: RequestContext): Promise<Response> {
@@ -53,10 +58,11 @@ async function createEntry(ctx: RequestContext): Promise<Response> {
   const body = await readJson(ctx.request);
   const slug = slugify(typeof body.slug === 'string' ? body.slug : '');
   if (!slug) throw new HttpError(400, 'Entry slug is required');
-  const data = objectInput(body.data ?? {});
+  const input = objectInput(body.data ?? {});
   const status = statusInput(body.status ?? 'draft');
   if (status === 'published') requirePublish(actor, actor.user.id);
-  rejectInvalid(entryErrors(schema, data, status));
+  rejectInvalid(entryErrors(schema, input, status));
+  const data = normalizeEntryData(schema, input);
 
   const now = new Date().toISOString();
   const id = crypto.randomUUID();
@@ -74,7 +80,9 @@ async function createEntry(ctx: RequestContext): Promise<Response> {
 
 async function getEntry(ctx: RequestContext): Promise<Response> {
   await ctx.require('content:read');
-  return json(await loadEntry(ctx));
+  const entry = await loadEntry(ctx);
+  const schema = await collectionSchema(ctx.services.config.db, entry.collectionId);
+  return json(schema ? { ...entry, data: normalizeEntryData(schema, entry.data) } : entry);
 }
 
 async function updateEntry(ctx: RequestContext): Promise<Response> {
@@ -88,10 +96,11 @@ async function updateEntry(ctx: RequestContext): Promise<Response> {
 
   const slug = body.slug === undefined ? existing.slug : slugify(String(body.slug));
   if (!slug) throw new HttpError(400, 'Entry slug is required');
-  const data = body.data === undefined ? existing.data : objectInput(body.data);
+  const input = body.data === undefined ? existing.data : objectInput(body.data);
   const { db, kv } = ctx.services.config;
   const schema = await collectionSchema(db, existing.collectionId);
-  if (schema) rejectInvalid(entryErrors(schema, data, status));
+  if (schema) rejectInvalid(entryErrors(schema, input, status));
+  const data = schema ? normalizeEntryData(schema, input) : input;
 
   const now = new Date().toISOString();
   try {

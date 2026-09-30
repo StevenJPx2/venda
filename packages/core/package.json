@@ -16,7 +16,8 @@
     "lint:fix": "eslint . --fix"
   },
   "dependencies": {
-    "@venda/schema": "workspace:*"
+    "@venda/schema": "workspace:*",
+    "@venda/richtext": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "latest",

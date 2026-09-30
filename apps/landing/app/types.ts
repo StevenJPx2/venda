@@ -1,3 +1,4 @@
+import type { RichTextDoc } from '@venda/richtext';
 export interface HeroData {
   headline?: string;
   title?: string;
@@ -20,6 +21,7 @@ export interface StepData {
 export interface PostData {
   title?: string;
   excerpt?: string;
-  body?: string;
+  /** Rich-text document from the Venda editor. */
+  body?: RichTextDoc;
   tags?: string[];
 }

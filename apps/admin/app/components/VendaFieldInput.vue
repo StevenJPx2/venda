@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { isRichTextDoc } from '@venda/richtext';
 import type { FieldDefinition } from '@venda/schema';
 
 // One Directus-style interface for one field. The parent owns the value.
@@ -16,6 +17,7 @@ const { upload, pick } = useMediaUpload();
 const uploading = shallowRef(false);
 
 const text = computed(() => (typeof props.modelValue === 'string' ? props.modelValue : ''));
+const richText = computed(() => (isRichTextDoc(props.modelValue) ? props.modelValue : null));
 const tags = computed(() => (Array.isArray(props.modelValue) ? props.modelValue.filter((t): t is string => typeof t === 'string') : []));
 const numberValue = computed(() => (typeof props.modelValue === 'number' ? props.modelValue : null));
 const choices = computed(() => (props.field.choices ?? []).map(c => ({ label: c.label, value: c.value })));
@@ -83,7 +85,7 @@ async function chooseImage(): Promise<void> {
 
   <VendaRichTextField
     v-else-if="field.interface === 'wysiwyg'"
-    :model-value="text"
+    :model-value="richText"
     v-bind="placeholderProp"
     @update:model-value="emit('update:modelValue', $event)"
   />

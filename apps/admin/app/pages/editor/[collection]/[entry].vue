@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { isRichTextDoc, type RichTextDoc } from '@venda/richtext';
 import { bodyField, fieldLabel, titleField, type CollectionSchema } from '@venda/schema';
 import type { Collection } from '~/types';
 
@@ -48,8 +49,8 @@ const titleModel = computed({
   set: (value: string) => { if (titleDef.value) draft.setField(titleDef.value.key, value); }
 });
 const bodyModel = computed({
-  get: () => { const value = bodyDef.value ? draft.data.value[bodyDef.value.key] : ''; return typeof value === 'string' ? value : ''; },
-  set: (value: string) => { if (bodyDef.value) draft.setField(bodyDef.value.key, value); }
+  get: (): RichTextDoc | null => { const value = bodyDef.value ? draft.data.value[bodyDef.value.key] : null; return isRichTextDoc(value) ? value : null; },
+  set: (value: RichTextDoc | null) => { if (bodyDef.value) draft.setField(bodyDef.value.key, value ?? undefined); }
 });
 
 onMounted(async () => {

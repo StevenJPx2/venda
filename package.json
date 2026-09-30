@@ -5,17 +5,19 @@
   "scripts": {
     "dev": "pnpm --parallel --filter @venda/api --filter @venda/admin dev",
     "build": "pnpm --filter @venda/nuxt build && pnpm --filter @venda/admin build && pnpm --filter @venda/landing build && pnpm --filter @venda/api build && pnpm --filter venda build",
-    "test": "pnpm --filter @venda/schema test && pnpm --filter @venda/core test && pnpm --filter @venda/api test && pnpm --filter @venda/admin test && pnpm --filter @venda/nuxt test && pnpm --filter venda test",
-    "typecheck": "pnpm --filter @venda/schema typecheck && pnpm --filter @venda/core typecheck && pnpm --filter @venda/nuxt typecheck && pnpm --filter @venda/admin typecheck && pnpm --filter @venda/landing typecheck && pnpm --filter @venda/api typecheck && pnpm --filter venda typecheck",
+    "test": "pnpm --filter @venda/richtext test && pnpm --filter @venda/schema test && pnpm --filter @venda/core test && pnpm --filter @venda/api test && pnpm --filter @venda/admin test && pnpm --filter @venda/nuxt test && pnpm --filter venda test",
+    "typecheck": "pnpm --filter @venda/richtext typecheck && pnpm --filter @venda/schema typecheck && pnpm --filter @venda/core typecheck && pnpm --filter @venda/nuxt typecheck && pnpm --filter @venda/admin typecheck && pnpm --filter @venda/landing typecheck && pnpm --filter @venda/api typecheck && pnpm --filter venda typecheck",
     "lint": "pnpm --filter \"./apps/*\" --filter \"./packages/*\" run lint && eslint .",
     "lint:fix": "pnpm --filter \"./apps/*\" --filter \"./packages/*\" run lint:fix && eslint . --fix",
     "check": "pnpm lint && pnpm typecheck && pnpm test",
     "db:migrate:local": "pnpm --filter @venda/api db:migrate:local",
-    "db:migrate:remote": "pnpm --filter @venda/api db:migrate:remote"
+    "db:migrate:remote": "pnpm --filter @venda/api db:migrate:remote",
+    "e2e": "node e2e/run.mjs"
   },
   "devDependencies": {
     "eslint": "^10.11.0",
     "globals": "^17.12.0",
-    "typescript-eslint": "^8.70.1"
+    "typescript-eslint": "^8.70.1",
+    "playwright": "1.63.0"
   }
 }

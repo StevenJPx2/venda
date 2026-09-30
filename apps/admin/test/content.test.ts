@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { parseSchema } from '@venda/schema';
-import { cleanEntryData, entryTitle, nextSlug, slugify, trimTrailingEmpty, wordCount } from '../app/utils/content';
+import { cleanEntryData, entryTitle, nextSlug, richTextPreview, slugify } from '../app/utils/content';
+
+const paragraph = (text?: string) => ({ type: 'paragraph', ...(text ? { content: [{ type: 'text', text }] } : {}) });
 
 describe('slugify', () => {
   it('matches the API rules', () => {
@@ -10,17 +12,11 @@ describe('slugify', () => {
   });
 });
 
-describe('wordCount', () => {
-  it('counts words across markup', () => {
-    expect(wordCount('<h2>Two words</h2><p>and <strong>three</strong> more</p>')).toBe(5);
-    expect(wordCount('<p></p>')).toBe(0);
-  });
-});
-
-describe('trimTrailingEmpty', () => {
-  it('drops trailing empty paragraphs only', () => {
-    expect(trimTrailingEmpty('<p>Hi</p><p></p><p><br class="x"></p>')).toBe('<p>Hi</p>');
-    expect(trimTrailingEmpty('<p></p><p>Hi</p>')).toBe('<p></p><p>Hi</p>');
+describe('richTextPreview', () => {
+  it('flattens documents and legacy HTML to one line', () => {
+    expect(richTextPreview({ type: 'doc', content: [{ type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'Two words' }] }, paragraph('and more')] })).toBe('Two words and more');
+    expect(richTextPreview('<p>Old <strong>html</strong></p>')).toBe('Old html');
+    expect(richTextPreview(undefined)).toBe('');
   });
 });
 
@@ -37,12 +33,12 @@ describe('cleanEntryData', () => {
   });
 
   it('trims text, strips trailing empty paragraphs and drops empty values', () => {
-    const data = { title: '  Hello ', body: '<p>Hi</p><p></p>', tags: [], featured: false, price: 0, legacy: 'kept' };
-    expect(cleanEntryData(schema, data)).toEqual({ title: 'Hello', body: '<p>Hi</p>', featured: false, price: 0, legacy: 'kept' });
+    const data = { title: '  Hello ', body: { type: 'doc', content: [paragraph('Hi'), paragraph(), paragraph()] }, tags: [], featured: false, price: 0, legacy: 'kept' };
+    expect(cleanEntryData(schema, data)).toEqual({ title: 'Hello', body: { type: 'doc', content: [paragraph('Hi')] }, featured: false, price: 0, legacy: 'kept' });
   });
 
   it('drops a body that is only an empty paragraph', () => {
-    expect(cleanEntryData(schema, { body: '<p></p>' })).toEqual({});
+    expect(cleanEntryData(schema, { body: { type: 'doc', content: [paragraph()] } })).toEqual({});
   });
 
   it('names entries by their title field, falling back to the slug', () => {

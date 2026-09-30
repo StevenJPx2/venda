@@ -53,11 +53,11 @@ if (!post.value) throw createError({ statusCode: 404, statusMessage: 'Post not f
 
 <template>
   <h1>{{ post?.data.title }}</h1>
-  <VendaContent as="article" :html="post?.data.body" class="prose" />
+  <VendaContent as="article" :content="post?.data.body" class="prose" />
 </template>
 ```
 
-`<VendaContent>` renders an HTML field from the Venda editor, server-side included. It adds a `venda-content` class for styling and renders nothing when the field is empty. The HTML is **not sanitized**, so only point this module at a Venda instance whose admins you trust.
+`<VendaContent>` renders a rich-text field from the Venda editor, server-side included. Rich text is a structured document; the component renders it with Venda's safe renderer, which emits only known tags, escaped text and http(s)/mailto/tel/relative URLs. HTML stored by older installs goes through the same renderer. It adds a `venda-content` class for styling and renders nothing when the field is empty.
 
 For fetching outside components (plugins, custom `useAsyncData`), use the underlying client:
 
@@ -74,7 +74,7 @@ const entry = await venda.get('blog', 'hello-venda'); // rejects with a 404 erro
 | `useVendaCollection<T>(collection, { sortBy?, order?, limit? })` | `useAsyncData` result with `VendaEntry<T>[]` |
 | `useVendaEntry<T>(collection, slug)` | `useAsyncData` result with `VendaEntry<T> \| null` |
 | `useVenda()` | `{ list, get }` promise-based fetchers |
-| `<VendaContent :html as?>` | Rendered HTML element |
+| `<VendaContent :content as?>` | Rendered rich text (document or legacy HTML) |
 | `VendaEntry<T>`, `VendaCollectionOptions<T>` | Types, importable from `@venda/nuxt` |
 
 `collection` and `slug` accept refs or getters, so a changing route param refetches automatically.

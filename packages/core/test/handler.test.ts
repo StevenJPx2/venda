@@ -102,7 +102,20 @@ describe('Venda core on Node (SQLite + filesystem + memory KV)', () => {
     const list = await call('/api/content/blog-posts');
     expect(list.headers.get('Cache-Control')).toBe('public, max-age=60');
     expect((await list.json() as unknown[]).length).toBe(1);
-    expect(await (await call('/api/content/blog-posts/hello-world')).json()).toMatchObject({ data: { title: 'Hello', body: '<p>Hi</p>' } });
+    // Rich text is always served as a document, whatever format it was written in.
+    expect(await (await call('/api/content/blog-posts/hello-world')).json()).toMatchObject({ data: { title: 'Hello', body: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Hi' }] }] } } });
+  });
+
+  it('serves stored HTML as a document and rejects malformed documents', async () => {
+    // Content written before documents were the storage format.
+    await db.run("UPDATE entries SET data_json = ? WHERE id = ?", JSON.stringify({ title: 'Hello', body: '<h2>Old</h2><p>html</p><p></p>' }), entryId);
+    const legacy = await (await call('/api/content/blog-posts/hello-world')).json() as { data: { body: { content: unknown[] } } };
+    expect(legacy.data.body.content).toEqual([
+      { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'Old' }] },
+      { type: 'paragraph', content: [{ type: 'text', text: 'html' }] }
+    ]);
+    const bad = await call(`/api/entries/${entryId}`, { method: 'PATCH', json: { data: { title: 'Hello', body: { type: 'doc', content: [{ type: 'text' }] } } } });
+    expect(bad.status).toBe(422);
   });
 
   it('uploads media and serves it back from storage', async () => {

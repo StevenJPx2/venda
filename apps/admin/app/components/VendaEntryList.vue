@@ -24,7 +24,7 @@ function preview(data: Record<string, unknown>): string {
     if (field.key === props.schema.titleField) continue;
     const value = data[field.key];
     if (typeof value !== 'string') continue;
-    const text = field.interface === 'wysiwyg' ? plainText(value) : value.trim();
+    const text = field.interface === 'wysiwyg' ? richTextPreview(value) : typeof value === 'string' ? value.trim() : '';
     if (text && ['input', 'textarea', 'wysiwyg'].includes(field.interface)) return text;
   }
   return Object.keys(data).length ? `${Object.keys(data).length} fields` : 'No content yet';

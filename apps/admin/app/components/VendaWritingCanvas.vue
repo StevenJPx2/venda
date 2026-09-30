@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { EditorSuggestionMenuItem, EditorToolbarItem } from '@nuxt/ui';
 import type { Editor } from '@tiptap/vue-3';
+import { toDoc, wordCount, type RichTextDoc } from '@venda/richtext';
 
 // Ghost-style distraction-free canvas: a big title, then the rich-text body.
 // Formatting appears on selection; blocks are inserted with "+" or "/".
@@ -12,7 +13,7 @@ const props = defineProps<{
 }>();
 
 const title = defineModel<string>('title', { default: '' });
-const body = defineModel<string>('body', { default: '' });
+const body = defineModel<RichTextDoc | null>('body', { default: null });
 
 const { handlers } = useEditorImages();
 // The variable must not share the template ref's name: in Vue 3.5 a matching
@@ -20,7 +21,7 @@ const { handlers } = useEditorImages();
 const editorComponent = useTemplateRef<{ editor?: Editor }>('editorRef');
 const linkOpen = shallowRef(false);
 
-const words = computed(() => wordCount(body.value));
+const words = computed(() => wordCount(toDoc(body.value)));
 
 const bubbleItems = [
   [
@@ -131,12 +132,14 @@ function onKeydown(event: KeyboardEvent): void {
       <UEditor
         ref="editorRef"
         v-slot="{ editor, handlers: editorHandlers }"
-        v-model="body"
-        content-type="html"
+        :model-value="body"
+        content-type="json"
+        :extensions="vendaEditorExtensions"
         :handlers="handlers"
         :placeholder="{ placeholder: props.bodyPlaceholder ?? 'Begin writing your post…', mode: 'firstLine' }"
         class="venda-canvas w-full"
         :ui="{ base: 'min-h-80 px-5 py-5 text-base leading-8 sm:px-7 sm:py-6' }"
+        @update:model-value="value => (body = value as RichTextDoc) /* content-type json: the editor emits a JSON document */"
       >
         <UEditorToolbar :editor="editor" :items="toolbarItems" class="border-b border-default bg-elevated/40 p-1" />
 

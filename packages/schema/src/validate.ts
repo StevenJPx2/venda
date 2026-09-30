@@ -1,14 +1,13 @@
+import { isEmptyDoc, isRichTextDoc, toDoc } from '@venda/richtext';
 import { fieldLabel } from './schema';
 import type { CollectionSchema, FieldDefinition, FieldError } from './types';
-
-function htmlIsBlank(html: string): boolean {
-  return !html.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim() && !/<(img|hr)\b/i.test(html);
-}
 
 /** A value that counts as "not filled in" for required checks. */
 export function isEmptyValue(field: FieldDefinition, value: unknown): boolean {
   if (value === undefined || value === null) return true;
-  if (typeof value === 'string') return field.interface === 'wysiwyg' ? htmlIsBlank(value) : !value.trim();
+  // Rich text is a document; HTML strings from older clients are judged by their converted content.
+  if (field.interface === 'wysiwyg' && (typeof value === 'string' || isRichTextDoc(value))) return isEmptyDoc(toDoc(value));
+  if (typeof value === 'string') return !value.trim();
   if (Array.isArray(value)) return value.length === 0;
   return false;
 }
@@ -27,8 +26,9 @@ function typeProblem(field: FieldDefinition, value: unknown): string | null {
   switch (field.interface) {
     case 'input':
     case 'textarea':
-    case 'wysiwyg':
       return typeof value === 'string' ? null : 'must be text';
+    case 'wysiwyg':
+      return typeof value === 'string' || isRichTextDoc(value) ? null : 'must be a rich-text document';
     case 'number':
       return typeof value === 'number' && Number.isFinite(value) ? null : 'must be a number';
     case 'toggle':

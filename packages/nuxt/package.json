@@ -9,7 +9,14 @@
     "url": "git+https://github.com/StevenJPx2/venda.git",
     "directory": "packages/nuxt"
   },
-  "keywords": ["nuxt", "nuxt-module", "cms", "headless-cms", "cloudflare", "venda"],
+  "keywords": [
+    "nuxt",
+    "nuxt-module",
+    "cms",
+    "headless-cms",
+    "cloudflare",
+    "venda"
+  ],
   "exports": {
     ".": {
       "types": "./dist/types.d.mts",
@@ -19,10 +26,14 @@
   "main": "./dist/module.mjs",
   "typesVersions": {
     "*": {
-      ".": ["./dist/types.d.mts"]
+      ".": [
+        "./dist/types.d.mts"
+      ]
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "nuxt-module-build prepare && nuxt-module-build build",
     "prepare": "nuxt-module-build prepare && nuxt-module-build build",
@@ -33,7 +44,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@nuxt/kit": "^4.5.2"
+    "@nuxt/kit": "^4.5.2",
+    "@venda/richtext": "workspace:*"
   },
   "devDependencies": {
     "@nuxt/module-builder": "^1.0.3",

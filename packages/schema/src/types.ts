@@ -5,7 +5,7 @@
 export const FIELD_INTERFACES = {
   input: { label: 'Input', description: 'Single line of text', value: 'string' },
   textarea: { label: 'Textarea', description: 'Multiple lines of plain text', value: 'string' },
-  wysiwyg: { label: 'Rich text', description: 'WYSIWYG editor, stored as HTML', value: 'string' },
+  wysiwyg: { label: 'Rich text', description: 'WYSIWYG editor, stored as a structured document', value: 'richtext' },
   number: { label: 'Number', description: 'Integer or decimal', value: 'number' },
   toggle: { label: 'Toggle', description: 'On / off', value: 'boolean' },
   datetime: { label: 'Date & time', description: 'Stored as an ISO 8601 string', value: 'string' },

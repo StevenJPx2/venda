@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import type { EditorToolbarItem } from '@nuxt/ui';
+import type { RichTextDoc } from '@venda/richtext';
 
 // Compact WYSIWYG for rich-text fields inside a form (the writing canvas is
 // reserved for a collection's main body field).
 defineProps<{ placeholder?: string }>();
-const model = defineModel<string>({ default: '' });
+const model = defineModel<RichTextDoc | null>({ default: null });
 
 const { handlers } = useEditorImages();
 const linkOpen = shallowRef(false);
@@ -28,12 +29,14 @@ const items = [
 <template>
   <UEditor
     v-slot="{ editor }"
-    v-model="model"
-    content-type="html"
+    :model-value="model"
+    content-type="json"
+    :extensions="vendaEditorExtensions"
     :handlers="handlers"
     :placeholder="placeholder ?? 'Write…'"
     class="w-full overflow-hidden rounded-lg border border-default"
     :ui="{ base: 'min-h-32 px-3 py-2 text-sm' }"
+    @update:model-value="value => (model = value as RichTextDoc) /* content-type json: the editor emits a JSON document */"
   >
     <UEditorToolbar :editor="editor" :items="items" class="border-b border-default bg-elevated/40 p-1">
       <template #link>

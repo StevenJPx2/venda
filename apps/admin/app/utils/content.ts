@@ -1,4 +1,5 @@
 // Pure helpers shared by the collection page and the editor. Auto-imported by Nuxt.
+import { toDoc, toPlainText, trimTrailingEmpty } from '@venda/richtext';
 import { isEmptyValue, type CollectionSchema } from '@venda/schema';
 
 /** Mirrors the API's slug rules so the editor previews exactly what gets saved. */
@@ -6,18 +7,9 @@ export function slugify(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80);
 }
 
-export function plainText(html: string): string {
-  return html.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
-}
-
-export function wordCount(html: string): number {
-  const text = plainText(html);
-  return text ? text.split(' ').length : 0;
-}
-
-/** The editor keeps an empty trailing paragraph for the cursor; don't persist it. */
-export function trimTrailingEmpty(html: string): string {
-  return html.replace(/(?:<p>(?:\s|&nbsp;|<br[^>]*>)*<\/p>\s*)+$/i, '');
+/** A rich-text value (document or legacy HTML) as one line of plain text, for previews. */
+export function richTextPreview(value: unknown): string {
+  return toPlainText(toDoc(value)).replace(/\s+/g, ' ').trim();
 }
 
 /**
@@ -33,7 +25,8 @@ export function cleanEntryData(schema: CollectionSchema, data: Record<string, un
     if (!field) return [[key, raw]];
 
     let value = raw;
-    if (field.interface === 'wysiwyg' && typeof value === 'string') value = trimTrailingEmpty(value);
+    // The editor keeps an empty trailing paragraph for the cursor; don't persist it.
+    if (field.interface === 'wysiwyg' && value !== undefined && value !== null) value = trimTrailingEmpty(toDoc(value));
     else if (typeof value === 'string' && field.interface !== 'code') value = value.trim();
 
     return isEmptyValue(field, value) ? [] : [[key, value]];

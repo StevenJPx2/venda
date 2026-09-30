@@ -66,7 +66,7 @@ Status: `[ ]` not started · `[~]` partial · `[x]` done.
 
 ### 2. Content model
 - [x] Collections defined in the admin with field schemas
-- [~] Field types: text, textarea, rich text, number, toggle, date, dropdown, tags, image, JSON
+- [~] Field types: text, textarea, rich text (structured document), number, toggle, date, dropdown, tags, image, JSON
 - [ ] More field types: slug, email, URL, color, multi-select, file, repeater/list, group, blocks
 - [ ] Relations/references between collections (e.g. post → author), both directions
 - [ ] Singletons (single-entry collections such as a home page)
@@ -146,13 +146,17 @@ Status: `[ ]` not started · `[~]` partial · `[x]` done.
 - [ ] Decentralised identity login (AT Protocol)
 - [ ] Paid content via x402 payments
 
+## Release requirements
+
+- `@venda/richtext` and `@venda/schema` export TypeScript source for workspace use; they must ship compiled JavaScript before `@venda/nuxt` (which imports `@venda/richtext` at runtime) is published to npm.
+
 ## Build order
 
 Everything ships together, but work proceeds in dependency order:
 
-1. Core extraction and runtime interfaces (D1/R2/KV first, then Node/SQLite/S3).
-2. Users, roles, sessions, API tokens — every later feature records who did what.
-3. Structured rich text and HTML migration.
+1. Core extraction and runtime interfaces (D1/R2/KV first, then Node/SQLite/S3). **D1/R2/KV and SQLite/filesystem/memory done.**
+2. Users, roles, sessions, API tokens — every later feature records who did what. **Done.**
+3. Structured rich text and HTML migration. **Done.**
 4. Content lifecycle: drafts vs live, revisions, scheduling, preview, trash, search.
 5. Content model: new field types, relations, singletons, i18n, typegen.
 6. Media library.

@@ -1,20 +1,26 @@
-import { defineComponent, h, type PropType } from 'vue';
+import { isEmptyDoc, renderHtml, toDoc, type RichTextDoc } from '@venda/richtext';
+import { computed, defineComponent, h, type PropType } from 'vue';
 
 /**
- * Renders an HTML field (e.g. `entry.data.body`) written in the Venda editor.
+ * Renders a rich-text field (e.g. `entry.data.body`) from the Venda editor.
  *
- * A render function is used instead of `<component :is v-html>` because Vue's
- * SSR drops `v-html` on dynamic components, leaving the body empty until
- * hydration. The HTML is not sanitized: only render content from a Venda
- * instance whose admin accounts you trust.
+ * Output is produced by Venda's renderer, which emits only known tags, escaped
+ * text and safe URLs, so untrusted content cannot inject markup or scripts.
+ * A render function is used because Vue's SSR drops `v-html` on dynamic
+ * components, which would leave the body empty until hydration.
  */
 export default defineComponent({
   name: 'VendaContent',
   props: {
-    html: { type: String as PropType<string | null>, default: '' },
+    /** The field value: a rich-text document, or HTML stored by older installs. */
+    content: { type: [Object, String] as PropType<RichTextDoc | string | null>, default: null },
     as: { type: String, default: 'div' }
   },
   setup(props) {
-    return () => (props.html ? h(props.as, { class: 'venda-content', innerHTML: props.html }) : null);
+    const html = computed(() => {
+      const doc = toDoc(props.content);
+      return isEmptyDoc(doc) ? '' : renderHtml(doc);
+    });
+    return () => (html.value ? h(props.as, { class: 'venda-content', innerHTML: html.value }) : null);
   }
 });

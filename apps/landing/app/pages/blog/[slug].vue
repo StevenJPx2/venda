@@ -32,7 +32,7 @@ useSeoMeta({ title: () => `${title.value} — Venda`, description: () => post.va
       <p v-if="post.data.excerpt" class="text-lg text-muted">{{ post.data.excerpt }}</p>
     </header>
 
-    <VendaContent v-if="post.data.body" as="article" :html="post.data.body" class="venda-prose" />
+    <VendaContent v-if="post.data.body" as="article" :content="post.data.body" class="venda-prose" />
     <UEmpty v-else icon="i-lucide-file-text" title="This post has no body yet" />
   </UContainer>
 </template>

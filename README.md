@@ -10,6 +10,7 @@ Venda is a small, Cloudflare-native headless CMS. The admin and landing site are
 - `packages/core` — framework-neutral CMS core (`createVenda().fetch`) with Cloudflare and Node adapters; `packages/core/migrations` holds the numbered SQL migrations.
 - `apps/api/scripts/seed.mjs` — idempotent sample-data seeder (`VENDA_ADMIN_PASSWORD=… pnpm --filter @venda/api db:seed`; add `-- --update` to overwrite existing seed entries).
 
+- `packages/richtext` — **`@venda/richtext`**, the rich-text document format: validation, a safe HTML renderer, HTML conversion and plain-text helpers. Framework- and runtime-neutral.
 - `packages/schema` — **`@venda/schema`**, the content model: field definitions, schema parsing and entry validation, shared by the API and the admin so both enforce the same rules.
 - `packages/nuxt` — **`@venda/nuxt`**, a Nuxt module any Nuxt 4 site can install to read Venda content (`useVendaCollection`, `useVendaEntry`, `<VendaContent>`). See [its README](packages/nuxt/README.md).
 - `packages/cli` — **`venda`**, a self-hosting CLI that provisions D1, KV, R2 and deploys an admin/API single-Worker install into your Cloudflare account.
@@ -21,7 +22,7 @@ Each collection defines typed **fields**. A field has a `key`, an **interface** 
 | Interface | Stores | Edited with |
 | --- | --- | --- |
 | `input`, `textarea` | text | text input / textarea |
-| `wysiwyg` | HTML | rich-text editor |
+| `wysiwyg` | rich-text document | rich-text editor |
 | `number` | number | number input |
 | `toggle` | boolean | switch |
 | `datetime` | ISO 8601 string | date & time picker |
@@ -29,6 +30,8 @@ Each collection defines typed **fields**. A field has a `key`, an **interface** 
 | `tags` | string[] | tag input |
 | `image` | http(s) URL | upload to R2 |
 | `code` | any JSON | JSON editor |
+
+Rich text is stored as a ProseMirror/TipTap JSON document (`{ "type": "doc", "content": [...] }`) so any framework can render it. The API always returns documents: HTML written by older clients, or stored before documents became the format, is converted on read and stored as a document on the next save. Render it with `renderHtml` from `@venda/richtext` or `<VendaContent :content>`; both emit only known tags, escaped text and safe URLs.
 
 A collection's `titleField` names its entries. Edit the model from **Data model** in the admin, or `PATCH /api/collections/:id` with `{ schema }`. Entries are validated against it on every write: **types are always checked, `required` only on publish**, so drafts can be saved while incomplete. Keys the schema doesn't define are preserved, never dropped. Collections created before field definitions existed (a loose `{ key: type }` map) are upgraded automatically on read.
 
@@ -41,7 +44,7 @@ Entries open in a full-screen editor. The title field is the big title, and the 
 - Markdown shortcuts work as you type (`## `, `- `, `> `, ``` ``` ```, `---`, `**bold**`)
 - **drafts autosave**; published entries show *Unsaved changes* until you press **Update** (or **Cmd+S**)
 - the URL slug follows the title until you edit it or publish
-- every other field is in the settings panel as a generated form
+- every other field is in the Fields section below the canvas as a generated form
 
 Collections without a rich-text field (e.g. Products) get the title plus the generated form instead.
 
@@ -139,6 +142,7 @@ pnpm typecheck
 pnpm test
 pnpm build
 pnpm check      # lint + typecheck + test in one go
+pnpm e2e        # live suites: real Worker, admin and landing driven by Playwright (system Chrome)
 ```
 
 Linting uses ESLint flat config. Shared rules live in `eslint.config.shared.mjs`; the Nuxt apps extend their project-aware config via `@nuxt/eslint`'s `withNuxt()`, and the API Worker uses `typescript-eslint`. Run `pnpm lint:fix` to auto-fix.

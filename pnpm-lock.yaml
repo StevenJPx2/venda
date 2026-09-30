@@ -14,6 +14,9 @@ importers:
       globals:
         specifier: ^17.12.0
         version: 17.12.0
+      playwright:
+        specifier: 1.63.0
+        version: 1.63.0
       typescript-eslint:
         specifier: ^8.70.1
         version: 8.70.1(eslint@10.11.0(jiti@2.7.0))(typescript@5.9.3)
@@ -23,6 +26,9 @@ importers:
       '@nuxt/ui':
         specifier: 4.11.2
         version: 4.11.2(34d6a4c5086bb0eb6842898c2ce5cc45)
+      '@venda/richtext':
+        specifier: workspace:*
+        version: link:../../packages/richtext
       '@venda/schema':
         specifier: workspace:*
         version: link:../../packages/schema
@@ -88,6 +94,9 @@ importers:
       '@venda/nuxt':
         specifier: workspace:*
         version: link:../../packages/nuxt
+      '@venda/richtext':
+        specifier: workspace:*
+        version: link:../../packages/richtext
       '@vue/shared':
         specifier: 3.5.43
         version: 3.5.43
@@ -138,6 +147,9 @@ importers:
 
   packages/core:
     dependencies:
+      '@venda/richtext':
+        specifier: workspace:*
+        version: link:../richtext
       '@venda/schema':
         specifier: workspace:*
         version: link:../schema
@@ -157,6 +169,9 @@ importers:
       '@nuxt/kit':
         specifier: ^4.5.2
         version: 4.5.2(magic-string@1.4.1)(magicast@0.5.5)(rolldown@1.2.9)(unplugin@3.4.0(esbuild@0.28.2)(rolldown@1.2.9)(rollup@4.63.4)(vite@8.3.0(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1)))
+      '@venda/richtext':
+        specifier: workspace:*
+        version: link:../richtext
     devDependencies:
       '@nuxt/module-builder':
         specifier: ^1.0.3
@@ -180,7 +195,20 @@ importers:
         specifier: latest
         version: 3.3.11(typescript@5.9.3)
 
+  packages/richtext:
+    devDependencies:
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: latest
+        version: 5.0.2(@types/node@26.6.3)(vite@8.3.0(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1))
+
   packages/schema:
+    dependencies:
+      '@venda/richtext':
+        specifier: workspace:*
+        version: link:../richtext
     devDependencies:
       typescript:
         specifier: 5.9.3
@@ -4642,6 +4670,16 @@ packages:
 
   pkg-types@2.3.3:
     resolution: {integrity: sha512-j/lCFdcppV0JxWpCEITdbDltBxPP6cHT+yNJ6Go2OgoSA9518X847X9z0p6LtA4Nc16+eQzCZjRrWanTGvHJ5w==}
+
+  playwright-core@1.63.0:
+    resolution: {integrity: sha512-rYCsBF/M5HjUch52bbtVONEFjv6Xu8sm8h72dNlR5bzIE1fvC/bxgspzkjSfU+MweEMmPM8KJebG6nnyxo5mCg==}
+    engines: {node: '>=20'}
+    hasBin: true
+
+  playwright@1.63.0:
+    resolution: {integrity: sha512-+7ziBLidS4NaNCdt57SUDT+wYmmd5fmiQejUic/kb+YsYSCPyOOE9sebzMjNmQrsnNpDJqd4WHvV/8lfKfUDUg==}
+    engines: {node: '>=20'}
+    hasBin: true
 
   pluralize@8.0.0:
     resolution: {integrity: sha512-Nc3IT5yHzflTfbjgqWcCPpo7DaKy4FnpB0l/zCAW0Tc7jxAiuqSxHasntB3D7887LSrA93kDJ9IXovxJYxyLCA==}
@@ -12300,6 +12338,12 @@ snapshots:
       confbox: 0.3.1
       exsolve: 1.1.1
       pathe: 2.0.3
+
+  playwright-core@1.63.0: {}
+
+  playwright@1.63.0:
+    dependencies:
+      playwright-core: 1.63.0
 
   pluralize@8.0.0: {}
 

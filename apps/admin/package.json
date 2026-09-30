@@ -18,7 +18,8 @@
     "@vue/shared": "3.5.43",
     "nuxt": "latest",
     "tailwindcss": "4.3.3",
-    "vue": "latest"
+    "vue": "latest",
+    "@venda/richtext": "workspace:*"
   },
   "devDependencies": {
     "@nuxt/eslint": "^1.17.0",
