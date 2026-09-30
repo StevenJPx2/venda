@@ -6,8 +6,8 @@ import type { PublicEntry } from '../types';
 import { toEntry } from './entries';
 
 function toPublicEntry(row: Row): PublicEntry {
-  const { createdBy: _createdBy, updatedBy: _updatedBy, ...entry } = toEntry(row);
-  return entry;
+  const entry = toEntry(row);
+  return { id: entry.id, collectionId: entry.collectionId, slug: entry.slug, data: entry.data, status: entry.status, createdAt: entry.createdAt, updatedAt: entry.updatedAt };
 }
 
 const PUBLIC_CACHE = { headers: { 'Cache-Control': 'public, max-age=60' } };

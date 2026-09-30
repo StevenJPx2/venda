@@ -37,8 +37,8 @@ export function toUser(row: Row): User {
   };
 }
 
-export function publicUser({ passwordHash: _hash, sessionVersion: _version, ...user }: User): PublicUser {
-  return user;
+export function publicUser(user: User): PublicUser {
+  return { id: user.id, email: user.email, name: user.name, role: user.role, status: user.status, createdAt: user.createdAt, updatedAt: user.updatedAt, lastLoginAt: user.lastLoginAt };
 }
 
 export const normalizeEmail = (email: string): string => email.trim().toLowerCase();
