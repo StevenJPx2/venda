@@ -75,7 +75,7 @@ const entry = await venda.get('blog', 'hello-venda'); // rejects with a 404 erro
 | `useVendaEntry<T>(collection, slug)` | `useAsyncData` result with `VendaEntry<T> \| null` |
 | `useVenda()` | `{ list, get }` promise-based fetchers |
 | `<VendaContent :content as?>` | Rendered rich text (document or legacy HTML) |
-| `VendaEntry<T>`, `VendaCollectionOptions<T>` | Types, importable from `@venda/nuxt` |
+| `VendaEntry<T>`, `VendaCollectionOptions<T>`, `RichTextDoc` | Types, importable from `@venda/nuxt` |
 
 `collection` and `slug` accept refs or getters, so a changing route param refetches automatically.
 

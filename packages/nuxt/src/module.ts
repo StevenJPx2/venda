@@ -10,6 +10,7 @@ export interface ModulePublicRuntimeConfig {
 }
 
 export type { VendaCollectionOptions, VendaEntry } from './runtime/types';
+export type { RichTextDoc } from '@venda/richtext';
 
 export default defineNuxtModule<ModuleOptions>({
   meta: {
