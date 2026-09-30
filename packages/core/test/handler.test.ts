@@ -26,7 +26,7 @@ async function call(path: string, init: RequestInit & { json?: unknown } = {}): 
 
 beforeAll(async () => {
   db = sqlite(':memory:');
-  expect(await db.migrate()).toEqual(['0001_initial.sql']);
+  expect(await db.migrate()).toEqual(['0001_initial.sql', '0002_users.sql']);
   mediaDir = await mkdtemp(join(tmpdir(), 'venda-media-'));
   venda = createVenda({
     db,
@@ -66,7 +66,7 @@ describe('Venda core on Node (SQLite + filesystem + memory KV)', () => {
     const setCookie = response.headers.get('Set-Cookie') ?? '';
     expect(setCookie).toMatch(/HttpOnly; Secure; SameSite=Lax/);
     cookie = setCookie.split(';')[0]!;
-    expect(await (await call('/api/auth/me')).json()).toEqual({ email: ADMIN.email });
+    expect(await (await call('/api/auth/me')).json()).toMatchObject({ email: ADMIN.email, user: { email: ADMIN.email, role: 'administrator' } });
   });
 
   let collectionId = '';

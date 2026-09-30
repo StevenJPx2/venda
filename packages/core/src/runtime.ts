@@ -7,7 +7,8 @@ export type Row = Record<string, unknown>;
 export interface Database {
   all<T = Row>(sql: string, ...params: unknown[]): Promise<T[]>;
   first<T = Row>(sql: string, ...params: unknown[]): Promise<T | null>;
-  run(sql: string, ...params: unknown[]): Promise<void>;
+  /** Executes a write; `changes` is the number of rows affected. */
+  run(sql: string, ...params: unknown[]): Promise<{ changes: number }>;
 }
 
 export interface StoredObject {
@@ -34,7 +35,11 @@ export interface VendaConfig {
   db: Database;
   storage: ObjectStore;
   kv: KeyValue;
-  admin: { email: string; password: string };
+  /**
+   * Recovery administrator. Signing in with these credentials always yields an
+   * active administrator account, so access survives a lost password.
+   */
+  admin?: { email: string; password: string };
   /** Signs session cookies; use a long random value. */
   sessionSecret: string;
   /** Origins allowed to call admin endpoints cross-origin (a list, or comma-separated). */

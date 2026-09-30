@@ -20,7 +20,9 @@ export default defineNuxtConfig({
   // only be rendered in the browser.
   routeRules: {
     '/editor/**': { ssr: false },
-    '/collections/**': { ssr: false }
+    '/collections/**': { ssr: false },
+    '/settings/**': { ssr: false },
+    '/invite/**': { ssr: false }
   },
   // Pre-bundle ProseMirror so UEditor never loads two copies of a keyed plugin
   // (recommended by the Nuxt UI Editor docs).

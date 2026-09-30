@@ -2,10 +2,11 @@
 import type { CollectionSchema } from '@venda/schema';
 import type { Entry } from '~/types';
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   entries: Entry[];
   schema: CollectionSchema;
-}>();
+  canDelete?: (entry: Entry) => boolean;
+}>(), { canDelete: () => true });
 
 const emit = defineEmits<{
   edit: [entry: Entry];
@@ -68,7 +69,7 @@ function preview(data: Record<string, unknown>): string {
           :aria-label="`Open ${entryTitle(schema, entry)} in the editor`"
           @click="emit('edit', entry)"
         />
-        <UButton label="Delete" icon="i-lucide-trash-2" color="error" variant="soft" size="sm" @click="emit('delete', entry)" />
+        <UButton v-if="canDelete(entry)" label="Delete" icon="i-lucide-trash-2" color="error" variant="soft" size="sm" @click="emit('delete', entry)" />
       </div>
     </div>
   </div>

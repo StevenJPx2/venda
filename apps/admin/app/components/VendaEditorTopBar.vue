@@ -11,6 +11,10 @@ const props = defineProps<{
   saveState: SaveState;
   dirty: boolean;
   busy: boolean;
+  /** Whether the user may publish, unpublish or edit this entry once live. */
+  canPublish: boolean;
+  /** False when the user may not change the entry at all. */
+  editable: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -44,11 +48,13 @@ const stateColor = computed(() => (props.saveState === 'error' ? 'text-error' : 
     <span class="shrink-0 text-xs" :class="stateColor" data-testid="save-state" aria-live="polite">{{ stateLabel }}</span>
 
     <div class="ml-auto flex items-center gap-2">
-      <template v-if="status === 'published'">
+      <UBadge v-if="!editable" color="neutral" variant="subtle" icon="i-lucide-lock" label="Read only" />
+      <span v-else-if="!canPublish && status === 'draft'" class="hidden text-xs text-muted sm:inline">An editor will publish this</span>
+      <template v-else-if="status === 'published'">
         <UButton label="Unpublish" color="neutral" variant="ghost" size="sm" :disabled="busy" @click="emit('unpublish')" />
         <UButton label="Update" size="sm" :disabled="!dirty || busy" :loading="busy && saveState === 'saving'" @click="emit('update')" />
       </template>
-      <UButton v-else label="Publish" size="sm" :loading="busy && saveState === 'saving'" :disabled="busy" @click="emit('publish')" />
+      <UButton v-else-if="canPublish" label="Publish" size="sm" :loading="busy && saveState === 'saving'" :disabled="busy" @click="emit('publish')" />
       <UButton icon="i-lucide-panel-right" color="neutral" variant="ghost" size="sm" aria-label="Entry settings" @click="emit('settings')" />
     </div>
   </header>

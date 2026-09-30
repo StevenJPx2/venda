@@ -27,6 +27,10 @@ export function useEntryDraft(collectionId: string, schema: Ref<CollectionSchema
 
   const id = shallowRef<string | null>(null);
   const status = shallowRef<EntryStatus>('draft');
+  /** Who created the entry; null for a new entry (the current user will own it). */
+  const createdBy = shallowRef<string | null>(null);
+  /** False when the signed-in user may not change this entry; autosave is off. */
+  const editable = shallowRef(true);
   const slug = shallowRef('');
   const slugTouched = shallowRef(false);
   const data = ref<Record<string, unknown>>({});
@@ -49,6 +53,7 @@ export function useEntryDraft(collectionId: string, schema: Ref<CollectionSchema
     data.value = { ...entry.data };
     id.value = entry.id;
     status.value = entry.status;
+    createdBy.value = entry.createdBy;
     slug.value = entry.slug;
     // Keep syncing only while the slug is still the one derived from the title.
     slugTouched.value = entry.status === 'published' || entry.slug !== slugify(title.value);
@@ -111,6 +116,7 @@ export function useEntryDraft(collectionId: string, schema: Ref<CollectionSchema
     fieldErrors.value = body?.fields ?? [];
     if (code === 409) errorMessage.value = 'That URL is already used by another entry.';
     else if (code === 422) errorMessage.value = body?.error ?? 'Some fields are invalid.';
+    else if (code === 403) errorMessage.value = body?.error ?? 'You don’t have permission to do that.';
     else errorMessage.value = 'Couldn’t save. Check your connection and try again.';
   }
 
@@ -149,7 +155,7 @@ export function useEntryDraft(collectionId: string, schema: Ref<CollectionSchema
   }
 
   function scheduleAutosave(): void {
-    if (status.value !== 'draft' || isEmpty.value || saveState.value === 'error') return;
+    if (!editable.value || status.value !== 'draft' || isEmpty.value || saveState.value === 'error') return;
     clearTimeout(timer);
     timer = setTimeout(() => void save().catch(() => {}), AUTOSAVE_DELAY_MS);
   }
@@ -181,5 +187,5 @@ export function useEntryDraft(collectionId: string, schema: Ref<CollectionSchema
 
   onScopeDispose(() => clearTimeout(timer));
 
-  return { id, status, slug: effectiveSlug, rawSlug: slug, slugTouched, data, title, saveState, errorMessage, fieldErrors, dirty, isEmpty, begin, load, save, setField, setSlug, setStatus, remove };
+  return { id, status, createdBy, editable, slug: effectiveSlug, rawSlug: slug, slugTouched, data, title, saveState, errorMessage, fieldErrors, dirty, isEmpty, begin, load, save, setField, setSlug, setStatus, remove };
 }

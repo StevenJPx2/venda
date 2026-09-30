@@ -1,23 +1,42 @@
+import type { Capability, User } from '~/types';
+
+interface MeResponse { email: string | null; user: User | null; capabilities?: Capability[] }
+
 /**
- * Client-side guard for admin routes. The session cookie belongs to the API
- * origin, so it can only be checked from the browser; unauthenticated users
+ * The signed-in user and what they may do. The session cookie belongs to the
+ * API origin, so it can only be checked from the browser; signed-out users
  * are sent to the sign-in page.
  */
 export function useAdminSession() {
   const { api } = useVendaApi();
-  const email = useState<string | null>('venda-session-email', () => null);
+  const user = useState<User | null>('venda-session-user', () => null);
+  const capabilities = useState<Capability[]>('venda-session-capabilities', () => []);
+  const email = computed(() => user.value?.email ?? null);
 
-  async function ensure(): Promise<boolean> {
+  async function refresh(): Promise<User | null> {
     try {
-      const result = await api<{ email: string | null }>('/auth/me');
-      email.value = result.email;
+      const me = await api<MeResponse>('/auth/me');
+      user.value = me.user;
+      capabilities.value = me.capabilities ?? [];
     } catch {
-      email.value = null;
+      user.value = null;
+      capabilities.value = [];
     }
-
-    if (!email.value) await navigateTo('/');
-    return Boolean(email.value);
+    return user.value;
   }
 
-  return { email, ensure };
+  async function ensure(): Promise<boolean> {
+    const current = await refresh();
+    if (!current) await navigateTo('/');
+    return Boolean(current);
+  }
+
+  const can = (capability: Capability): boolean => capabilities.value.includes(capability);
+
+  /** Whether the user may take a scoped action on content owned by `ownerId`. */
+  function canOn(action: 'edit' | 'publish' | 'delete', ownerId: string | null): boolean {
+    return can(`content:${action}:any`) || (can(`content:${action}:own`) && ownerId === user.value?.id);
+  }
+
+  return { user, email, capabilities, can, canOn, refresh, ensure };
 }

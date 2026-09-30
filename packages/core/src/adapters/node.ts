@@ -31,7 +31,7 @@ export function sqlite(filename: string): SqliteDatabase {
   return {
     all: async <T = Row>(sql: string, ...params: unknown[]) => db.prepare(sql).all(...bind(params)) as T[],
     first: async <T = Row>(sql: string, ...params: unknown[]) => (db.prepare(sql).get(...bind(params)) as T | undefined) ?? null,
-    run: async (sql, ...params) => { db.prepare(sql).run(...bind(params)); },
+    run: async (sql, ...params) => ({ changes: Number(db.prepare(sql).run(...bind(params)).changes) }),
     async migrate(dir = coreMigrationsDir) {
       db.exec('CREATE TABLE IF NOT EXISTS venda_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL)');
       const done = new Set((db.prepare('SELECT name FROM venda_migrations').all() as { name: string }[]).map(row => row.name));

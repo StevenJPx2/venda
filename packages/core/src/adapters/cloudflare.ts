@@ -6,7 +6,7 @@ interface D1Statement {
   bind(...values: unknown[]): D1Statement;
   all<T>(): Promise<{ results: T[] }>;
   first<T>(): Promise<T | null>;
-  run(): Promise<unknown>;
+  run(): Promise<{ meta: { changes: number } }>;
 }
 interface D1Like { prepare(sql: string): D1Statement }
 
@@ -30,7 +30,7 @@ export function d1(binding: D1Like): Database {
   return {
     all: async <T = Row>(sql: string, ...params: unknown[]) => (await binding.prepare(sql).bind(...params).all<T>()).results,
     first: <T = Row>(sql: string, ...params: unknown[]) => binding.prepare(sql).bind(...params).first<T>(),
-    run: async (sql, ...params) => { await binding.prepare(sql).bind(...params).run(); }
+    run: async (sql, ...params) => ({ changes: (await binding.prepare(sql).bind(...params).run()).meta.changes })
   };
 }
 

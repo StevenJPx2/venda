@@ -23,6 +23,13 @@ const loading = shallowRef(true);
 const loadError = shallowRef('');
 const settingsOpen = shallowRef(false);
 const busy = shallowRef(false);
+// A new entry will be owned by the signed-in user.
+const owner = computed(() => draft.createdBy.value ?? session.user.value?.id ?? null);
+const canPublish = computed(() => session.canOn('publish', owner.value));
+// Editing live content is a publishing action, mirroring the API's rules.
+watchEffect(() => {
+  draft.editable.value = session.canOn('edit', owner.value) && (draft.status.value === 'draft' || canPublish.value);
+});
 const leaving = shallowRef(false);
 
 const titleDef = computed(() => titleField(schema.value));
@@ -130,6 +137,8 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', warnOnUnload));
       :save-state="draft.saveState.value"
       :dirty="draft.dirty.value"
       :busy="busy"
+      :can-publish="canPublish"
+      :editable="draft.editable.value"
       @publish="publish"
       @update="update"
       @unpublish="unpublish"

@@ -5,7 +5,8 @@ const props = withDefaults(defineProps<{
   collections: Collection[];
   selectedId: string | null;
   collapsed?: boolean;
-}>(), { collapsed: false });
+  canCreate?: boolean;
+}>(), { collapsed: false, canCreate: true });
 
 const emit = defineEmits<{
   select: [collection: Collection];
@@ -111,7 +112,7 @@ function submitCollection(): void {
       </nav>
     </div>
 
-    <div class="w-full space-y-2 border-t border-default pt-4" :class="collapsed ? 'flex justify-center' : ''">
+    <div v-if="canCreate" class="w-full space-y-2 border-t border-default pt-4" :class="collapsed ? 'flex justify-center' : ''">
       <UButton v-if="collapsed" icon="i-lucide-plus" color="primary" aria-label="New collection" @click="open = true" />
       <UButton v-else label="New collection" icon="i-lucide-plus" color="primary" block @click="open = true" />
       <p v-if="!collapsed" class="px-1 text-center text-[11px] text-dimmed">Each collection has its own fields and entries.</p>

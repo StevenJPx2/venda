@@ -2,21 +2,17 @@
 import { computed, onMounted, shallowRef } from 'vue';
 import type { Collection, Entry, Media } from '~/types';
 
-interface SessionResponse {
-  email: string | null;
-}
-
 interface CollectionResponse {
   id: string;
 }
 
 const { api } = useVendaApi();
+const session = useAdminSession();
 const toast = useToast();
 const route = useRoute();
 const router = useRouter();
 
-const email = shallowRef('');
-const loggedIn = shallowRef(false);
+const loggedIn = computed(() => Boolean(session.user.value));
 const loading = shallowRef(true);
 const uploading = shallowRef(false);
 const error = shallowRef('');
@@ -36,14 +32,17 @@ const publicUrl = computed(() => {
   return new URL(`${apiBase}/content/${selected.value.slug}`, window.location.origin).toString();
 });
 
+const userMenu = computed(() => [[
+  { label: 'Profile', icon: 'i-lucide-user-round', to: '/settings/profile' },
+  ...(session.can('users:manage') ? [{ label: 'Users', icon: 'i-lucide-users', to: '/settings/users' }] : []),
+  { label: 'API tokens', icon: 'i-lucide-key-round', to: '/settings/tokens' }
+], [
+  { label: 'Sign out', icon: 'i-lucide-log-out', onSelect: () => { void logout(); } }
+]]);
+
 async function checkSession(): Promise<void> {
   try {
-    const result = await api<SessionResponse>('/auth/me');
-    loggedIn.value = Boolean(result.email);
-
-    if (loggedIn.value) await loadCollections();
-  } catch {
-    loggedIn.value = false;
+    if (await session.refresh()) await loadCollections();
   } finally {
     loading.value = false;
   }
@@ -58,8 +57,7 @@ async function login(credentials: { email: string; password: string }): Promise<
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(credentials)
     });
-    email.value = credentials.email;
-    loggedIn.value = true;
+    await session.refresh();
     await loadCollections();
   } catch {
     error.value = 'Check your email and password, then try again.';
@@ -68,7 +66,8 @@ async function login(credentials: { email: string; password: string }): Promise<
 
 async function logout(): Promise<void> {
   await api('/auth/logout', { method: 'POST' });
-  loggedIn.value = false;
+  session.user.value = null;
+  session.capabilities.value = [];
   selected.value = null;
   entries.value = [];
 }
@@ -182,31 +181,26 @@ onMounted(checkSession);
           :collections="collections"
           :selected-id="selected?.id ?? null"
           :collapsed="sidebarCollapsed"
+          :can-create="session.can('schema:manage')"
           @select="selectCollection"
           @create="createCollection"
         />
       </template>
 
       <template #footer="{ collapsed }">
-        <UButton
-          v-if="collapsed"
-          icon="i-lucide-log-out"
-          color="neutral"
-          variant="ghost"
-          block
-          aria-label="Sign out"
-          @click="logout"
-        />
-        <UButton
-          v-else
-          :label="email || 'Sign out'"
-          icon="i-lucide-log-out"
-          color="neutral"
-          variant="ghost"
-          block
-          class="justify-start"
-          @click="logout"
-        />
+        <UDropdownMenu :items="userMenu" :content="{ side: 'top', align: 'start' }" class="w-full">
+          <UButton v-if="collapsed" icon="i-lucide-circle-user-round" color="neutral" variant="ghost" block aria-label="Account menu" />
+          <UButton
+            v-else
+            :label="session.user.value?.name || session.user.value?.email || 'Account'"
+            icon="i-lucide-circle-user-round"
+            trailing-icon="i-lucide-chevrons-up-down"
+            color="neutral"
+            variant="ghost"
+            block
+            class="justify-start"
+          />
+        </UDropdownMenu>
       </template>
     </UDashboardSidebar>
 
@@ -275,15 +269,15 @@ onMounted(checkSession);
                     <p class="mt-1 text-sm text-muted">/{{ selected.slug }} · {{ entries.length }} total · {{ selected.schema.fields.length }} fields</p>
                   </div>
                   <div class="flex items-center gap-2">
-                    <UButton label="Data model" icon="i-lucide-shapes" color="neutral" variant="outline" size="sm" :to="`/collections/${selected.id}/model`" />
-                    <UButton label="New entry" icon="i-lucide-plus" size="sm" :to="`/editor/${selected.id}/new`" />
+                    <UButton v-if="session.can('schema:manage')" label="Data model" icon="i-lucide-shapes" color="neutral" variant="outline" size="sm" :to="`/collections/${selected.id}/model`" />
+                    <UButton v-if="session.can('content:create')" label="New entry" icon="i-lucide-plus" size="sm" :to="`/editor/${selected.id}/new`" />
                   </div>
                 </div>
               </template>
-              <VendaEntryList :entries="entries" :schema="selected.schema" @edit="editEntry" @delete="deleteEntry" />
+              <VendaEntryList :entries="entries" :schema="selected.schema" :can-delete="entry => session.canOn('delete', entry.createdBy) && (entry.status === 'draft' || session.canOn('publish', entry.createdBy))" @edit="editEntry" @delete="deleteEntry" />
             </UCard>
 
-            <VendaMediaPanel :items="media" :uploading="uploading" @upload="uploadMedia" />
+            <VendaMediaPanel v-if="session.can('media:upload')" :items="media" :uploading="uploading" @upload="uploadMedia" />
           </template>
         </div>
       </template>

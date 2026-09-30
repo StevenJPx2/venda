@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { secretsMatch } from '../src/auth';
+import { secretsMatch } from '../src/auth/crypto';
 import { allowedAdminOrigins, corsHeaders } from '../src/cors';
 
 const admins = allowedAdminOrigins(' https://app.example.com/ , http://localhost:3000');
