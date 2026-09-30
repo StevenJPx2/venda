@@ -40,6 +40,11 @@ export interface CollectionSchema {
   version: 1;
   /** Field that names an item (Directus' display template); an input or textarea. */
   titleField?: string;
+  /**
+   * Where the site renders an entry, for editor previews: an http(s) URL with
+   * `{slug}` and `{token}` placeholders, e.g. `https://site.com/blog/{slug}?preview={token}`.
+   */
+  previewUrl?: string;
   fields: FieldDefinition[];
 }
 

@@ -74,14 +74,14 @@ Status: `[ ]` not started · `[~]` partial · `[x]` done.
 - [ ] TypeScript type generation from the live schema (CLI)
 
 ### 3. Content lifecycle
-- [~] Draft / published status
-- [ ] Draft edits that leave the live version untouched until published
-- [ ] Revisions with diff and restore
-- [ ] Scheduled publishing (and unpublishing)
-- [ ] Preview links for unpublished content
-- [ ] Trash / soft delete and restore
-- [ ] Full-text search across collections
-- [ ] Bylines / multiple authors per entry
+- [x] Draft / published status
+- [x] Draft edits that leave the live version untouched until published (working copy + published snapshot)
+- [x] Revisions with field comparison and restore
+- [x] Scheduled publishing and unpublishing (Cron Trigger / Node timer)
+- [x] Preview links for unpublished content, opened on the site
+- [x] Trash / soft delete, restore, purge after 30 days
+- [x] Search across collections (indexed plain text; public search on published text)
+- [ ] Bylines / multiple authors per entry (built on relations, step 5)
 - [ ] Comments with moderation
 
 ### 4. Site structure
@@ -157,7 +157,7 @@ Everything ships together, but work proceeds in dependency order:
 1. Core extraction and runtime interfaces (D1/R2/KV first, then Node/SQLite/S3). **D1/R2/KV and SQLite/filesystem/memory done.**
 2. Users, roles, sessions, API tokens — every later feature records who did what. **Done.**
 3. Structured rich text and HTML migration. **Done.**
-4. Content lifecycle: drafts vs live, revisions, scheduling, preview, trash, search.
+4. Content lifecycle: drafts vs live, revisions, scheduling, preview, trash, search. **Done.**
 5. Content model: new field types, relations, singletons, i18n, typegen.
 6. Media library.
 7. Site structure: taxonomies, menus, widgets, sections, settings, redirects, SEO.

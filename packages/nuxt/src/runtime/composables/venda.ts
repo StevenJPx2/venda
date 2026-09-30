@@ -1,7 +1,7 @@
 import { toValue, type MaybeRefOrGetter } from 'vue';
 import { useAsyncData, useRuntimeConfig } from '#imports';
-import type { VendaCollectionOptions, VendaEntry } from '../types';
-import { collectionKey, contentUrl, isNotFound, shapeEntries } from '../utils';
+import type { VendaCollectionOptions, VendaEntry, VendaEntryOptions } from '../types';
+import { collectionKey, contentUrl, isNotFound, previewUrl, shapeEntries } from '../utils';
 
 function useApiBase(): string {
   const apiBase = useRuntimeConfig().public.venda?.apiBase;
@@ -22,7 +22,9 @@ export function useVenda() {
     list: <TData = Record<string, unknown>>(collection: string) =>
       $fetch<VendaEntry<TData>[]>(contentUrl(apiBase, collection)),
     get: <TData = Record<string, unknown>>(collection: string, slug: string) =>
-      $fetch<VendaEntry<TData>>(contentUrl(apiBase, collection, slug))
+      $fetch<VendaEntry<TData>>(contentUrl(apiBase, collection, slug)),
+    preview: <TData = Record<string, unknown>>(token: string) =>
+      $fetch<VendaEntry<TData>>(previewUrl(apiBase, token))
   };
 }
 
@@ -46,18 +48,25 @@ export function useVendaCollection<TData = Record<string, unknown>>(
 /**
  * A single published entry. Resolves to `null` when the entry does not exist
  * or is a draft, so pages can render a 404; other failures surface on `error`.
+ * With `preview`, the entry's working copy is shown instead (an invalid or
+ * expired token also resolves to `null`).
  */
 export function useVendaEntry<TData = Record<string, unknown>>(
   collection: MaybeRefOrGetter<string>,
-  slug: MaybeRefOrGetter<string>
+  slug: MaybeRefOrGetter<string>,
+  options: { preview?: MaybeRefOrGetter<VendaEntryOptions['preview']> } = {}
 ) {
-  const { get } = useVenda();
+  const { get, preview } = useVenda();
 
   return useAsyncData(
-    () => `venda:${toValue(collection)}/${toValue(slug)}`,
+    () => {
+      const token = toValue(options.preview);
+      return token ? `venda:preview:${token}` : `venda:${toValue(collection)}/${toValue(slug)}`;
+    },
     async () => {
+      const token = toValue(options.preview);
       try {
-        return await get<TData>(toValue(collection), toValue(slug));
+        return await (token ? preview<TData>(token) : get<TData>(toValue(collection), toValue(slug)));
       } catch (error) {
         if (isNotFound(error)) return null;
         throw error;

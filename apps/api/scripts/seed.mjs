@@ -58,8 +58,11 @@ async function ensureCollection(collection) {
 async function ensureEntry(collectionId, entry) {
   const existing = (await call(`/collections/${collectionId}/entries`)).data.find((item) => item.slug === entry.slug);
   if (existing && UPDATE) {
-    const updated = await call(`/entries/${existing.id}`, { method: 'PATCH', body: { data: entry.data, status: entry.status } });
-    console.log(`  ~ entry "${entry.slug}" updated (${updated.status})`);
+    const updated = await call(`/entries/${existing.id}`, { method: 'PATCH', body: { data: entry.data } });
+    // Saving changes the working copy; publishing (or unpublishing) makes it live.
+    const action = entry.status === 'published' ? 'publish' : existing.status === 'published' ? 'unpublish' : null;
+    const released = action ? await call(`/entries/${existing.id}/${action}`, { method: 'POST' }) : null;
+    console.log(`  ~ entry "${entry.slug}" updated (${updated.status}${released ? `, ${action} ${released.status}` : ''})`);
     return;
   }
   if (existing) {

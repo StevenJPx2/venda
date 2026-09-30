@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SchemaError, bodyField, fieldLabel, parseSchema, titleField, validateEntryData, type CollectionSchema } from '../src';
+import { SchemaError, bodyField, fieldLabel, parseSchema, previewUrlFor, titleField, validateEntryData, type CollectionSchema } from '../src';
 
 describe('parseSchema', () => {
   it('treats a missing schema as no fields', () => {
@@ -37,7 +37,9 @@ describe('parseSchema', () => {
     [{ fields: [{ key: 'a', interface: 'dropdown', choices: [] }] }, /at least one choice/],
     [{ fields: [{ key: 'a', interface: 'dropdown', choices: ['x', 'x'] }] }, /unique/],
     [{ titleField: 'body', fields: [{ key: 'body', interface: 'wysiwyg' }] }, /title field/],
-    [[], /must be an object/]
+    [[], /must be an object/],
+    [{ fields: [], previewUrl: 'https://site.test/{slug}' }, /must contain \{token\}/],
+    [{ fields: [], previewUrl: 'javascript:alert({token})' }, /http\(s\) URL/]
   ])('rejects invalid schema %#', (raw, message) => {
     expect(() => parseSchema(raw)).toThrow(SchemaError);
     expect(() => parseSchema(raw)).toThrow(message);
@@ -51,6 +53,12 @@ describe('field helpers', () => {
     expect(fieldLabel({ key: 'publishedAt', interface: 'datetime' })).toBe('Published At');
     expect(fieldLabel({ key: 'feature_image', interface: 'image' })).toBe('Feature image');
     expect(fieldLabel({ key: 'x', interface: 'input', label: 'Custom' })).toBe('Custom');
+  });
+
+  it('keeps a preview URL template and fills it per entry', () => {
+    const withPreview = parseSchema({ fields: [], previewUrl: ' https://site.test/blog/{slug}?preview={token} ' });
+    expect(withPreview.previewUrl).toBe('https://site.test/blog/{slug}?preview={token}');
+    expect(previewUrlFor(withPreview.previewUrl!, 'a b', 'x.y')).toBe('https://site.test/blog/a%20b?preview=x.y');
   });
 
   it('finds the title and the rich-text body', () => {

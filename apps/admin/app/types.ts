@@ -15,9 +15,26 @@ export interface Entry {
   slug: string;
   data: Record<string, unknown>;
   status: EntryStatus;
+  /** True when the working copy differs from what is published. */
+  hasUnpublishedChanges: boolean;
+  publishedAt: string | null;
+  publishAt: string | null;
+  unpublishAt: string | null;
+  scheduleError: string | null;
+  deletedAt: string | null;
   createdBy: string | null;
   updatedBy: string | null;
   updatedAt: string;
+}
+
+export interface Revision {
+  id: string;
+  entryId: string;
+  slug: string;
+  data: Record<string, unknown>;
+  reason: 'save' | 'publish' | 'restore';
+  createdBy: string | null;
+  createdAt: string;
 }
 
 export interface Media {

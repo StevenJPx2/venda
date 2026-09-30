@@ -10,6 +10,8 @@
     "ADMIN_ORIGINS": "https://app.venda.stevenjohn.co"
   },
   "routes": [{ "pattern": "api.venda.stevenjohn.co", "custom_domain": true }],
+  // Scheduled publishing, trash purging and search backfill.
+  "triggers": { "crons": ["* * * * *"] },
   "d1_databases": [
     {
       "binding": "VENDA_DB",

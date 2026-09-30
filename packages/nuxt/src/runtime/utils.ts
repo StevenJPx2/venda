@@ -7,6 +7,11 @@ export function contentUrl(apiBase: string, collection: string, slug?: string): 
   return `${base}/content/${path}`;
 }
 
+/** URL of the preview endpoint for a preview token. */
+export function previewUrl(apiBase: string, token: string): string {
+  return `${apiBase.replace(/\/+$/, '')}/preview/${encodeURIComponent(token)}`;
+}
+
 function compare(a: unknown, b: unknown): number {
   if (a === b) return 0;
   if (a === undefined || a === null) return 1;

@@ -9,7 +9,7 @@ export interface ModulePublicRuntimeConfig {
   venda: { apiBase: string };
 }
 
-export type { VendaCollectionOptions, VendaEntry } from './runtime/types';
+export type { VendaCollectionOptions, VendaEntry, VendaEntryOptions } from './runtime/types';
 export type { RichTextDoc } from '@venda/richtext';
 
 export default defineNuxtModule<ModuleOptions>({

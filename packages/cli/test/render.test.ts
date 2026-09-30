@@ -23,6 +23,7 @@ describe('Wrangler config rendering', () => {
     expect(config.d1_databases).toEqual([{ binding: 'VENDA_DB', database_name: 'cms-content', database_id: 'd1-id', migrations_dir: '.venda/versions/0.1.0/migrations' }]);
     expect(config.kv_namespaces).toEqual([{ binding: 'VENDA_CACHE', id: 'kv-id' }]);
     expect(config.r2_buckets).toEqual([{ binding: 'VENDA_MEDIA', bucket_name: 'cms-media' }]);
+    expect(config.triggers).toEqual({ crons: ['* * * * *'] });
   });
 
   it('sets a custom domain and optional admin origins', () => {

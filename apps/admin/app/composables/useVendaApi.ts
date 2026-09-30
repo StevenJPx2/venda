@@ -1,5 +1,5 @@
 type ApiOptions = {
-  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
   headers?: HeadersInit;
   body?: BodyInit;
 };

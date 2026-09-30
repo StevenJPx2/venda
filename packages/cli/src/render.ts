@@ -30,6 +30,8 @@ export function renderWranglerConfig(project: VendaProject, resources: ResourceR
     d1_databases: [{ binding: 'VENDA_DB', database_name: resources.d1.name, database_id: resources.d1.id, migrations_dir: `${releaseDir}/migrations` }],
     kv_namespaces: [{ binding: 'VENDA_CACHE', id: resources.kv.id }],
     r2_buckets: [{ binding: 'VENDA_MEDIA', bucket_name: resources.r2.name }],
+    // Every minute: scheduled publishing, trash purging and search backfill.
+    triggers: { crons: ['* * * * *'] },
     ...(project.domain ? { routes: [{ pattern: project.domain, custom_domain: true }], workers_dev: false } : { workers_dev: true }),
     observability: { enabled: true }
   };

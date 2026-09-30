@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, shallowRef } from 'vue';
-import type { Collection, Entry, Media } from '~/types';
+import type { Collection, Media } from '~/types';
 
 interface CollectionResponse {
   id: string;
@@ -18,12 +18,8 @@ const uploading = shallowRef(false);
 const error = shallowRef('');
 const collections = shallowRef<Collection[]>([]);
 const selected = shallowRef<Collection | null>(null);
-const entries = shallowRef<Entry[]>([]);
 const media = shallowRef<Media[]>([]);
 const sidebarCollapsed = shallowRef(false);
-
-const publishedCount = computed(() => entries.value.filter(entry => entry.status === 'published').length);
-const draftCount = computed(() => entries.value.filter(entry => entry.status === 'draft').length);
 // Derived from the configured API base so self-hosted installs link to themselves.
 // A relative base (single-Worker install) resolves against the current origin.
 const apiBase = useRuntimeConfig().public.apiBase;
@@ -69,7 +65,6 @@ async function logout(): Promise<void> {
   session.user.value = null;
   session.capabilities.value = [];
   selected.value = null;
-  entries.value = [];
 }
 
 async function loadCollections(): Promise<void> {
@@ -80,18 +75,13 @@ async function loadCollections(): Promise<void> {
   const wanted = selected.value?.id ?? (typeof route.query.collection === 'string' ? route.query.collection : undefined);
   const next = result.find(collection => collection.id === wanted) ?? result[0];
 
-  if (next) {
-    await selectCollection(next);
-  } else {
-    selected.value = null;
-    entries.value = [];
-  }
+  if (next) selectCollection(next);
+  else selected.value = null;
 }
 
-async function selectCollection(collection: Collection): Promise<void> {
+function selectCollection(collection: Collection): void {
   selected.value = collection;
   void router.replace({ query: { ...route.query, collection: collection.id } });
-  entries.value = await api<Entry[]>(`/collections/${collection.id}/entries`);
 }
 
 async function createCollection(payload: { name: string; slug?: string }): Promise<void> {
@@ -106,34 +96,11 @@ async function createCollection(payload: { name: string; slug?: string }): Promi
     await loadCollections();
 
     const createdCollection = collections.value.find(collection => collection.id === created.id);
-    if (createdCollection) await selectCollection(createdCollection);
+    if (createdCollection) selectCollection(createdCollection);
 
     toast.add({ title: 'Collection created', color: 'success', icon: 'i-lucide-circle-check' });
   } catch {
     error.value = 'Could not create the collection. Its slug may already be in use.';
-  }
-}
-
-async function refreshEntries(): Promise<void> {
-  if (!selected.value) return;
-
-  entries.value = await api<Entry[]>(`/collections/${selected.value.id}/entries`);
-}
-
-function editEntry(entry: Entry): void {
-  void navigateTo(`/editor/${entry.collectionId}/${entry.id}`);
-}
-
-async function deleteEntry(entry: Entry): Promise<void> {
-  const name = selected.value ? entryTitle(selected.value.schema, entry) : entry.slug;
-  if (!window.confirm(`Delete “${name}”? This cannot be undone.`)) return;
-
-  try {
-    await api(`/entries/${entry.id}`, { method: 'DELETE' });
-    await refreshEntries();
-    toast.add({ title: 'Entry deleted', color: 'success', icon: 'i-lucide-trash-2' });
-  } catch {
-    error.value = 'The entry could not be deleted.';
   }
 }
 
@@ -237,21 +204,6 @@ onMounted(checkSession);
             :description="error"
           />
 
-          <div class="grid gap-4 sm:grid-cols-3">
-            <UCard>
-              <p class="text-sm text-muted">Collections</p>
-              <p class="mt-2 text-2xl font-semibold text-highlighted">{{ collections.length }}</p>
-            </UCard>
-            <UCard>
-              <p class="text-sm text-muted">Published entries</p>
-              <p class="mt-2 text-2xl font-semibold text-success">{{ publishedCount }}</p>
-            </UCard>
-            <UCard>
-              <p class="text-sm text-muted">Draft entries</p>
-              <p class="mt-2 text-2xl font-semibold text-warning">{{ draftCount }}</p>
-            </UCard>
-          </div>
-
           <UEmpty
             v-if="!selected"
             icon="i-lucide-panels-top-left"
@@ -261,21 +213,7 @@ onMounted(checkSession);
           />
 
           <template v-else>
-            <UCard :ui="{ body: 'p-0 sm:p-0' }">
-              <template #header>
-                <div class="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p class="text-base font-semibold text-highlighted">Entries</p>
-                    <p class="mt-1 text-sm text-muted">/{{ selected.slug }} · {{ entries.length }} total · {{ selected.schema.fields.length }} fields</p>
-                  </div>
-                  <div class="flex items-center gap-2">
-                    <UButton v-if="session.can('schema:manage')" label="Data model" icon="i-lucide-shapes" color="neutral" variant="outline" size="sm" :to="`/collections/${selected.id}/model`" />
-                    <UButton v-if="session.can('content:create')" label="New entry" icon="i-lucide-plus" size="sm" :to="`/editor/${selected.id}/new`" />
-                  </div>
-                </div>
-              </template>
-              <VendaEntryList :entries="entries" :schema="selected.schema" :can-delete="entry => session.canOn('delete', entry.createdBy) && (entry.status === 'draft' || session.canOn('publish', entry.createdBy))" @edit="editEntry" @delete="deleteEntry" />
-            </UCard>
+            <VendaCollectionEntries :collection="selected" :collections-count="collections.length" />
 
             <VendaMediaPanel v-if="session.can('media:upload')" :items="media" :uploading="uploading" @upload="uploadMedia" />
           </template>

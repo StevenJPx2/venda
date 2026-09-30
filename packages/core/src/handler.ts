@@ -6,11 +6,15 @@ import { collectionRoutes } from './modules/collections';
 import { contentRoutes } from './modules/content';
 import { entryRoutes } from './modules/entries';
 import { invitationRoutes } from './modules/invitations';
+import { lifecycleRoutes } from './modules/lifecycle';
 import { mediaRoutes } from './modules/media';
+import { revisionRoutes } from './modules/revisions';
+import { searchRoutes } from './modules/search';
 import { tokenRoutes } from './modules/tokens';
 import { userRoutes } from './modules/users';
 import { createRouter, route } from './router';
 import type { VendaConfig } from './runtime';
+import { runScheduled } from './scheduler';
 
 /** A Venda instance: one Web-standard request handler over the configured services. */
 export function createVenda(config: VendaConfig) {
@@ -24,6 +28,9 @@ export function createVenda(config: VendaConfig) {
     ...tokenRoutes,
     ...collectionRoutes,
     ...entryRoutes,
+    ...lifecycleRoutes,
+    ...revisionRoutes,
+    ...searchRoutes,
     ...mediaRoutes,
     ...contentRoutes
   ]);
@@ -48,6 +55,10 @@ export function createVenda(config: VendaConfig) {
       const response = await dispatch(request, url);
       const cors = corsHeaders(request.method, url.pathname.replace(/\/+$/, ''), request.headers.get('Origin'), adminOrigins);
       return cors ? withHeaders(response, cors) : response;
+    },
+    /** Runs due background work; call it every minute (Cron Trigger, timer or job runner). */
+    scheduled(now?: Date) {
+      return runScheduled(config, now);
     }
   };
 }

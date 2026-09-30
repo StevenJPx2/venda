@@ -42,9 +42,11 @@ Entries open in a full-screen editor. The title field is the big title, and the 
 - formatting appears in a bubble toolbar when you select text; **Cmd+K** adds a link
 - `+` beside an empty line, or typing `/`, inserts cards: headings, lists, image (uploaded to R2), quote, code, divider
 - Markdown shortcuts work as you type (`## `, `- `, `> `, ``` ``` ```, `---`, `**bold**`)
-- **drafts autosave**; published entries show *Unsaved changes* until you press **Update** (or **Cmd+S**)
-- the URL slug follows the title until you edit it or publish
+- **every edit autosaves** to the entry's working copy; readers keep seeing the published version until you press **Publish changes**
+- **Preview** opens the entry on your site (set the collection's preview URL in its data model), **History** lists revisions with a field-by-field comparison and restore, and entry settings schedule publishing and unpublishing
+- the URL slug follows the title until you edit it or first publish
 - every other field is in the Fields section below the canvas as a generated form
+- deleted entries go to the collection's **Trash**, where they can be restored for 30 days
 
 Collections without a rich-text field (e.g. Products) get the title plus the generated form instead.
 
@@ -126,9 +128,16 @@ The self-hosted install serves the admin and API from the same origin, uses a re
 - `GET/POST /api/invitations`, `DELETE /api/invitations/:id`; `GET/POST /api/auth/invitations/:token` to view and accept
 - `GET/POST /api/tokens`, `DELETE /api/tokens/:id` (your API tokens)
 - `GET/POST /api/collections`, `PATCH /api/collections/:id` (name and data model)
-- `GET/POST /api/collections/:id/entries`, `GET/PATCH/DELETE /api/entries/:id`
+- `GET/POST /api/collections/:id/entries` (`?trash=1` for the trash), `GET/PATCH /api/entries/:id` (the working copy)
+- `POST /api/entries/:id/publish`, `POST /api/entries/:id/unpublish`, `PUT /api/entries/:id/schedule` (`{ publishAt, unpublishAt }`)
+- `DELETE /api/entries/:id` moves to the trash; `DELETE /api/entries/:id?permanent=true` removes a trashed entry; `POST /api/entries/:id/restore`
+- `GET /api/entries/:id/revisions`, `GET /api/revisions/:id`, `POST /api/revisions/:id/restore`
+- `POST /api/entries/:id/preview` returns a 7-day preview token; `GET /api/preview/:token` (public) returns the working copy
+- `GET /api/search?q=` searches working copies (`&collection=<id>` to narrow)
 - `POST /api/media`, `GET /api/media/:key`
-- `GET /api/content/:collection` and `GET /api/content/:collection/:slug` are public delivery endpoints (published entries only).
+- `GET /api/content/:collection` (`?q=` to search) and `GET /api/content/:collection/:slug` are public delivery endpoints serving published snapshots only.
+
+Each entry has a **working copy**, which saves never publish, and a **published snapshot**, which is what the public API serves. Publishing copies the working copy into the snapshot and records a revision; saves record at most one revision every 10 minutes, and the newest 50 are kept per entry. Background work — scheduled publishing and unpublishing, purging trash older than 30 days, and search indexing — runs from `venda.scheduled()`: a one-minute Cron Trigger on Cloudflare, or `startScheduler(venda)` from `@venda/core/node` in a Node process.
 
 Admin endpoints accept a session cookie or an API token (`Authorization: Bearer venda_…`). Every request is checked against the caller's role — administrator, editor, author or contributor — and a token is further limited to its scopes. Authors and contributors act only on entries they created; contributors cannot publish. The configured `ADMIN_EMAIL`/`ADMIN_PASSWORD` always signs in as an administrator, so access can be recovered by rotating that secret.
 

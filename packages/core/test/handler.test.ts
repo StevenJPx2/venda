@@ -26,7 +26,7 @@ async function call(path: string, init: RequestInit & { json?: unknown } = {}): 
 
 beforeAll(async () => {
   db = sqlite(':memory:');
-  expect(await db.migrate()).toEqual(['0001_initial.sql', '0002_users.sql']);
+  expect(await db.migrate()).toEqual(['0001_initial.sql', '0002_users.sql', '0003_lifecycle.sql']);
   mediaDir = await mkdtemp(join(tmpdir(), 'venda-media-'));
   venda = createVenda({
     db,
@@ -96,8 +96,9 @@ describe('Venda core on Node (SQLite + filesystem + memory KV)', () => {
     expect(await (await call('/api/content/blog-posts')).json()).toEqual([]);
     expect((await call('/api/content/blog-posts/hello-world')).status).toBe(404);
 
-    const published = await call(`/api/entries/${entryId}`, { method: 'PATCH', json: { status: 'published', data: { title: 'Hello', body: '<p>Hi</p>' } } });
-    expect(published.status).toBe(200);
+    expect((await call(`/api/entries/${entryId}`, { method: 'PATCH', json: { data: { title: 'Hello', body: '<p>Hi</p>' } } })).status).toBe(200);
+    expect((await call(`/api/entries/${entryId}`, { method: 'PATCH', json: { status: 'published' } })).status).toBe(400);
+    expect((await call(`/api/entries/${entryId}/publish`, { method: 'POST' })).status).toBe(200);
 
     const list = await call('/api/content/blog-posts');
     expect(list.headers.get('Cache-Control')).toBe('public, max-age=60');
@@ -108,7 +109,8 @@ describe('Venda core on Node (SQLite + filesystem + memory KV)', () => {
 
   it('serves stored HTML as a document and rejects malformed documents', async () => {
     // Content written before documents were the storage format.
-    await db.run("UPDATE entries SET data_json = ? WHERE id = ?", JSON.stringify({ title: 'Hello', body: '<h2>Old</h2><p>html</p><p></p>' }), entryId);
+    const legacyData = JSON.stringify({ title: 'Hello', body: '<h2>Old</h2><p>html</p><p></p>' });
+    await db.run('UPDATE entries SET data_json = ?, published_json = ? WHERE id = ?', legacyData, legacyData, entryId);
     const legacy = await (await call('/api/content/blog-posts/hello-world')).json() as { data: { body: { content: unknown[] } } };
     expect(legacy.data.body.content).toEqual([
       { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'Old' }] },
@@ -141,9 +143,11 @@ describe('Venda core on Node (SQLite + filesystem + memory KV)', () => {
     expect(stranger.headers.get('Access-Control-Allow-Origin')).toBeNull();
   });
 
-  it('deletes entries and revokes the session on logout', async () => {
+  it('trashes entries and revokes the session on logout', async () => {
     expect((await call(`/api/entries/${entryId}`, { method: 'DELETE' })).status).toBe(200);
     expect(await (await call('/api/content/blog-posts')).json()).toEqual([]);
+    expect((await call(`/api/entries/${entryId}?permanent=true`, { method: 'DELETE' })).status).toBe(200);
+    expect((await call(`/api/entries/${entryId}`)).status).toBe(404);
 
     const copied = cookie;
     await call('/api/auth/logout', { method: 'POST' });

@@ -57,6 +57,16 @@ if (!post.value) throw createError({ statusCode: 404, statusMessage: 'Post not f
 </template>
 ```
 
+To let editors preview unpublished changes, pass the preview token from the URL. Set the collection's preview URL in the Venda admin (e.g. `https://example.com/blog/{slug}?preview={token}`) and the editor's **Preview** button opens it:
+
+```ts
+const route = useRoute();
+const preview = typeof route.query.preview === 'string' ? route.query.preview : null;
+const { data: post } = await useVendaEntry('blog', slug, { preview });
+```
+
+Preview needs a page rendered on request (SSR or client-side); a statically generated page only contains published content.
+
 `<VendaContent>` renders a rich-text field from the Venda editor, server-side included. Rich text is a structured document; the component renders it with Venda's safe renderer, which emits only known tags, escaped text and http(s)/mailto/tel/relative URLs. HTML stored by older installs goes through the same renderer. It adds a `venda-content` class for styling and renders nothing when the field is empty.
 
 For fetching outside components (plugins, custom `useAsyncData`), use the underlying client:
@@ -72,8 +82,8 @@ const entry = await venda.get('blog', 'hello-venda'); // rejects with a 404 erro
 | Export | Returns |
 | --- | --- |
 | `useVendaCollection<T>(collection, { sortBy?, order?, limit? })` | `useAsyncData` result with `VendaEntry<T>[]` |
-| `useVendaEntry<T>(collection, slug)` | `useAsyncData` result with `VendaEntry<T> \| null` |
-| `useVenda()` | `{ list, get }` promise-based fetchers |
+| `useVendaEntry<T>(collection, slug, { preview? })` | `useAsyncData` result with `VendaEntry<T> \| null` |
+| `useVenda()` | `{ list, get, preview }` promise-based fetchers |
 | `<VendaContent :content as?>` | Rendered rich text (document or legacy HTML) |
 | `VendaEntry<T>`, `VendaCollectionOptions<T>`, `RichTextDoc` | Types, importable from `@venda/nuxt` |
 

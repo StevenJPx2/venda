@@ -79,13 +79,18 @@ describe('roles', () => {
     expect((await author.call(`/api/entries/${mine.id}`, { method: 'DELETE' })).status).toBe(200);
   });
 
-  it('stops contributors editing entries once an editor publishes them', async () => {
+  it('lets contributors revise published entries without changing what is live', async () => {
     const collectionId = await makeCollection();
     const contributor = await inviteUser(h, admin, 'cat@example.com', 'contributor');
     const editor = await inviteUser(h, admin, 'ed@example.com', 'editor');
     const draft = await (await makeEntry(contributor, collectionId, 'pitch')).json() as { id: string };
-    expect((await editor.call(`/api/entries/${draft.id}`, { method: 'PATCH', json: { status: 'published' } })).status).toBe(200);
-    expect((await contributor.call(`/api/entries/${draft.id}`, { method: 'PATCH', json: { data: { title: 'changed' } } })).status).toBe(403);
+    expect((await contributor.call(`/api/entries/${draft.id}/publish`, { method: 'POST' })).status).toBe(403);
+    expect((await editor.call(`/api/entries/${draft.id}/publish`, { method: 'POST' })).status).toBe(200);
+
+    expect((await contributor.call(`/api/entries/${draft.id}`, { method: 'PATCH', json: { data: { title: 'revised' } } })).status).toBe(200);
+    expect(await h.client().data('/api/content/posts/pitch')).toMatchObject({ data: { title: 'pitch' } });
+    expect((await contributor.call(`/api/entries/${draft.id}/unpublish`, { method: 'POST' })).status).toBe(403);
+    expect((await contributor.call(`/api/entries/${draft.id}`, { method: 'DELETE' })).status).toBe(403);
   });
 
   it('keeps authorship out of the public API', async () => {

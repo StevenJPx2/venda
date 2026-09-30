@@ -4,9 +4,20 @@ export interface VendaEntry<TData = Record<string, unknown>> {
   collectionId: string;
   slug: string;
   data: TData;
-  status: 'published';
+  /** `draft` only when read through a preview link. */
+  status: 'published' | 'draft';
+  /** When the entry was first published. */
+  publishedAt?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface VendaEntryOptions {
+  /**
+   * A preview token from the Venda editor (e.g. `route.query.preview`). When
+   * set, the entry's unpublished working copy is fetched instead.
+   */
+  preview?: string | null;
 }
 
 export interface VendaCollectionOptions<TData> {

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { isRichTextDoc, type RichTextDoc } from '@venda/richtext';
-import { bodyField, fieldLabel, titleField, type CollectionSchema } from '@venda/schema';
+import { bodyField, fieldLabel, previewUrlFor, titleField, type CollectionSchema } from '@venda/schema';
 import type { Collection } from '~/types';
 
 // Keyed by collection so the page survives the /new → /<id> URL swap after
@@ -23,13 +23,14 @@ const draft = useEntryDraft(collectionId, schema);
 const loading = shallowRef(true);
 const loadError = shallowRef('');
 const settingsOpen = shallowRef(false);
+const historyOpen = shallowRef(false);
 const busy = shallowRef(false);
 // A new entry will be owned by the signed-in user.
 const owner = computed(() => draft.createdBy.value ?? session.user.value?.id ?? null);
 const canPublish = computed(() => session.canOn('publish', owner.value));
-// Editing live content is a publishing action, mirroring the API's rules.
+// Edits only change the working copy, so editing needs edit rights alone; going live needs publish rights.
 watchEffect(() => {
-  draft.editable.value = session.canOn('edit', owner.value) && (draft.status.value === 'draft' || canPublish.value);
+  draft.editable.value = session.canOn('edit', owner.value);
 });
 const leaving = shallowRef(false);
 
@@ -89,28 +90,54 @@ async function run(action: () => Promise<void>, success: string): Promise<void> 
   }
 }
 
-const publish = () => run(() => draft.setStatus('published'), 'Published');
-const update = () => run(() => draft.save(), 'Updated');
-const unpublish = () => run(() => draft.setStatus('draft'), 'Reverted to draft');
+const publish = () => run(() => draft.publish(), draft.status.value === 'published' ? 'Changes published' : 'Published');
+const unpublish = () => run(() => draft.unpublish(), 'Unpublished');
+const schedule = (times: { publishAt?: string | null; unpublishAt?: string | null }) => run(() => draft.schedule(times), times.publishAt === null && times.unpublishAt === null ? 'Schedule cleared' : 'Schedule saved');
+
+/** Opens the site's page for the working copy, or copies the API preview link when no site URL is set. */
+async function preview(): Promise<void> {
+  const tab = collection.value?.schema.previewUrl ? window.open('', '_blank') : null;
+  try {
+    const token = await draft.createPreview();
+    const template = collection.value?.schema.previewUrl;
+    if (template && tab) {
+      tab.location.href = previewUrlFor(template, draft.slug.value, token);
+      return;
+    }
+    const apiLink = new URL(`${useRuntimeConfig().public.apiBase}/preview/${encodeURIComponent(token)}`, window.location.origin).toString();
+    await navigator.clipboard.writeText(apiLink);
+    toast.add({ title: 'Preview link copied', description: 'Set a preview URL in the data model to open previews on your site.', color: 'success', icon: 'i-lucide-link' });
+  } catch {
+    tab?.close();
+    toast.add({ title: 'Preview unavailable', description: draft.errorMessage.value || 'Save the entry and try again.', color: 'error', icon: 'i-lucide-circle-alert' });
+  }
+}
 
 async function remove(): Promise<void> {
   await draft.remove();
   leaving.value = true;
-  toast.add({ title: 'Entry deleted', color: 'neutral', icon: 'i-lucide-trash-2' });
+  toast.add({ title: 'Moved to trash', description: 'Restore it from the collection’s trash within 30 days.', color: 'neutral', icon: 'i-lucide-trash-2' });
   await navigateTo(backTo.value);
 }
 
+function restored(): void {
+  historyOpen.value = false;
+  toast.add({ title: 'Revision restored', ...(draft.status.value === 'published' ? { description: 'Publish to make it live.' } : {}), color: 'success', icon: 'i-lucide-history' });
+}
+
 defineShortcuts({
-  meta_s: { usingInput: true, handler: () => { void (draft.status.value === 'published' ? update() : run(() => draft.save(), 'Saved')); } }
+  meta_s: { usingInput: true, handler: () => { void run(() => draft.save(), 'Saved'); } }
 });
 
-// Drafts are flushed on the way out; published entries ask before discarding.
+// Pending edits are saved on the way out; if that fails, confirm before discarding them.
 onBeforeRouteLeave(async () => {
   if (leaving.value || !draft.dirty.value || draft.isEmpty.value) return true;
-  if (draft.status.value === 'draft') {
-    try { await draft.save(); return true; } catch { /* fall through to confirm */ }
+  try {
+    await draft.save();
+    return true;
+  } catch {
+    return window.confirm('Your latest changes could not be saved. Leave anyway?');
   }
-  return window.confirm('You have unsaved changes. Leave without saving?');
 });
 
 function warnOnUnload(event: BeforeUnloadEvent): void {
@@ -136,14 +163,27 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', warnOnUnload));
       :back-to="backTo"
       :status="draft.status.value"
       :save-state="draft.saveState.value"
-      :dirty="draft.dirty.value"
+      :has-unpublished-changes="draft.hasUnpublishedChanges.value"
+      :publish-at="draft.state.value.publishAt"
       :busy="busy"
       :can-publish="canPublish"
       :editable="draft.editable.value"
+      :saved="Boolean(draft.id.value)"
       @publish="publish"
-      @update="update"
       @unpublish="unpublish"
+      @preview="preview"
+      @history="historyOpen = true"
       @settings="settingsOpen = true"
+    />
+
+    <UAlert
+      v-if="draft.state.value.scheduleError"
+      color="warning"
+      variant="subtle"
+      icon="i-lucide-calendar-x"
+      title="The scheduled publish did not run"
+      :description="draft.state.value.scheduleError"
+      class="mx-auto mt-4 max-w-[720px]"
     />
 
     <UAlert
@@ -187,9 +227,24 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', warnOnUnload));
       :raw-slug="draft.rawSlug.value"
       :slug="draft.slug.value"
       :unmapped="unmapped"
-      :can-delete="Boolean(draft.id.value)"
+      :can-delete="Boolean(draft.id.value) && session.canOn('delete', owner) && (draft.status.value === 'draft' || canPublish)"
+      :can-schedule="Boolean(draft.id.value) && canPublish"
+      :publish-at="draft.state.value.publishAt"
+      :unpublish-at="draft.state.value.unpublishAt"
+      :busy="busy"
       @update:raw-slug="draft.setSlug"
+      @schedule="schedule"
       @delete="remove"
+    />
+
+    <VendaRevisionHistory
+      v-if="draft.id.value"
+      v-model:open="historyOpen"
+      :entry-id="draft.id.value"
+      :schema="schema"
+      :current="draft.data.value"
+      :can-restore="draft.editable.value"
+      @restored="entry => { draft.apply(entry); restored(); }"
     />
   </div>
 </template>

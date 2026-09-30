@@ -96,8 +96,29 @@ export function parseSchema(raw: unknown): CollectionSchema {
     if (!title || !TITLE_INTERFACES.includes(title.interface)) throw new SchemaError('The title field must be an existing input or textarea field.');
     schema.titleField = title.key;
   }
+  const previewUrl = parsePreviewUrl(raw.previewUrl);
+  if (previewUrl) schema.previewUrl = previewUrl;
 
   return schema;
+}
+
+function parsePreviewUrl(raw: unknown): string | undefined {
+  if (raw === undefined || raw === null || raw === '') return undefined;
+  if (typeof raw !== 'string') throw new SchemaError('The preview URL must be text.');
+  const template = raw.trim();
+  if (!template.includes('{token}')) throw new SchemaError('The preview URL must contain {token}.');
+  try {
+    const { protocol } = new URL(previewUrlFor(template, 'slug', 'token'));
+    if (protocol !== 'http:' && protocol !== 'https:') throw new Error('protocol');
+  } catch {
+    throw new SchemaError('The preview URL must be an http(s) URL.');
+  }
+  return template;
+}
+
+/** Fills a collection's preview URL template for one entry. */
+export function previewUrlFor(template: string, slug: string, token: string): string {
+  return template.replaceAll('{slug}', encodeURIComponent(slug)).replaceAll('{token}', encodeURIComponent(token));
 }
 
 /** Directus-style label: explicit label, else the key in title case (`publishedAt` → "Published At"). */

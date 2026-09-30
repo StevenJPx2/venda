@@ -53,7 +53,8 @@ async function waitFor(url, label, getLog, seconds = 240) {
 export async function startApi() {
   const state = await mkdtemp(join(tmpdir(), 'venda-e2e-'));
   await run('npx', ['wrangler', 'd1', 'migrations', 'apply', 'VENDA_DB', '--local', '--persist-to', state], `${ROOT}/apps/api`);
-  const log = start('npx', ['wrangler', 'dev', '--local', '--persist-to', state, '--port', String(PORTS.api),
+  // --test-scheduled exposes /__scheduled so suites can fire the Cron Trigger on demand.
+  const log = start('npx', ['wrangler', 'dev', '--local', '--test-scheduled', '--persist-to', state, '--port', String(PORTS.api),
     '--var', `ADMIN_EMAIL:${OWNER.email}`, '--var', `ADMIN_PASSWORD:${OWNER.password}`,
     '--var', 'SESSION_SECRET:e2e-secret', '--var', `ADMIN_ORIGINS:${ADMIN}`], `${ROOT}/apps/api`);
   await waitFor(`${API}/api/health`, 'API', log);

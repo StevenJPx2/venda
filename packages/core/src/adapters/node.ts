@@ -88,6 +88,20 @@ export function fileStore(root: string): ObjectStore {
   };
 }
 
+/**
+ * Runs `venda.scheduled()` every `intervalMs` (default one minute) in this
+ * process. Runs never overlap; returns a function that stops the timer.
+ */
+export function startScheduler(venda: { scheduled(): Promise<unknown> }, options: { intervalMs?: number; onError?: (error: unknown) => void } = {}): () => void {
+  let running = false;
+  const timer = setInterval(() => {
+    if (running) return;
+    running = true;
+    venda.scheduled().catch(options.onError ?? console.error).finally(() => { running = false; });
+  }, options.intervalMs ?? 60_000);
+  return () => clearInterval(timer);
+}
+
 /** Process-local key-value store; suitable for a single Node process or tests. */
 export function memoryKv(): KeyValue {
   const values = new Map<string, { value: string; expiresAt?: number }>();

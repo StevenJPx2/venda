@@ -13,6 +13,7 @@ const collection = shallowRef<Collection | null>(null);
 const name = shallowRef('');
 const fields = ref<FieldDefinition[]>([]);
 const titleKey = shallowRef<string | undefined>(undefined);
+const previewUrl = shallowRef('');
 const snapshot = shallowRef('');
 const loading = shallowRef(true);
 const saving = shallowRef(false);
@@ -22,7 +23,12 @@ const modalOpen = shallowRef(false);
 const editing = shallowRef<FieldDefinition | null>(null);
 const pendingDelete = shallowRef<string | null>(null);
 
-const draftSchema = computed(() => ({ version: 1 as const, fields: fields.value, ...(titleKey.value ? { titleField: titleKey.value } : {}) }));
+const draftSchema = computed(() => ({
+  version: 1 as const,
+  fields: fields.value,
+  ...(titleKey.value ? { titleField: titleKey.value } : {}),
+  ...(previewUrl.value.trim() ? { previewUrl: previewUrl.value.trim() } : {})
+}));
 const dirty = computed(() => JSON.stringify({ name: name.value, schema: draftSchema.value }) !== snapshot.value);
 const titleOptions = computed(() => [
   { label: 'None (use the slug)', value: '' },
@@ -35,6 +41,7 @@ function reset(from: Collection): void {
   name.value = from.name;
   fields.value = from.schema.fields.map(f => ({ ...f }));
   titleKey.value = from.schema.titleField;
+  previewUrl.value = from.schema.previewUrl ?? '';
   snapshot.value = JSON.stringify({ name: name.value, schema: draftSchema.value });
 }
 
@@ -113,6 +120,9 @@ onBeforeRouteLeave(() => !dirty.value || window.confirm('Discard unsaved data mo
           </UFormField>
           <UFormField label="Title field" description="Names each entry and becomes the editor's title.">
             <USelect :model-value="titleKey ?? ''" :items="titleOptions" value-key="value" class="w-full" @update:model-value="titleKey = $event || undefined" />
+          </UFormField>
+          <UFormField label="Preview URL" description="Where your site renders an entry. Use {slug} and {token}; the editor's Preview button opens it." class="sm:col-span-2">
+            <UInput v-model="previewUrl" type="url" placeholder="https://example.com/blog/{slug}?preview={token}" autocomplete="off" spellcheck="false" class="w-full font-mono text-sm" />
           </UFormField>
         </div>
       </UCard>
