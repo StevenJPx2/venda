@@ -13,6 +13,11 @@ feature set is complete. SAFT stays on Sanity until that merge.
 
 ## Architecture decisions
 
+> **Being revised.** [architecture.md](architecture.md) proposes a file-first
+> architecture (content and models as files in git, a Nitro host, Effect in
+> the core, plugin-based admin). Once approved it replaces this section; until
+> then the decisions below describe the code on `platform`.
+
 These are expensive to reverse, so they are settled before feature work.
 
 1. **Framework-neutral core.** `@venda/core` is built only on Web standards

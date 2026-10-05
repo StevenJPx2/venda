@@ -1,0 +1,338 @@
+# Venda architecture
+
+Status: **proposed** (2026-10-05). Once approved it replaces the
+"Architecture decisions" in [roadmap.md](roadmap.md); the admin's look and
+behaviour stay in [redesign.md](redesign.md).
+
+Venda is a **file-first CMS**. Content and data models live as files in the
+site's git repository: one folder per collection, a `config.ts` describing its
+fields, and a Markdown or MDX file per entry. A Venda server keeps a live
+index of those files in SQL, so the admin, the public API, search, scheduling
+and previews work without rebuilding the site. Editors work in the admin;
+developers and agents edit the files. Both paths meet in git.
+
+## Principles
+
+1. **Files are the source of truth.** Everything in the database is either
+   derived from files (and can be rebuilt from them) or operational state that
+   has no place in git: sessions, autosaved working copies, schedules.
+2. **Repository files are data, never code, at runtime.** The server parses
+   `config.ts` and entries; it never executes anything from the repository.
+3. **One contract.** Every wire shape is defined once, in Effect Schema, in
+   `@venda/contract`. The server, admin, Nuxt module, CLI and MCP server all
+   use it; no package re-declares an `Entry` type.
+4. **The core knows nothing about its host.** Domain logic depends on Effect
+   services. Nitro, Cloudflare, Node and GitHub appear only in adapters.
+5. **The admin is a shell; editors, blocks and fields are plugins.** The
+   Ghost-style writing editor is one plugin among others.
+6. **Every background job is bounded.** Sync, scheduled work and retries have
+   per-run limits and resumable cursors.
+
+## Content on disk
+
+```
+venda.config.ts               instance settings and plugins (build time)
+content/
+  blog/
+    config.ts                 the collection's model
+    why-we-moved.mdx
+    autumn-roadmap.md
+  authors/
+    config.ts
+    ann-lee.md
+  home/
+    config.ts                 kind: 'single'
+    index.md
+```
+
+### Collection model: `config.ts`
+
+```ts
+import { defineCollection } from 'venda';
+
+export default defineCollection({
+  name: 'Blog',
+  kind: 'posts',
+  previewUrl: 'https://example.com/blog/{slug}?preview={token}',
+  fields: {
+    title: { type: 'text', required: true },
+    excerpt: { type: 'textarea', max: 300 },
+    tags: { type: 'tags' },
+    author: { type: 'relation', to: 'authors' },
+    cover: { type: 'image' },
+    body: { type: 'richtext' }
+  }
+});
+```
+
+- The file must default-export one `defineCollection(...)` call whose argument
+  is a literal: strings, numbers, booleans, arrays and objects. No variables,
+  spreads, calls, template strings or type annotations. That restriction is
+  what lets the server read it as data. A file that breaks it is rejected with
+  the line and reason.
+- `defineCollection` returns its argument unchanged; it exists for editor
+  autocompletion and type inference.
+- The admin edits a model by rewriting the file in a canonical format.
+  Comments inside the object are not preserved.
+- `kind` is `posts`, `pages`, `single` or `records` (see redesign.md). A
+  `single` collection has exactly one entry, `index.md`.
+- A collection has at most one `richtext` field. It is stored as the file
+  body; every other field is frontmatter.
+
+### Entry: `<slug>.md` or `<slug>.mdx`
+
+```md
+---
+title: Why we moved our CMS to the edge
+excerpt: Median time to first byte fell from 900ms to 120ms.
+tags: [engineering, infrastructure]
+author: ann-lee
+cover: https://media.example.com/2026/10/edge.jpg
+publishedAt: 2026-10-04T09:00:00Z
+---
+
+For three years every page on our site was rendered in a single region.
+
+<Callout tone="info">If the content is the same everywhere, there is no reason for it to live in one place.</Callout>
+```
+
+- The file name is the slug. Locales later become `<slug>.<locale>.md`.
+- A file is published unless its frontmatter says `draft: true`. Agents use
+  that for unfinished work; the admin's autosaved working copies are not files.
+- The body is Venda's MDX subset: CommonMark, GFM (tables, strikethrough,
+  task lists, autolinks), inline `<sup>`/`<sub>`, and JSX elements whose names
+  are registered blocks, with literal attribute values. No `import`, `export`
+  or `{expressions}`. An unknown tag is kept as an opaque block, never dropped.
+- Venda writes `.mdx` when an entry contains a block tag and `.md` otherwise.
+- The editor and the API keep using the rich-text document (ProseMirror JSON)
+  from `@venda/richtext`; Markdown is the storage format. Conversion is
+  canonical, and round-trip tests (including SAFT's 54 entries) guard it.
+
+## Where each fact lives
+
+| Fact | Source of truth | Copy |
+| --- | --- | --- |
+| Collection models | `content/*/config.ts` | `collections` index table |
+| Published and file drafts | `.md` / `.mdx` files | `entries` index: frontmatter, body document, search text, references, file SHA |
+| Autosaved working copies | database | none |
+| Revisions | git history (publishes) and database (saves between publishes) | none |
+| Schedules, trash tombstones, preview tokens | database | none |
+| Users, roles, invitations, API tokens | database | none |
+| Sessions | key-value store | none |
+| Media | object store (R2) | `media` table |
+| Instance settings and plugins | `venda.config.ts` (read at build) | none |
+
+## Flows
+
+1. **Save.** The editor autosaves the working copy to the database. No git.
+2. **Publish.** The core serializes the working copy to a file and commits it
+   through `ContentStore.commit` with the file's last known SHA. The index is
+   updated from the committed content at once, without waiting for a webhook.
+   If the file changed since (an agent pushed meanwhile), the commit fails with
+   `Conflict` and the editor shows the outside change instead of overwriting it.
+3. **Outside edit.** A push to the repository reaches the server's webhook
+   (signature verified). Sync re-indexes the changed paths, at most 200 per
+   run, resuming from a stored cursor. Working copies based on an older SHA
+   are flagged "changed outside Venda".
+4. **Schedule.** The minute tick publishes due entries the same way as (2).
+5. **Unpublish** sets `draft: true` in the file. **Trash** deletes the file and
+   keeps a tombstone with its last SHA, so it can be restored for 30 days.
+6. **Edit a model.** The admin rewrites `config.ts` and commits it. Entries
+   are not rewritten; entries that no longer fit are listed in the admin.
+7. **Local development.** The local content store reads and writes the
+   working tree and watches it; the developer commits as usual.
+8. **Rebuild.** `venda sync --full` (or the admin) rebuilds the whole index
+   from the files; the index is disposable.
+
+GitHub is the production content store. Venda acts through a GitHub App
+installation, so editors need only Venda accounts; commits are authored as
+"Ann Lee via Venda". Saving keeps working while GitHub is unreachable; publishing
+retries and then reports the outage.
+
+## Packages
+
+| Package | Role | Depends on |
+| --- | --- | --- |
+| `@venda/contract` | Effect Schema entities and the `HttpApi` definition; typed client and OpenAPI. Browser-safe. | `effect` |
+| `@venda/richtext` | Rich-text document types, validation, HTML rendering with block renderers. | none |
+| `@venda/content` | The file format: `config.ts` reader and printer, field definitions (absorbs `@venda/schema`), frontmatter, Markdown/MDX to and from documents, block specs. | `@venda/richtext` |
+| `@venda/core` | Domain logic in Effect: auth, collections, entries, lifecycle, media, search, sync. Exposes `makeHandler(layer)` (a Web `fetch` handler) and `tick()`. | contract, content, `effect` |
+| `@venda/server` | Nitro host: adapters, one `/api/**` route to the core, the admin as static assets, the minute tick, presets for Cloudflare and Node. Replaces `apps/api`. | core, `nitro`, `db0`, `unstorage` |
+| `@venda/admin` | The admin shell and plugin host (Nuxt UI SPA). | contract |
+| `@venda/editor-writer` | The Ghost-style writing editor (today's Focus prototype). | admin plugin API |
+| `@venda/editor-form` | Form editor for `single` and `records`. | admin plugin API |
+| `@venda/blocks-core` | Paragraph, headings, lists, quote, code, image, divider, callout. | content, admin plugin API |
+| `@venda/fields-core` | Text, textarea, number, toggle, date and time, tags, image, relation, JSON. | admin plugin API |
+| `@venda/nuxt` | Site module: typed reads, preview, `<VendaContent>`; can mount the server inside the site's own Nitro. | contract, richtext |
+| `venda` (CLI) | `init`, `sync`, `export`, `types`, `build`, `deploy`. | contract, content |
+
+Dependencies only point down this table. `@venda/core` never imports Nitro,
+Vue or a Cloudflare type; Fallow boundary rules enforce it.
+
+## Core
+
+**Services** (Effect `Context` tags, provided by Layers in `@venda/server`):
+
+| Service | Production | Local and tests |
+| --- | --- | --- |
+| `ContentStore`: read, list, commit with base SHA, changes since a cursor | GitHub App | working tree (with watcher); in-memory |
+| `IndexDb`: SQL with `?` parameters | D1 through db0 | SQLite, libSQL or Postgres through db0 |
+| `ObjectStore` | R2 through unstorage | filesystem; memory |
+| `KeyValue` | KV through unstorage | memory |
+| `Mailer` | provider adapter | captured in memory |
+| Clock, Random, Logger | Effect defaults | test services |
+
+**Errors** are tagged: `Unauthenticated`, `Forbidden`, `NotFound`, `Invalid`
+(with field errors), `Conflict` (stale SHA, slug taken), `Upstream` (GitHub
+or storage unavailable). The `HttpApi` maps each to one status code; nothing
+throws `HttpError`.
+
+**Entry state** is one union instead of `status`, `publishAt`, `deletedAt` and
+`hasUnpublishedChanges` flags:
+
+```ts
+type EntryState =
+  | { _tag: 'Draft' }
+  | { _tag: 'Scheduled'; publishAt: DateTime.Utc }
+  | { _tag: 'Published'; publishedAt: DateTime.Utc; sha: string; changes: 'none' | 'pending'; unpublishAt?: DateTime.Utc }
+  | { _tag: 'Trashed'; deletedAt: DateTime.Utc; lastSha: string | null };
+```
+
+**Bounds:** sync takes at most 200 files per run; GitHub calls retry with an
+exponential `Schedule` of at most 3 attempts within 10 seconds; the tick keeps
+its per-run batch limits; request bodies are capped at 1 MB for entries and
+25 MB for media.
+
+## Server (Nitro)
+
+`@venda/server` is a Nitro app used only for hosting: routing one catch-all
+`/api/**` route to the core handler, serving the built admin, deployment
+presets (`cloudflare_module` by default, `node`), and runtime hooks for the
+minute tick (`cloudflare:scheduled` on Workers, a timer on Node). It creates
+db0 and unstorage instances itself instead of using Nitro's experimental
+database and tasks features. Because the core is a plain `fetch` handler, the
+same core still mounts in Astro, Next.js or SvelteKit without Nitro, and the
+Nuxt module can mount it inside a Nuxt site's own Nitro (embedded mode).
+
+## Admin and plugins
+
+Plugins are chosen in `venda.config.ts` and bundled into the admin by
+`venda build`. They are ordinary packages the site owner installs and trusts;
+the admin never loads code at runtime. Server-side plugins with sandboxing
+remain roadmap step 10.
+
+```ts
+import { defineVenda } from 'venda';
+import writer from '@venda/editor-writer';
+import blocks from '@venda/blocks-core';
+import fields from '@venda/fields-core';
+import youtube from 'venda-block-youtube';
+
+export default defineVenda({
+  content: { github: { repo: 'saftapologetics/website', branch: 'main', dir: 'content' } },
+  plugins: [writer(), blocks(), fields(), youtube()]
+});
+```
+
+A plugin contributes any of:
+
+- **Editor:** the screen for a collection kind. `posts` and `pages` default to
+  the writer, `single` and `records` to the form editor; a collection may name
+  another with `editor:`.
+- **Block:** a framework-free spec (`defineBlock`: name, which is also its MDX
+  tag; attribute Schema; whether it holds inline text, blocks or nothing; an
+  HTML renderer) plus an admin part (TipTap node, Vue node view, its entry in
+  the `/` and `+` menus and in "Turn into"). Markdown-native blocks such as
+  headings and lists are blocks too, so the writer has no hard-coded list.
+- **Field:** the input (and list cell) for a field type. `VendaDateTimeInput`
+  becomes the `datetime` field.
+
+On sites, `renderHtml` uses each block's HTML renderer, and framework
+renderers such as `<VendaContent :components>` can replace any block with a
+site component. An unknown block renders its text content, never raw markup.
+
+## Quality gate
+
+`pnpm check` runs, and must pass with zero warnings:
+
+1. Formatting.
+2. Oxlint with the vendored anti-slop rules and `max-lines-per-function: 70`
+   for TypeScript packages; Nuxt ESLint stays for the Vue apps.
+3. Type checking (strict, `noUncheckedIndexedAccess`,
+   `exactOptionalPropertyTypes`).
+4. Effect Language Service diagnostics.
+5. Vitest, including contract tests for each adapter.
+6. Fallow audit, including package boundaries.
+
+`pnpm e2e` drives the real server, admin and site in Chrome, and is required
+before every commit that changes behaviour.
+
+## Delivery
+
+The rebuild happens in place on `platform`, one vertical slice at a time,
+each through its real boundary with every live suite green before the next.
+
+0. **Gate and skeleton.** Oxlint, Fallow and Effect diagnostics in the gate;
+   `@venda/contract`; `@venda/server` serving the current core unchanged on
+   wrangler dev and Node, with D1 through db0 and the cron tick. Measures the
+   Worker bundle (budget: 1 MB gzipped).
+1. **Read path.** `@venda/content` (config reader, Markdown/MDX conversion,
+   round-trip tests), the local content store, sync into the index, and the
+   public content API served from files.
+2. **Auth and users on Effect.** A port with no behaviour change; today's
+   tests are the contract.
+3. **Write path.** Working copies, publish to files, conflicts.
+4. **GitHub content store.** App authentication, commits, webhook sync; a
+   contract test against a real throwaway repository.
+5. **Lifecycle on files.** Scheduling, unpublish, trash and restore, revisions
+   from git, preview, search.
+6. **Admin shell and plugins.** The plugin host; the writer editor (promoting
+   the Focus prototype and deleting `app/prototypes`); the form editor;
+   core blocks and fields; the model editor writing `config.ts`.
+7. **CLI and cut-over.** `init` against a repository, `sync`, `export` from an
+   existing database, `types` from `config.ts`; the hosted deployment moves to
+   `@venda/server`; `apps/api` and the old core paths are deleted.
+
+Roadmap steps 5 to 12 then continue on this base.
+
+## Migration
+
+- The hosted instance's D1 content is exported to files with `venda export`,
+  committed, then indexed.
+- SAFT's Sanity migration script writes files directly.
+- Migrations `0001` to `0003` are replaced by a fresh index schema. Nothing on
+  `platform` has shipped, so no compatibility path is kept.
+
+## New dependencies (need approval)
+
+Production:
+
+| Package | Version | Used by | Why |
+| --- | --- | --- | --- |
+| `effect` | 4.0.1 | contract, core | Schema, typed errors, services, `HttpApi` with typed client and OpenAPI |
+| `mdast-util-from-markdown`, `mdast-util-to-markdown` | 2.1.0, 2.2.0 | content | Markdown parsing and canonical printing |
+| `micromark-extension-gfm`, `mdast-util-gfm` | 3.0.0, 3.1.0 | content | Tables, strikethrough, task lists, autolinks |
+| `micromark-extension-mdx-jsx`, `mdast-util-mdx-jsx` | 3.0.2, 3.2.0 | content | Block tags without the rest of MDX |
+| `yaml` | 2.9.1 | content | Frontmatter |
+| `acorn` | 8.18.0 | content | Reading `config.ts` as data without executing it |
+| `nitro` | 3.0.260903-beta | server | Hosting and presets (see risks) |
+| `db0` | 0.4.1 | server | D1, SQLite, libSQL and Postgres connectors |
+| `unstorage` | 1.17.5 | server | R2, KV, filesystem and memory drivers |
+
+Development: `oxlint` and `@oxlint/plugins` 1.86.0, `fallow` 3.31.0,
+`@effect/language-service` 0.87.3.
+
+## Risks
+
+- **Nitro 3 is in beta** (the stable line is `nitropack` 2.13.4), and its
+  database and tasks features are experimental. Venda uses neither, and only
+  `@venda/server` depends on Nitro, so a regression stays in one package.
+- **db0 is pre-1.0.** It sits behind the `IndexDb` service, with a contract
+  test per connector.
+- **GitHub availability and limits.** An outage blocks publishing, not saving.
+  Installation tokens allow 5,000 requests an hour; sync batches its reads.
+- **Markdown fidelity.** Some editor states have no Markdown form (for example
+  overlapping marks); conversion normalises them, and round-trip tests define
+  what is kept.
+- **Worker size.** Effect, the Markdown stack and the core must fit the budget
+  measured in slice 0.
