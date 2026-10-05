@@ -22,6 +22,7 @@ export async function ensureResources(runner: Runner, name: string, onStep: (mes
   const names = resourceNames(name);
 
   let d1 = await findD1(runner, names.d1);
+
   if (!d1) {
     onStep(`Creating D1 database ${names.d1}`);
     await wrangler(runner, ['d1', 'create', names.d1]);
@@ -29,6 +30,7 @@ export async function ensureResources(runner: Runner, name: string, onStep: (mes
   }
 
   let kv = await findKv(runner, names.kv);
+
   if (!kv) {
     onStep(`Creating KV namespace ${names.kv}`);
     await wrangler(runner, ['kv', 'namespace', 'create', names.kv]);

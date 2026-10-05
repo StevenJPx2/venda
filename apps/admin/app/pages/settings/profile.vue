@@ -24,6 +24,7 @@ function apiMessage(error: unknown, fallback: string): string {
 
 async function saveName(): Promise<void> {
   savingName.value = true;
+
   try {
     const { user } = await api<{ user: User }>('/auth/me', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name.value }) });
     session.user.value = user;
@@ -37,11 +38,14 @@ async function saveName(): Promise<void> {
 
 async function changePassword(): Promise<void> {
   passwordError.value = '';
+
   if (passwords.next !== passwords.confirm) {
     passwordError.value = 'The new passwords do not match.';
     return;
   }
+
   savingPassword.value = true;
+
   try {
     await api('/auth/me', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ currentPassword: passwords.current, newPassword: passwords.next }) });
     Object.assign(passwords, { current: '', next: '', confirm: '' });

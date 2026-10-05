@@ -36,12 +36,14 @@ function runAction(): void {
 function onScroll(): void {
   scrolled.value = window.scrollY > 4;
 }
+
 function onKeydown(event: KeyboardEvent): void {
   if ((event.metaKey || event.ctrlKey) && event.key === '.') {
     event.preventDefault();
     togglePanel(true);
   }
 }
+
 onMounted(() => {
   panelOpen.value = window.innerWidth >= WIDE;
   window.addEventListener('scroll', onScroll, { passive: true });

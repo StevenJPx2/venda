@@ -41,7 +41,9 @@ const jsonError = shallowRef('');
 
 function setJson(value: string): void {
   jsonText.value = value;
+
   if (!value.trim()) { jsonError.value = ''; emit('update:modelValue', undefined); return; }
+
   try {
     emit('update:modelValue', JSON.parse(value));
     jsonError.value = '';
@@ -54,6 +56,7 @@ async function chooseImage(): Promise<void> {
   const file = await pick('image/*');
   if (!file) return;
   uploading.value = true;
+
   try {
     emit('update:modelValue', await upload(file));
   } catch (error) {

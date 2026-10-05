@@ -6,6 +6,7 @@ function fakeRunner(): Runner {
   let d1: { name: string; uuid: string }[] = [];
   let kv: { title: string; id: string }[] = [];
   let r2: string[] = [];
+
   return async (args: string[]): Promise<RunResult> => {
     const command = args.join(' ');
     if (command === 'd1 list --json') return { code: 0, stdout: JSON.stringify(d1), stderr: '' };
@@ -36,6 +37,7 @@ describe('ensureResources', () => {
       if (command === 'r2 bucket list') return { code: 0, stdout: 'name: cms-media', stderr: '' };
       throw new Error(`Existing resources must not be recreated: ${command}`);
     };
+
     await expect(ensureResources(runner, 'cms')).resolves.toMatchObject({ d1: { id: 'd1-id' }, kv: { id: 'kv-id' }, r2: { name: 'cms-media' } });
   });
 });

@@ -9,6 +9,7 @@ export default [
   {
     files: ['**/*.mjs'],
     languageOptions: { sourceType: 'module', ecmaVersion: 'latest', globals: globals.node },
+    plugins: sharedRules.plugins,
     rules: sharedRules.rules
   }
 ];

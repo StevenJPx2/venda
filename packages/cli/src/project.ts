@@ -71,9 +71,11 @@ function required(raw: Record<string, unknown>, key: string): string {
 function parseResources(raw: unknown): ResourceRefs | undefined {
   if (raw === undefined) return undefined;
   const r = raw as Partial<ResourceRefs>;
+
   if (!r?.d1?.name || !r.d1.id || !r.kv?.title || !r.kv.id || !r.r2?.name) {
     throw new ProjectError(`${CONFIG_FILE}: "resources" is incomplete. Run \`venda doctor\`.`);
   }
+
   return { d1: { name: r.d1.name, id: r.d1.id }, kv: { title: r.kv.title, id: r.kv.id }, r2: { name: r.r2.name } };
 }
 
@@ -86,11 +88,13 @@ export function parseProject(raw: unknown): VendaProject {
   if (problem) throw new ProjectError(`${CONFIG_FILE}: ${problem}`);
 
   const domain = text(record, 'domain');
+
   if (domain) {
     const domainError = domainProblem(domain);
     if (domainError) throw new ProjectError(`${CONFIG_FILE}: ${domainError}`);
     project.domain = domain;
   }
+
   if (record.adminOrigins !== undefined) {
     if (!Array.isArray(record.adminOrigins) || !record.adminOrigins.every(o => typeof o === 'string')) throw new ProjectError(`${CONFIG_FILE}: "adminOrigins" must be a list of strings.`);
     if (record.adminOrigins.length) project.adminOrigins = record.adminOrigins as string[];
@@ -107,11 +111,13 @@ export function parseProject(raw: unknown): VendaProject {
 
 export async function loadProject(dir: string): Promise<VendaProject> {
   let contents: string;
+
   try {
     contents = await readFile(join(dir, CONFIG_FILE), 'utf8');
   } catch {
     throw new ProjectError(`No ${CONFIG_FILE} in ${dir}. Run \`venda init\` first, or pass --dir.`);
   }
+
   try {
     return parseProject(JSON.parse(contents));
   } catch (error) {

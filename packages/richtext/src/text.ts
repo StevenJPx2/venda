@@ -6,6 +6,7 @@ const BLOCK_SEPARATED = new Set(['paragraph', 'heading', 'blockquote', 'listItem
 /** Plain text with blocks separated by newlines. */
 export function toPlainText(doc: RichTextDoc): string {
   const parts: string[] = [];
+
   const walk = (nodes: RichTextNode[]) => {
     for (const node of nodes) {
       if (node.type === 'text') parts.push(node.text ?? '');
@@ -16,6 +17,7 @@ export function toPlainText(doc: RichTextDoc): string {
       }
     }
   };
+
   walk(doc.content);
   return parts.join('').replace(/\n{2,}/g, '\n').trim();
 }

@@ -56,6 +56,7 @@ export async function setSecrets(runner: Runner, dir: string, secrets: Record<st
 /** Polls /api/health until the Worker answers (new workers.dev routes can take a moment). */
 export async function waitForHealth(url: string, timeoutMs = 90_000): Promise<{ ok: boolean; version?: string }> {
   const deadline = Date.now() + timeoutMs;
+
   while (Date.now() < deadline) {
     try {
       const response = await fetch(`${url}/api/health`, { headers: { 'cache-control': 'no-cache' } });
@@ -63,7 +64,9 @@ export async function waitForHealth(url: string, timeoutMs = 90_000): Promise<{ 
     } catch {
       // DNS or TLS not ready yet; keep polling.
     }
+
     await new Promise(resolve => setTimeout(resolve, 3000));
   }
+
   return { ok: false };
 }

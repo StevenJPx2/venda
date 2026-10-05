@@ -35,6 +35,7 @@ async function exists(path: string): Promise<boolean> {
  */
 export async function installRelease(projectDir: string, version: string): Promise<string> {
   const source = bundledServerDir();
+
   if (!(await exists(join(source, 'worker', 'index.js')))) {
     throw new Error(`This venda CLI is missing its bundled release (${source}). Reinstall the CLI, or run \`pnpm --filter venda build\` in a source checkout.`);
   }

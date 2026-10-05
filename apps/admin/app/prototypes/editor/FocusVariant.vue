@@ -25,6 +25,7 @@ const confirmOpen = shallowRef(false);
 const when = shallowRef<'now' | 'later'>('now');
 const laterAt = shallowRef('');
 const scrolled = shallowRef(false);
+
 const onScroll = () => { scrolled.value = window.scrollY > 4; };
 
 const canPublish = computed(() => post.status.value !== 'published' || post.hasUnpublishedChanges.value);
@@ -41,6 +42,7 @@ function startTyping(): void {
 
 // Ignore sub-pixel jitter: only a deliberate move brings the controls back.
 let last: { x: number; y: number } | null = null;
+
 function onPointerMove(event: PointerEvent): void {
   if (last && Math.hypot(event.clientX - last.x, event.clientY - last.y) > 4) typing.value = false;
   last = { x: event.clientX, y: event.clientY };
@@ -52,6 +54,7 @@ function onKeydown(event: KeyboardEvent): void {
     togglePanel(true);
     return;
   }
+
   if (event.key !== 'Escape') return;
   if (confirmOpen.value) confirmOpen.value = false;
   else typing.value = false;

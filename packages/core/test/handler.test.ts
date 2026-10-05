@@ -17,10 +17,12 @@ async function call(path: string, init: RequestInit & { json?: unknown } = {}): 
   const headers = new Headers(init.headers);
   if (cookie) headers.set('Cookie', cookie);
   let body = init.body;
+
   if (init.json !== undefined) {
     headers.set('Content-Type', 'application/json');
     body = JSON.stringify(init.json);
   }
+
   return venda.fetch(new Request(`${BASE}${path}`, { ...init, headers, body: body ?? null }));
 }
 

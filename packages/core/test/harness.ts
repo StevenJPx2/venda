@@ -24,10 +24,12 @@ export class Client {
     if (this.cookie) headers.set('Cookie', this.cookie);
     if (this.bearer) headers.set('Authorization', `Bearer ${this.bearer}`);
     let body = init.body ?? null;
+
     if (init.json !== undefined) {
       headers.set('Content-Type', 'application/json');
       body = JSON.stringify(init.json);
     }
+
     const response = await this.venda.fetch(new Request(`http://venda.test${path}`, { ...init, headers, body }));
     const setCookie = response.headers.get('Set-Cookie');
     if (setCookie?.startsWith('venda_session=')) this.cookie = setCookie.includes('Max-Age=0') ? '' : setCookie.split(';')[0]!;

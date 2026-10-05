@@ -44,8 +44,10 @@ async function waitFor(url, label, getLog, seconds = 240) {
     try {
       if ((await fetch(url)).status < 500) return;
     } catch { /* still starting */ }
+
     await new Promise(r => setTimeout(r, 1000));
   }
+
   throw new Error(`${label} did not start within ${seconds}s:\n${getLog().slice(-2000)}`);
 }
 
@@ -92,6 +94,7 @@ export async function signInAsOwner(page) {
 /** Runs a suite, always stopping servers and printing results. */
 export async function suite(name, body) {
   const started = Date.now();
+
   try {
     await body();
   } catch (error) {
@@ -101,6 +104,7 @@ export async function suite(name, body) {
     for (const child of children) {
       try { process.kill(-child.pid, 'SIGTERM'); } catch { /* already exited */ }
     }
+
     console.log(`# ${name} (${Math.round((Date.now() - started) / 1000)}s)\n${results.join('\n')}`);
     // Detached server pipes would otherwise keep the process alive.
     process.exit(process.exitCode ?? 0);

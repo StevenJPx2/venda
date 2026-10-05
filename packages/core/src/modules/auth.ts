@@ -32,10 +32,12 @@ async function recoveryAdmin(services: Services, email: string, password: string
   const { db } = services.config;
   const existing = await findUserByEmail(db, email);
   if (!existing) return insertUser(db, { email, name: '', role: 'administrator', passwordHash: null });
+
   if (existing.role !== 'administrator' || existing.status !== 'active') {
     await db.run("UPDATE users SET role = 'administrator', status = 'active', session_version = session_version + 1, updated_at = ? WHERE id = ?", new Date().toISOString(), existing.id);
     return findUserByEmail(db, email);
   }
+
   return existing;
 }
 
@@ -54,10 +56,12 @@ async function login(ctx: RequestContext): Promise<Response> {
   if (await tooManyFailures(ctx.services, email)) throw new HttpError(429, 'Too many failed sign-in attempts. Try again in 15 minutes.');
 
   const user = await authenticate(ctx.services, email, password);
+
   if (!user) {
     await recordFailure(ctx.services, email);
     throw new HttpError(401, 'Invalid credentials');
   }
+
   const loginAt = new Date().toISOString();
   await ctx.services.config.db.run('UPDATE users SET last_login_at = ? WHERE id = ?', loginAt, user.id);
   const cookie = await startSession(user, ctx.services.sessions);

@@ -34,6 +34,7 @@ function preview(data: Record<string, unknown>): string {
     const text = field.interface === 'wysiwyg' ? richTextPreview(value) : typeof value === 'string' ? value.trim() : '';
     if (text && ['input', 'textarea', 'wysiwyg'].includes(field.interface)) return text;
   }
+
   return Object.keys(data).length ? `${Object.keys(data).length} fields` : 'No content yet';
 }
 

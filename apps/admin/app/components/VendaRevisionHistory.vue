@@ -32,6 +32,7 @@ const REASONS: Record<Revision['reason'], { label: string; color: 'success' | 'n
 watch(open, async (isOpen) => {
   if (!isOpen) return;
   loading.value = true;
+
   try {
     revisions.value = await api<Revision[]>(`/entries/${props.entryId}/revisions`);
     selected.value = revisions.value[0] ?? null;
@@ -64,6 +65,7 @@ function when(iso: string): string {
 async function restore(): Promise<void> {
   if (!selected.value) return;
   restoring.value = true;
+
   try {
     emit('restored', await api<Entry>(`/revisions/${selected.value.id}/restore`, { method: 'POST' }));
   } catch {

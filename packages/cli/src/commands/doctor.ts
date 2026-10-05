@@ -26,12 +26,14 @@ async function authCheck(runner: Runner, project: VendaProject): Promise<Check> 
 async function resourceChecks(runner: Runner, project: VendaProject): Promise<Check[]> {
   if (!project.resources) return [{ name: 'Resources', ok: false, detail: 'not created', fix: 'Finish setup with `venda init`.' }];
   let health;
+
   try {
     health = await checkResources(runner, project.resources);
   } catch (error) {
     const detail = error instanceof Error ? error.message : 'could not list Cloudflare resources';
     return [{ name: 'Cloudflare resources', ok: false, detail, fix: 'Check your account permissions, then rerun `venda doctor`.' }];
   }
+
   const missing = (label: string, ok: boolean): Check => ({ name: label, ok, detail: ok ? 'present' : 'missing', ...(ok ? {} : { fix: 'It was deleted outside Venda. Restore from `venda backup`, or re-create with `venda init` in a new directory.' }) });
   return [missing(`D1 ${project.resources.d1.name}`, health.d1), missing(`KV ${project.resources.kv.title}`, health.kv), missing(`R2 ${project.resources.r2.name}`, health.r2)];
 }
@@ -61,9 +63,11 @@ export async function doctor(flags: Flags): Promise<void> {
   const checks: Check[] = [nodeCheck(), { name: 'Config', ok: true, detail: `${project.name} (${join(dir, 'venda.json')})` }];
   const auth = await authCheck(runner, project);
   checks.push(auth);
+
   if (auth.ok) {
     const resources = await resourceChecks(runner, project);
     checks.push(...resources);
+
     if (project.resources && resources.every(check => check.ok)) {
       try {
         checks.push(await migrationCheck(runner, dir, project));
@@ -72,6 +76,7 @@ export async function doctor(flags: Flags): Promise<void> {
       }
     }
   }
+
   checks.push(await healthCheck(project, version));
 
   for (const check of checks) {
@@ -88,6 +93,7 @@ export async function doctor(flags: Flags): Promise<void> {
 /** Quick check used by `status`: is the recorded release still unpacked? */
 export async function releaseInstalled(dir: string, version: string | undefined): Promise<boolean> {
   if (!version) return false;
+
   try {
     await access(join(dir, releasePath(version), 'worker', 'index.js'));
     return true;

@@ -57,9 +57,11 @@ export async function findApiToken(db: Database, secret: string): Promise<ApiTok
   const token = toApiToken(row);
   const now = Date.now();
   if (token.expiresAt && Date.parse(token.expiresAt) <= now) return null;
+
   if (!token.lastUsedAt || now - Date.parse(token.lastUsedAt) > LAST_USED_RESOLUTION_MS) {
     await db.run('UPDATE api_tokens SET last_used_at = ? WHERE id = ?', new Date(now).toISOString(), token.id);
   }
+
   return token;
 }
 

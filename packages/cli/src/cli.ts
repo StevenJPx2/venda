@@ -51,10 +51,12 @@ Options:
 
 async function run(): Promise<void> {
   const flags = parseFlags(process.argv.slice(2));
+
   if (flags.version || flags.command === 'version') {
     process.stdout.write(`venda ${await cliVersion()}\n`);
     return;
   }
+
   if (flags.help || !flags.command || flags.command === 'help') {
     process.stdout.write(HELP);
     return;

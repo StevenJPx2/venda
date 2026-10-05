@@ -19,6 +19,7 @@ async function runPublishes(config: VendaConfig, now: string): Promise<{ publish
   const due = await config.db.all<Row>('SELECT * FROM entries WHERE publish_at IS NOT NULL AND publish_at <= ? AND deleted_at IS NULL ORDER BY publish_at LIMIT ?', now, BATCH);
   let published = 0;
   let failed = 0;
+
   for (const row of due) {
     try {
       await publishEntry(config.db, row, null);
@@ -29,17 +30,21 @@ async function runPublishes(config: VendaConfig, now: string): Promise<{ publish
       await config.db.run('UPDATE entries SET publish_at = NULL, schedule_error = ? WHERE id = ?', reason, String(row.id));
       failed++;
     }
+
     await invalidateCollection(config.kv, String(row.collection_id));
   }
+
   return { published, failed };
 }
 
 async function runUnpublishes(config: VendaConfig, now: string): Promise<number> {
   const due = await config.db.all<Row>('SELECT * FROM entries WHERE unpublish_at IS NOT NULL AND unpublish_at <= ? AND deleted_at IS NULL LIMIT ?', now, BATCH);
+
   for (const row of due) {
     await unpublishEntry(config.db, row, null);
     await invalidateCollection(config.kv, String(row.collection_id));
   }
+
   return due.length;
 }
 

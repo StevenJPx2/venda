@@ -11,6 +11,7 @@ function onSlugInput(event: Event): void {
   const input = event.target as HTMLInputElement;
   const { value, caret } = hyphenateSlug(input.value, input.selectionStart ?? input.value.length);
   p.slug.value = value;
+
   if (input.value !== value) {
     input.value = value;
     input.setSelectionRange(caret, caret);

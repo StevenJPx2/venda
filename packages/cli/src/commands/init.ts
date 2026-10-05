@@ -13,11 +13,13 @@ const GITIGNORE = '# Venda release files (re-created by `venda deploy`)\n.venda/
 
 async function ensureLoggedIn(runner: Runner, noPrompt: boolean): Promise<Account[]> {
   let who = parseWhoami((await runner(['whoami', '--json'])).stdout || '{}');
+
   if (!who.loggedIn && !noPrompt) {
     p.log.info('Sign in to Cloudflare in the browser window that opens.');
     await runner(['login'], { inherit: true });
     who = parseWhoami((await runner(['whoami', '--json'])).stdout || '{}');
   }
+
   if (!who.loggedIn) throw new UsageError('Not signed in to Cloudflare. Run `npx wrangler login`, or set CLOUDFLARE_API_TOKEN for CI.');
   if (!who.accounts.length) throw new UsageError('Your Cloudflare login has no accounts available.');
   return who.accounts;
@@ -29,6 +31,7 @@ async function chooseAccount(accounts: Account[], flag: string | undefined, noPr
     if (!match) throw new UsageError(`--account "${flag}" is not one of your accounts: ${accounts.map(a => a.name).join(', ')}.`);
     return match;
   }
+
   if (accounts.length === 1) return accounts[0]!;
   if (noPrompt) throw new UsageError(`You have ${accounts.length} Cloudflare accounts; choose one with --account.`);
   const id = answer(await p.select({ message: 'Which Cloudflare account should host Venda?', options: accounts.map(a => ({ value: a.id, label: a.name, hint: a.id })) }));
@@ -56,11 +59,13 @@ async function ensureInstallDir(dir: string): Promise<VendaProject | undefined> 
 async function writeGitignore(dir: string): Promise<void> {
   const path = join(dir, '.gitignore');
   let current = '';
+
   try {
     current = await readFile(path, 'utf8');
   } catch {
     // Create it below when this is a new install.
   }
+
   const missing = GITIGNORE.split('\n').filter(line => line && !current.split(/\r?\n/).includes(line));
   if (missing.length) await writeFile(path, `${current.trimEnd()}${current.trimEnd() ? '\n' : ''}${missing.join('\n')}\n`);
 }
@@ -75,13 +80,17 @@ export async function init(flags: Flags): Promise<void> {
     ? accounts.find(item => item.id === existing.accountId)
     : await chooseAccount(accounts, flags.account, flags.noPrompt);
   if (!account) throw new UsageError(`The incomplete install belongs to Cloudflare account ${existing?.accountId}, which this login cannot access.`);
+
   if (existing && flags.account && flags.account !== existing.accountId && flags.account !== account.name) {
     throw new UsageError(`This incomplete install is configured for account ${existing.accountId}; resume it with that account or remove venda.json to start over.`);
   }
+
   const project = existing ?? await gatherProject(dir, flags, account.id);
+
   if (existing && (flags.name && flags.name !== existing.name || flags.email && flags.email.toLowerCase() !== existing.adminEmail || flags.domain && flags.domain !== existing.domain)) {
     throw new UsageError('This is a partially initialized Venda install. Resume using its saved name, email and domain, or edit venda.json first.');
   }
+
   const withSample = await confirmOption({ flag: flags.sample, noPrompt: flags.noPrompt, message: 'Add a welcome post to start from?', initialValue: true });
 
   const runner = createRunner(account.id);
@@ -96,6 +105,7 @@ export async function init(flags: Flags): Promise<void> {
   await step('Setting admin credentials', () => setSecrets(runner, dir, { ADMIN_PASSWORD: password, SESSION_SECRET: generateSessionSecret() }));
 
   const health = await step('Waiting for your install to come online', () => waitForHealth(deployed.url), h => (h.ok ? 'Online' : 'Still starting up'));
+
   if (health.ok && withSample) {
     await step('Adding a welcome post', () => createSampleContent(deployed.url, project.adminEmail, password), () => 'Added “Welcome to Venda”');
   }

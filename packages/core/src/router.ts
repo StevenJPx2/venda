@@ -29,6 +29,7 @@ function compile(pattern: string): Segment[] {
 
 function matchSegments(segments: Segment[], parts: string[]): Record<string, string> | null {
   const params: Record<string, string> = {};
+
   for (const [index, segment] of segments.entries()) {
     if (segment.kind === 'rest') {
       const rest = parts.slice(index);
@@ -36,11 +37,13 @@ function matchSegments(segments: Segment[], parts: string[]): Record<string, str
       params[segment.name] = rest.map(decodeURIComponent).join('/');
       return params;
     }
+
     const part = parts[index];
     if (part === undefined) return null;
     if (segment.kind === 'literal' && segment.value !== part) return null;
     if (segment.kind === 'param') params[segment.name] = decodeURIComponent(part);
   }
+
   return segments.length === parts.length ? params : null;
 }
 
@@ -53,12 +56,14 @@ export function createRouter(routes: Route[]) {
     match(method: string, path: string): RouteMatch {
       const parts = path.split('/').filter(Boolean);
       let pathMatched = false;
+
       for (const candidate of compiled) {
         const params = matchSegments(candidate.segments, parts);
         if (!params) continue;
         if (candidate.method === method) return { kind: 'found', handler: candidate.handler, params };
         pathMatched = true;
       }
+
       return pathMatched ? { kind: 'method-not-allowed' } : { kind: 'not-found' };
     }
   };

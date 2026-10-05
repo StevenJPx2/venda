@@ -21,10 +21,12 @@ const handlers = {
       const input = document.createElement('input');
       input.type = 'file';
       input.accept = 'image/*';
+
       input.onchange = () => {
         const file = input.files?.[0];
         if (file) editor.chain().focus().setImage({ src: URL.createObjectURL(file), alt: file.name }).run();
       };
+
       input.click();
       return editor.chain();
     },
@@ -86,6 +88,7 @@ function onKeydown(event: KeyboardEvent): void {
     linkOpen.value = true;
     return;
   }
+
   if (!event.metaKey && !event.ctrlKey) emit('typing');
 }
 
@@ -137,10 +140,12 @@ function openMenu(editor: Editor): void {
   menuItems.value = buildMenu(editor, hoveredPos.value);
   const dom = editor.view.nodeDOM(hoveredPos.value);
   const root = rootEl.value?.getBoundingClientRect();
+
   if (dom instanceof HTMLElement && root) {
     const box = dom.getBoundingClientRect();
     targetBox.value = { top: box.top - root.top, left: box.left - root.left, width: box.width, height: box.height };
   }
+
   menuOpen.value = true;
 }
 
@@ -154,6 +159,7 @@ function closeMenu(editor: Editor): void {
   setHandleMeta('hideDragHandle', true);
   if (!editor.view.hasFocus()) editor.view.focus();
 }
+
 const isShown = (el: HTMLElement | null): el is HTMLElement => el !== null && getComputedStyle(el).visibility !== 'hidden';
 
 // Safe triangle (menu-aim): while the pointer travels from the text towards
@@ -192,6 +198,7 @@ function release(): void {
 }
 
 const side = (p: Point, a: Point, b: Point) => (p.x - b.x) * (a.y - b.y) - (a.x - b.x) * (p.y - b.y);
+
 function inTriangle(p: Point, a: Point, b: Point, c: Point): boolean {
   const d1 = side(p, a, b);
   const d2 = side(p, b, c);
@@ -203,13 +210,16 @@ function onPointerMove(event: PointerEvent): void {
   if (event.pointerType !== 'mouse' || menuOpen.value) return;
   pointer = { x: event.clientX, y: event.clientY };
   const handle = handleEl();
+
   if (!isShown(handle)) {
     anchor = null;
     setLocked(false);
     return;
   }
+
   const r = handle.getBoundingClientRect();
   const onHandle = pointer.x >= r.left - HANDLE_SLACK_PX && pointer.x <= r.right + HANDLE_SLACK_PX && pointer.y >= r.top - HANDLE_SLACK_PX && pointer.y <= r.bottom + HANDLE_SLACK_PX;
+
   if (onHandle) {
     // The editor doesn't track the pointer over the handle, so no lock is needed;
     // and a locked handle can't be dragged.
@@ -218,8 +228,10 @@ function onPointerMove(event: PointerEvent): void {
     setLocked(false);
     return;
   }
+
   const top = { x: r.right, y: r.top - TRIANGLE_SLACK_PX };
   const bottom = { x: r.right, y: r.bottom + TRIANGLE_SLACK_PX };
+
   if (anchor && pointer.x < anchor.x && inTriangle(pointer, anchor, top, bottom)) {
     setLocked(true);
     // Resting inside the triangle means the pointer is not heading anywhere: let the handle follow again.
@@ -227,6 +239,7 @@ function onPointerMove(event: PointerEvent): void {
     idle = setTimeout(release, IDLE_UNLOCK_MS);
     return;
   }
+
   clearTimeout(idle);
   setLocked(false);
   anchor = pointer;

@@ -16,6 +16,7 @@ async function newPassword(flags: Flags): Promise<{ value: string; generated: bo
     if (issue) throw new UsageError(`--password: ${issue}`);
     return { value: flags.password, generated: false };
   }
+
   if (flags.noPrompt) return { value: generatePassword(), generated: true };
 
   const first = answer(await p.password({ message: 'New admin password', validate: passwordProblem }));

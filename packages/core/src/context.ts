@@ -49,11 +49,13 @@ async function tokenActor(secret: string, services: Services): Promise<Actor | n
 
 export function createContext(request: Request, url: URL, params: Record<string, string>, services: Services): RequestContext {
   let resolved: Promise<Actor | null> | undefined;
+
   const actor = () => {
     if (!resolved) {
       const secret = bearerToken(request);
       resolved = secret ? tokenActor(secret, services) : sessionActor(request, services);
     }
+
     return resolved;
   };
 

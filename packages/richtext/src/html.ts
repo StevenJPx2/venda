@@ -16,15 +16,18 @@ export function decodeEntities(text: string): string {
       const point = code[1] === 'x' || code[1] === 'X' ? parseInt(code.slice(2), 16) : parseInt(code.slice(1), 10);
       return Number.isFinite(point) && point > 0 && point <= 0x10ffff ? String.fromCodePoint(point) : match;
     }
+
     return ENTITIES[code.toLowerCase()] ?? match;
   });
 }
 
 function parseAttrs(source: string): Record<string, string> {
   const attrs: Record<string, string> = {};
+
   for (const [, name, double, single, bare] of source.matchAll(/([a-zA-Z_:][-a-zA-Z0-9_:.]*)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g)) {
     if (name) attrs[name.toLowerCase()] = decodeEntities(double ?? single ?? bare ?? '');
   }
+
   return attrs;
 }
 
@@ -33,27 +36,35 @@ function parseTree(html: string): Element {
   const root: Element = { tag: '#root', attrs: {}, children: [] };
   const stack: Element[] = [root];
   let dropping: string | null = null;
+
   for (const [token, closing, tag, rest] of html.matchAll(/<!--[\s\S]*?-->|<(\/?)([a-zA-Z][a-zA-Z0-9]*)([^>]*)>|[^<]+|</g)) {
     const current = stack[stack.length - 1]!;
+
     if (!tag) {
       if (!dropping && !token.startsWith('<!--')) current.children.push({ text: decodeEntities(token) });
       continue;
     }
+
     const name = tag.toLowerCase();
+
     if (dropping) {
       if (closing && name === dropping) dropping = null;
       continue;
     }
+
     if (closing) {
       const index = stack.map(el => el.tag).lastIndexOf(name);
       if (index > 0) stack.length = index;
       continue;
     }
+
     if (DROP.has(name)) { dropping = name; continue; }
+
     const element: Element = { tag: name, attrs: parseAttrs(rest ?? ''), children: [] };
     current.children.push(element);
     if (!VOID.has(name) && !rest?.trimEnd().endsWith('/') && stack.length < MAX_DEPTH) stack.push(element);
   }
+
   return root;
 }
 
@@ -108,26 +119,33 @@ function textContent(children: Child[]): string {
 
 function blockNode(el: Element): RichTextNode[] {
   const heading = /^h([1-6])$/.exec(el.tag);
+
   if (heading) {
     const inline: RichTextNode[] = [];
     inlineNodes(el.children, [], inline);
     return [{ type: 'heading', attrs: { level: Number(heading[1]) }, content: trimInline(inline) }];
   }
+
   switch (el.tag) {
     case 'p': { const p = paragraph(el.children); return p ? [p] : []; }
+
     case 'blockquote': return [{ type: 'blockquote', content: blocks(el.children) }];
     case 'ul': return [{ type: 'bulletList', content: listItems(el) }];
+
     case 'ol': {
       const start = Number(el.attrs.start);
       return [{ type: 'orderedList', attrs: { start: Number.isInteger(start) && start > 0 ? start : 1 }, content: listItems(el) }];
     }
+
     case 'li': return [{ type: 'listItem', content: blocks(el.children) }];
+
     case 'pre': {
       const code = el.children.find(isElement);
       const language = code?.attrs.class?.match(/language-([\w+-]+)/)?.[1] ?? null;
       const text = textContent(el.children).replace(/\n$/, '');
       return [{ type: 'codeBlock', attrs: { language }, ...(text ? { content: [{ type: 'text', text }] } : {}) }];
     }
+
     case 'hr': return [{ type: 'horizontalRule' }];
     case 'img': return el.attrs.src ? [{ type: 'image', attrs: { src: el.attrs.src, alt: el.attrs.alt ?? null, title: el.attrs.title ?? null } }] : [];
     // Layout wrappers contribute their content.
@@ -143,11 +161,13 @@ function listItems(list: Element): RichTextNode[] {
 function blocks(children: Child[]): RichTextNode[] {
   const out: RichTextNode[] = [];
   let run: Child[] = [];
+
   const flush = () => {
     const p = paragraph(run);
     if (p) out.push(p);
     run = [];
   };
+
   for (const child of children) {
     if (isElement(child) && BLOCKS.has(child.tag)) {
       flush();
@@ -156,6 +176,7 @@ function blocks(children: Child[]): RichTextNode[] {
       run.push(child);
     }
   }
+
   flush();
   return out;
 }

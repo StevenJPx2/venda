@@ -38,6 +38,7 @@ export function isRichTextDoc(value: unknown): value is RichTextDoc {
   if (!isRecord(value) || value.type !== 'doc' || !Array.isArray(value.content)) return false;
   let count = 0;
   const stack: { node: unknown; depth: number }[] = value.content.map(node => ({ node, depth: 1 }));
+
   while (stack.length) {
     const { node, depth } = stack.pop()!;
     if (++count > MAX_NODES || depth > MAX_DEPTH) return false;
@@ -45,11 +46,13 @@ export function isRichTextDoc(value: unknown): value is RichTextDoc {
     if (node.attrs !== undefined && !isRecord(node.attrs)) return false;
     if (!validMarks(node.marks)) return false;
     if (node.type === 'text' && typeof node.text !== 'string') return false;
+
     if (node.content !== undefined) {
       if (!Array.isArray(node.content)) return false;
       for (const child of node.content) stack.push({ node: child, depth: depth + 1 });
     }
   }
+
   return true;
 }
 

@@ -69,6 +69,7 @@ async function schedule(ctx: RequestContext): Promise<Response> {
     const errors = schema ? entryErrors(schema, JSON.parse(String(row.data_json)) as Record<string, unknown>, 'published') : [];
     if (errors.length) throw new HttpError(422, errors[0]?.message ?? 'Some fields are invalid', { fields: errors });
   }
+
   await db.run('UPDATE entries SET publish_at = ?, unpublish_at = ?, schedule_error = NULL, updated_by = ?, updated_at = ? WHERE id = ?', nextPublish, nextUnpublish, actor.user.id, new Date().toISOString(), String(row.id));
   return respond(ctx, await loadEntryRow(db, String(row.id)));
 }

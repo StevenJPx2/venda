@@ -15,16 +15,19 @@ export function slugify(value: string): string {
 export function hyphenateSlug(value: string, caret = value.length): { value: string; caret: number } {
   let out = '';
   let nextCaret = -1;
+
   for (let i = 0; i < value.length; i++) {
     if (i === caret) nextCaret = out.length;
     const char = value[i]!;
     const afterSpace = /\s/.test(value[i - 1] ?? '');
+
     if (/\s/.test(char)) {
       if (!out.endsWith('-')) out += '-';
     } else if (!(char === '-' && afterSpace && out.endsWith('-'))) {
       out += char;
     }
   }
+
   return { value: out, caret: nextCaret < 0 ? out.length : nextCaret };
 }
 

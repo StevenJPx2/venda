@@ -42,9 +42,11 @@ export function normalizeEntryData(schema: CollectionSchema, data: Record<string
   const richText = schema.fields.filter(field => field.interface === 'wysiwyg' && data[field.key] !== undefined && data[field.key] !== null);
   if (!richText.length) return data;
   const normalized = { ...data };
+
   for (const field of richText) {
     const value = data[field.key];
     if (typeof value === 'string' || (typeof value === 'object' && value !== null)) normalized[field.key] = trimTrailingEmpty(toDoc(value));
   }
+
   return normalized;
 }

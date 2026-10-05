@@ -40,10 +40,12 @@ export async function searchEntryIds(db: Database, options: { terms: string[]; v
   const body = `s.${options.variant}_text`;
   const conditions = options.terms.map(() => `(${title} LIKE ? ESCAPE '\\' OR ${body} LIKE ? ESCAPE '\\')`);
   const params: unknown[] = options.terms.flatMap(term => [likePattern(term), likePattern(term)]);
+
   if (options.collectionId) {
     conditions.push('s.collection_id = ?');
     params.push(options.collectionId);
   }
+
   if (options.variant === 'published') conditions.push("e.status = 'published'");
   const rows = await db.all<{ entry_id: string }>(
     `SELECT s.entry_id FROM entry_search s JOIN entries e ON e.id = s.entry_id

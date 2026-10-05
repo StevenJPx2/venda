@@ -12,21 +12,25 @@ export function json(body: unknown, init: ResponseInit = {}): Response {
 
 export function withHeaders(response: Response, headers: Record<string, string>, append = false): Response {
   const merged = new Headers(response.headers);
+
   for (const [name, value] of Object.entries(headers)) {
     if (append) merged.append(name, value);
     else merged.set(name, value);
   }
+
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers: merged });
 }
 
 /** Parses a JSON object body; anything else is a 400. */
 export async function readJson(request: Request): Promise<Record<string, unknown>> {
   let value: unknown;
+
   try {
     value = await request.json();
   } catch {
     throw new HttpError(400, 'Request body must be JSON');
   }
+
   if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new HttpError(400, 'Request body must be a JSON object');
   return value as Record<string, unknown>;
 }

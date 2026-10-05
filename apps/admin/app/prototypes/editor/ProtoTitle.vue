@@ -10,6 +10,7 @@ function fit(): void {
   el.value.style.height = '0px';
   el.value.style.height = `${el.value.scrollHeight}px`;
 }
+
 watch(title, () => nextTick(fit));
 onMounted(() => {
   fit();
@@ -23,6 +24,7 @@ function onKeydown(event: KeyboardEvent): void {
     emit('enter');
     return;
   }
+
   if (!event.metaKey && !event.ctrlKey) emit('typing');
 }
 </script>

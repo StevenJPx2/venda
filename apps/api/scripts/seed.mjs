@@ -40,15 +40,18 @@ async function login() {
 async function ensureCollection(collection) {
   const list = await call('/collections');
   const existing = list.data.find((item) => item.slug === collection.slug);
+
   if (existing && UPDATE) {
     const updated = await call(`/collections/${existing.id}`, { method: 'PATCH', body: { name: collection.name, schema: collection.schema } });
     console.log(`~ collection "${collection.slug}" data model updated (${updated.status})${updated.status >= 400 ? `: ${JSON.stringify(updated.data)}` : ''}`);
     return existing.id;
   }
+
   if (existing) {
     console.log(`• collection "${collection.slug}" already exists`);
     return existing.id;
   }
+
   const created = await call('/collections', { method: 'POST', body: collection });
   const id = (await call('/collections')).data.find((item) => item.slug === collection.slug)?.id;
   console.log(`+ created collection "${collection.slug}" (${created.status})`);
@@ -57,6 +60,7 @@ async function ensureCollection(collection) {
 
 async function ensureEntry(collectionId, entry) {
   const existing = (await call(`/collections/${collectionId}/entries`)).data.find((item) => item.slug === entry.slug);
+
   if (existing && UPDATE) {
     const updated = await call(`/entries/${existing.id}`, { method: 'PATCH', body: { data: entry.data } });
     // Saving changes the working copy; publishing (or unpublishing) makes it live.
@@ -65,10 +69,12 @@ async function ensureEntry(collectionId, entry) {
     console.log(`  ~ entry "${entry.slug}" updated (${updated.status}${released ? `, ${action} ${released.status}` : ''})`);
     return;
   }
+
   if (existing) {
     console.log(`  • entry "${entry.slug}" already exists`);
     return;
   }
+
   const created = await call(`/collections/${collectionId}/entries`, { method: 'POST', body: entry });
   console.log(`  + entry "${entry.slug}" (${created.status})`);
 }
@@ -172,10 +178,12 @@ const collections = [
 
 async function main() {
   await login();
+
   for (const group of collections) {
     const id = await ensureCollection(group.definition);
     for (const entry of group.entries) await ensureEntry(id, entry);
   }
+
   console.log('\nDone. Open the admin at https://app.venda.stevenjohn.co');
 }
 

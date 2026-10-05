@@ -27,6 +27,7 @@ async function load(): Promise<void> {
   const current = ++requestId;
   loading.value = true;
   error.value = '';
+
   try {
     const path = searching.value
       ? `/search?collection=${encodeURIComponent(props.collection.id)}&q=${encodeURIComponent(query.value.trim())}`

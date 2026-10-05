@@ -54,6 +54,7 @@ onMounted(async () => {
 });
 
 function openAdd(): void { editing.value = null; modalOpen.value = true; }
+
 function openEdit(field: FieldDefinition): void { editing.value = field; modalOpen.value = true; }
 
 function saveField(field: FieldDefinition): void {
@@ -79,14 +80,17 @@ function removeField(key: string): void {
 async function save(): Promise<void> {
   error.value = '';
   let schema;
+
   try {
     schema = parseSchema(draftSchema.value);
   } catch (problem) {
     if (problem instanceof SchemaError) { error.value = problem.message; return; }
+
     throw problem;
   }
 
   saving.value = true;
+
   try {
     reset(await api<Collection>(`/collections/${collectionId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name.value, schema }) }));
     toast.add({ title: 'Data model saved', color: 'success', icon: 'i-lucide-circle-check' });

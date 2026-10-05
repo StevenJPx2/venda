@@ -20,6 +20,7 @@ async function loadTarget(ctx: RequestContext): Promise<User> {
 /** Rejects a change that would leave no active administrator. */
 async function guardLastAdministrator(ctx: RequestContext, target: User, next: { role: User['role']; status: User['status'] }): Promise<void> {
   const losingAdmin = target.role === 'administrator' && target.status === 'active' && (next.role !== 'administrator' || next.status !== 'active');
+
   if (losingAdmin && (await countActiveAdministrators(ctx.services.config.db)) <= 1) {
     throw new HttpError(409, 'Venda needs at least one active administrator');
   }

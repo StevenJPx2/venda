@@ -54,6 +54,7 @@ async function createEntry(ctx: RequestContext): Promise<Response> {
 
   const now = new Date().toISOString();
   const id = crypto.randomUUID();
+
   try {
     await db.run(
       'INSERT INTO entries (id, collection_id, slug, data_json, status, created_by, updated_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
@@ -63,6 +64,7 @@ async function createEntry(ctx: RequestContext): Promise<Response> {
     if (isSlugConflict(error)) throw new HttpError(409, 'Entry slug already exists in this collection');
     throw error;
   }
+
   let row = await loadEntryRow(db, id);
   await indexEntry(db, row, schema);
   if (publish) row = await publishEntry(db, row, actor.user.id);
@@ -99,6 +101,7 @@ async function saveEntry(ctx: RequestContext): Promise<Response> {
     if (isSlugConflict(error)) throw new HttpError(409, 'Entry slug already exists in this collection');
     throw error;
   }
+
   const row = await loadEntryRow(db, String(existing.id));
   await recordRevision(db, row, 'save', actor.user.id);
   await indexEntry(db, row, schema);
@@ -108,11 +111,13 @@ async function saveEntry(ctx: RequestContext): Promise<Response> {
 
 async function moveToTrash(ctx: RequestContext, actor: Actor, row: Row): Promise<void> {
   const { db } = ctx.services.config;
+
   // Trashing unpublishes, so it needs publish rights when the entry is live.
   if (row.status === 'published') {
     requireScoped(actor, PUBLISH, owner(row), 'You do not have permission to unpublish this entry');
     row = await unpublishEntry(db, row, actor.user.id);
   }
+
   const now = new Date().toISOString();
   await db.run('UPDATE entries SET deleted_at = ?, publish_at = NULL, unpublish_at = NULL, updated_by = ?, updated_at = ? WHERE id = ?', now, actor.user.id, now, String(row.id));
 }
@@ -122,12 +127,14 @@ async function deleteEntry(ctx: RequestContext): Promise<Response> {
   const { db, kv } = ctx.services.config;
   const row = await loadEntryRow(db, ctx.params.id ?? '');
   requireScoped(actor, DELETE_CONTENT, owner(row), 'You do not have permission to delete this entry');
+
   if (ctx.url.searchParams.get('permanent') === 'true') {
     if (!row.deleted_at) throw new HttpError(409, 'Move the entry to the trash before deleting it permanently');
     await db.run('DELETE FROM entries WHERE id = ?', String(row.id));
   } else if (!row.deleted_at) {
     await moveToTrash(ctx, actor, row);
   }
+
   await invalidateCollection(kv, String(row.collection_id));
   return json({ ok: true });
 }
@@ -135,11 +142,13 @@ async function deleteEntry(ctx: RequestContext): Promise<Response> {
 /** The entry's slug, or the first free `slug-N`, among entries outside the trash. */
 async function freeSlug(db: Database, collectionId: string, slug: string, entryId: string): Promise<string> {
   const base = slug.replace(/-\d+$/, '');
+
   for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt++) {
     const candidate = attempt === 0 ? slug : `${base}-${attempt + 1}`;
     const taken = await db.first('SELECT id FROM entries WHERE collection_id = ? AND slug = ? AND deleted_at IS NULL AND id != ?', collectionId, candidate, entryId);
     if (!taken) return candidate;
   }
+
   throw new HttpError(409, 'Could not find a free URL slug for this entry');
 }
 

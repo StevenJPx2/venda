@@ -34,6 +34,7 @@ onMounted(async () => {
 async function sendInvite(): Promise<void> {
   inviting.value = true;
   inviteLink.value = '';
+
   try {
     const { token } = await api<{ token: string }>('/invitations', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(invite) });
     // The admin SPA hosts the acceptance page, so the link uses this origin.
@@ -54,6 +55,7 @@ async function copyLink(): Promise<void> {
 
 async function updateUser(user: User, change: Partial<Pick<User, 'role' | 'status'>>): Promise<void> {
   busyId.value = user.id;
+
   try {
     const updated = await api<User>(`/users/${user.id}`, { method: 'PATCH', headers: JSON_HEADERS, body: JSON.stringify(change) });
     users.value = users.value.map(u => (u.id === user.id ? updated : u));
@@ -68,6 +70,7 @@ async function updateUser(user: User, change: Partial<Pick<User, 'role' | 'statu
 async function removeUser(user: User): Promise<void> {
   if (!window.confirm(`Delete ${user.email}? Their entries are kept.`)) return;
   busyId.value = user.id;
+
   try {
     await api(`/users/${user.id}`, { method: 'DELETE' });
     users.value = users.value.filter(u => u.id !== user.id);

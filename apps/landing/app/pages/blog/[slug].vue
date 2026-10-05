@@ -11,6 +11,7 @@ const { data: post, error } = await useVendaEntry<PostData>('blog', slug, { prev
 if (error.value) {
   throw createError({ statusCode: 502, statusMessage: 'Content is temporarily unavailable', fatal: true });
 }
+
 if (!post.value) {
   throw createError({ statusCode: 404, statusMessage: 'Post not found', fatal: true });
 }

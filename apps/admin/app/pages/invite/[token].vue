@@ -24,11 +24,14 @@ onMounted(async () => {
 
 async function accept(): Promise<void> {
   error.value = '';
+
   if (form.password !== form.confirm) {
     error.value = 'The passwords do not match.';
     return;
   }
+
   submitting.value = true;
+
   try {
     await api(`/auth/invitations/${encodeURIComponent(token)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: form.name, password: form.password }) });
     await session.refresh();

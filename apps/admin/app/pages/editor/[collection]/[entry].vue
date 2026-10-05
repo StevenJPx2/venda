@@ -56,6 +56,7 @@ const bodyModel = computed({
 
 onMounted(async () => {
   if (!(await session.ensure())) return;
+
   try {
     collection.value = (await api<Collection[]>('/collections')).find(c => c.id === collectionId) ?? null;
     if (!collection.value) loadError.value = 'This collection no longer exists.';
@@ -73,12 +74,14 @@ watch(draft.id, (id) => { if (id && isNew) void router.replace(`/editor/${collec
 
 async function run(action: () => Promise<void>, success: string): Promise<void> {
   busy.value = true;
+
   try {
     await action();
     toast.add({ title: success, color: 'success', icon: 'i-lucide-circle-check' });
   } catch {
     toast.add({ title: 'Not saved', description: draft.errorMessage.value, color: 'error', icon: 'i-lucide-circle-alert' });
     const fieldError = draft.fieldErrors.value.find(error => formFields.value.some(field => field.key === error.field));
+
     if (fieldError) {
       await nextTick();
       const container = document.querySelector<HTMLElement>(`[data-field="${CSS.escape(fieldError.field)}"]`);
@@ -97,13 +100,16 @@ const schedule = (times: { publishAt?: string | null; unpublishAt?: string | nul
 /** Opens the site's page for the working copy, or copies the API preview link when no site URL is set. */
 async function preview(): Promise<void> {
   const tab = collection.value?.schema.previewUrl ? window.open('', '_blank') : null;
+
   try {
     const token = await draft.createPreview();
     const template = collection.value?.schema.previewUrl;
+
     if (template && tab) {
       tab.location.href = previewUrlFor(template, draft.slug.value, token);
       return;
     }
+
     const apiLink = new URL(`${useRuntimeConfig().public.apiBase}/preview/${encodeURIComponent(token)}`, window.location.origin).toString();
     await navigator.clipboard.writeText(apiLink);
     toast.add({ title: 'Preview link copied', description: 'Set a preview URL in the data model to open previews on your site.', color: 'success', icon: 'i-lucide-link' });
@@ -132,6 +138,7 @@ defineShortcuts({
 // Pending edits are saved on the way out; if that fails, confirm before discarding them.
 onBeforeRouteLeave(async () => {
   if (leaving.value || !draft.dirty.value || draft.isEmpty.value) return true;
+
   try {
     await draft.save();
     return true;
@@ -143,6 +150,7 @@ onBeforeRouteLeave(async () => {
 function warnOnUnload(event: BeforeUnloadEvent): void {
   if (draft.dirty.value && !draft.isEmpty.value) event.preventDefault();
 }
+
 onMounted(() => window.addEventListener('beforeunload', warnOnUnload));
 onBeforeUnmount(() => window.removeEventListener('beforeunload', warnOnUnload));
 </script>

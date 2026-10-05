@@ -53,6 +53,7 @@ function toggleScope(scope: Capability, on: boolean): void {
 async function create(): Promise<void> {
   creating.value = true;
   secret.value = '';
+
   try {
     const body = { name: form.name, scopes: form.scopes, ...(form.expiresInDays ? { expiresInDays: form.expiresInDays } : {}) };
     const result = await api<{ token: ApiToken; secret: string }>('/tokens', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });

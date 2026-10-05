@@ -19,6 +19,7 @@ async function listPublished(ctx: RequestContext): Promise<Response> {
   const collection = await collectionFor(ctx);
   const { db } = ctx.services.config;
   const terms = searchTerms(ctx.url.searchParams.get('q') ?? '');
+
   if (terms.length) {
     const ids = await searchEntryIds(db, { terms, variant: 'published', collectionId: collection.id });
     if (!ids.length) return json([], PUBLIC_CACHE);
@@ -26,6 +27,7 @@ async function listPublished(ctx: RequestContext): Promise<Response> {
     const byId = new Map(rows.map(row => [String(row.id), row]));
     return json(ids.flatMap(id => (byId.has(id) ? [toPublicEntry(byId.get(id)!, collection.schema)] : [])), PUBLIC_CACHE);
   }
+
   const rows = await db.all("SELECT * FROM entries WHERE collection_id = ? AND status = 'published' AND deleted_at IS NULL ORDER BY published_at DESC, updated_at DESC", collection.id);
   return json(rows.map(row => toPublicEntry(row, collection.schema)), PUBLIC_CACHE);
 }

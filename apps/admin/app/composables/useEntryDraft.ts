@@ -109,6 +109,7 @@ export function useEntryDraft(collectionId: string, schema: Ref<CollectionSchema
 
   async function create(body: Payload): Promise<Entry> {
     let attempt = { ...body };
+
     for (let tries = 0; ; tries++) {
       try {
         return await api<Entry>(`/collections/${collectionId}/entries`, { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(attempt) });
@@ -146,18 +147,22 @@ export function useEntryDraft(collectionId: string, schema: Ref<CollectionSchema
 
   async function save(): Promise<void> {
     clearTimeout(timer);
+
     if (inFlight) {
       queued = true;
       return inFlight;
     }
+
     const body = payload.value;
     const problems = validateEntryData(schema.value, body.data, { published: false });
+
     if (problems.length) {
       fieldErrors.value = problems;
       saveState.value = 'error';
       errorMessage.value = problems[0]?.message ?? 'Some fields are invalid.';
       throw new Error(errorMessage.value);
     }
+
     saveState.value = 'saving';
     errorMessage.value = '';
     fieldErrors.value = [];
@@ -194,6 +199,7 @@ export function useEntryDraft(collectionId: string, schema: Ref<CollectionSchema
 
   async function action(path: string, init: { method: 'POST' | 'PUT'; body?: unknown }): Promise<void> {
     const entryId = await flush();
+
     try {
       const updated = await api<Entry>(`/entries/${entryId}/${path}`, { method: init.method, ...(init.body ? { headers: JSON_HEADERS, body: JSON.stringify(init.body) } : {}) });
       applyState(updated);

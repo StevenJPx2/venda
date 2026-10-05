@@ -34,6 +34,7 @@ export async function uninstall(flags: Flags): Promise<void> {
       const detail = error instanceof Error ? error.message : String(error);
       throw new Error(`Could not delete R2 bucket ${project.resources.r2.name}; it may still contain media. Empty the bucket in Cloudflare and retry. No D1 or KV data has been deleted.\n${detail}`);
     }
+
     await step(`Deleting D1 database ${project.resources.d1.name}`, () => wrangler(runner, [
       'd1', 'delete', project.resources!.d1.name, '--skip-confirmation'
     ], { cwd: dir }));
@@ -47,6 +48,7 @@ export async function uninstall(flags: Flags): Promise<void> {
   } else {
     p.log.info('No deployed Worker is recorded; removed the provisioned resources.');
   }
+
   p.note(flags.keepData
     ? 'The Worker was deleted. Your D1, KV and R2 resources are preserved; venda.json remains so you can re-deploy.'
     : 'The Worker and Cloudflare resources were deleted. Local venda.json and release files remain.', 'Uninstalled');

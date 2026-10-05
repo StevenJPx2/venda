@@ -25,11 +25,13 @@ async function createCollection(ctx: RequestContext): Promise<Response> {
   if ('error' in parsed) throw new HttpError(400, parsed.error);
   const now = new Date().toISOString();
   const id = crypto.randomUUID();
+
   try {
     await ctx.services.config.db.run('INSERT INTO collections (id, name, slug, schema_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)', id, name, slug, JSON.stringify(parsed.schema), now, now);
   } catch {
     throw new HttpError(409, 'Collection slug already exists');
   }
+
   return json({ id, name, slug, schema: parsed.schema, createdAt: now, updatedAt: now }, { status: 201 });
 }
 
@@ -44,11 +46,13 @@ async function updateCollection(ctx: RequestContext): Promise<Response> {
   const name = body.name === undefined ? String(existing.name) : String(body.name).trim();
   if (!name) throw new HttpError(400, 'Name is required');
   let schema = storedSchema(existing.schema_json);
+
   if (body.schema !== undefined) {
     const parsed = schemaInput(body.schema);
     if ('error' in parsed) throw new HttpError(400, parsed.error);
     schema = parsed.schema;
   }
+
   const now = new Date().toISOString();
   await db.run('UPDATE collections SET name = ?, schema_json = ?, updated_at = ? WHERE id = ?', name, JSON.stringify(schema), now, id);
   await kv.delete(`content:${id}`);

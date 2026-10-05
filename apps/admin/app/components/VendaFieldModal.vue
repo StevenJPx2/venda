@@ -75,8 +75,11 @@ function parseChoices(value: string): Array<{ value: string; label: string }> {
 function submit(): void {
   error.value = '';
   const key = state.key.trim();
+
   if (!state.label.trim()) { error.value = 'Enter a label for this field.'; return; }
+
   if (!key) { error.value = 'Enter a key for this field.'; return; }
+
   if (!isEdit.value && props.existingKeys.includes(key)) { error.value = `A field with key "${key}" already exists.`; return; }
 
   const field: FieldDefinition = { key, interface: state.interface };

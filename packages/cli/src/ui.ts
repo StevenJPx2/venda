@@ -12,6 +12,7 @@ export function answer<T>(value: T | typeof p.CANCEL_SYMBOL): T {
     p.cancel('Cancelled.');
     return process.exit(130);
   }
+
   return value as T;
 }
 
@@ -34,6 +35,7 @@ export async function textOption(opts: {
     if (problem) throw new UsageError(`--${opts.flagName}: ${problem}`);
     return opts.flag;
   }
+
   if (opts.noPrompt) {
     if (opts.optional) return '';
     if (opts.initialValue !== undefined && !opts.validate?.(opts.initialValue)) return opts.initialValue;
@@ -62,6 +64,7 @@ export async function confirmOption(opts: { flag: boolean | undefined; noPrompt:
 export async function step<T>(title: string, work: (update: (message: string) => void) => Promise<T>, done?: (result: T) => string): Promise<T> {
   const spinner = p.spinner();
   spinner.start(title);
+
   try {
     const result = await work(message => spinner.message(message));
     spinner.stop(done ? done(result) : title);

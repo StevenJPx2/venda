@@ -22,6 +22,7 @@ export function useAdminSession() {
       user.value = null;
       capabilities.value = [];
     }
+
     return user.value;
   }
 

@@ -70,6 +70,7 @@ export async function loadEntryRow(db: Database, id: string): Promise<Row> {
 export function searchText(schema: CollectionSchema, data: Record<string, unknown>): { title: string; body: string } {
   const title = schema.titleField && typeof data[schema.titleField] === 'string' ? String(data[schema.titleField]) : '';
   const parts: string[] = [];
+
   for (const field of schema.fields) {
     const value = data[field.key];
     if (field.key === schema.titleField || value === undefined || value === null) continue;
@@ -77,6 +78,7 @@ export function searchText(schema: CollectionSchema, data: Record<string, unknow
     else if (typeof value === 'string' && ['input', 'textarea', 'dropdown'].includes(field.interface)) parts.push(value);
     else if (field.interface === 'tags' && Array.isArray(value)) parts.push(value.filter(tag => typeof tag === 'string').join(' '));
   }
+
   return { title: title.toLowerCase(), body: parts.join(' ').replace(/\s+/g, ' ').toLowerCase() };
 }
 
@@ -95,10 +97,12 @@ export async function indexEntry(db: Database, row: Row, schema: CollectionSchem
 /** Records a revision of the entry's working copy, then trims to the newest MAX_REVISIONS_PER_ENTRY. */
 export async function recordRevision(db: Database, row: Row, reason: RevisionReason, userId: string | null): Promise<void> {
   const entryId = String(row.id);
+
   if (reason === 'save') {
     const latest = await db.first<{ created_at: string; data_json: string }>('SELECT created_at, data_json FROM entry_revisions WHERE entry_id = ? ORDER BY created_at DESC LIMIT 1', entryId);
     if (latest && (latest.data_json === row.data_json || Date.now() - Date.parse(latest.created_at) < SAVE_REVISION_INTERVAL_MS)) return;
   }
+
   await db.run('INSERT INTO entry_revisions (id, entry_id, slug, data_json, reason, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)', crypto.randomUUID(), entryId, String(row.slug), String(row.data_json), reason, userId, new Date().toISOString());
   await db.run(
     'DELETE FROM entry_revisions WHERE entry_id = ? AND id NOT IN (SELECT id FROM entry_revisions WHERE entry_id = ? ORDER BY created_at DESC LIMIT ?)',

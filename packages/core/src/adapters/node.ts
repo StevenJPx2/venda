@@ -36,9 +36,11 @@ export function sqlite(filename: string): SqliteDatabase {
       db.exec('CREATE TABLE IF NOT EXISTS venda_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL)');
       const done = new Set((db.prepare('SELECT name FROM venda_migrations').all() as { name: string }[]).map(row => row.name));
       const pending = (await readdir(dir)).filter(name => name.endsWith('.sql') && !done.has(name)).sort();
+
       for (const name of pending) {
         const sql = await readFile(join(dir, name), 'utf8');
         db.exec('BEGIN');
+
         try {
           db.exec(sql);
           db.prepare('INSERT INTO venda_migrations (name, applied_at) VALUES (?, ?)').run(name, new Date().toISOString());
@@ -48,6 +50,7 @@ export function sqlite(filename: string): SqliteDatabase {
           throw new Error(`Migration ${name} failed: ${error instanceof Error ? error.message : String(error)}`);
         }
       }
+
       return pending;
     },
     close: () => db.close()
@@ -57,6 +60,7 @@ export function sqlite(filename: string): SqliteDatabase {
 /** Media stored as files under `root`, with a small metadata file beside each object. */
 export function fileStore(root: string): ObjectStore {
   const base = resolve(root);
+
   const pathFor = (key: string) => {
     const path = resolve(base, key);
     if (!path.startsWith(base + sep)) throw new Error('Invalid object key');
@@ -73,6 +77,7 @@ export function fileStore(root: string): ObjectStore {
     },
     async get(key) {
       const path = pathFor(key);
+
       try {
         const [info, meta] = await Promise.all([stat(path), readFile(`${path}.meta.json`, 'utf8').then(text => JSON.parse(text) as { contentType?: string }).catch(() => ({} as { contentType?: string }))]);
         const body = Readable.toWeb(createReadStream(path)) as ReadableStream<Uint8Array>;
@@ -109,10 +114,12 @@ export function memoryKv(): KeyValue {
     async get(key) {
       const item = values.get(key);
       if (!item) return null;
+
       if (item.expiresAt !== undefined && item.expiresAt <= Date.now()) {
         values.delete(key);
         return null;
       }
+
       return item.value;
     },
     async put(key, value, options) {

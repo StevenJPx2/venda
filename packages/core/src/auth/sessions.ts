@@ -38,6 +38,7 @@ export async function readSession(request: Request, store: SessionStore): Promis
   if (!token) return null;
   const raw = await store.kv.get(`session:${token}`);
   if (!raw) return null;
+
   try {
     const parsed: unknown = JSON.parse(raw);
     return isSessionRecord(parsed) ? parsed : null;

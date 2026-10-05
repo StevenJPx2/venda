@@ -16,6 +16,7 @@ const action = computed(() => {
   if (post.status.value === 'scheduled') return 'Publish now';
   return post.hasUnpublishedChanges.value ? 'Publish changes' : null;
 });
+
 function runAction(): void {
   void post.publish(action.value === 'Schedule' ? post.publishAt.value : undefined);
 }

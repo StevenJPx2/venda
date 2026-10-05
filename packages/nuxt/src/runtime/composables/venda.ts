@@ -65,6 +65,7 @@ export function useVendaEntry<TData = Record<string, unknown>>(
     },
     async () => {
       const token = toValue(options.preview);
+
       try {
         return await (token ? preview<TData>(token) : get<TData>(toValue(collection), toValue(slug)));
       } catch (error) {

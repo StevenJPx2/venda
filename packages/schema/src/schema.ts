@@ -51,9 +51,11 @@ function parseField(raw: unknown): FieldDefinition {
   if (!isRecord(raw)) throw new SchemaError('Each field must be an object.');
 
   const key = raw.key;
+
   if (typeof key !== 'string' || !KEY_PATTERN.test(key)) {
     throw new SchemaError(`Invalid field key "${String(key)}": start with a lowercase letter and use letters, digits or underscores.`);
   }
+
   if (!isInterface(raw.interface)) throw new SchemaError(`Field "${key}": unknown interface "${String(raw.interface)}".`);
 
   const field: FieldDefinition = { key, interface: raw.interface };
@@ -91,11 +93,13 @@ export function parseSchema(raw: unknown): CollectionSchema {
   if (duplicate) throw new SchemaError(`Field key "${duplicate}" is used more than once.`);
 
   const schema: CollectionSchema = { version: 1, fields };
+
   if (raw.titleField !== undefined && raw.titleField !== null && raw.titleField !== '') {
     const title = fields.find(f => f.key === raw.titleField);
     if (!title || !TITLE_INTERFACES.includes(title.interface)) throw new SchemaError('The title field must be an existing input or textarea field.');
     schema.titleField = title.key;
   }
+
   const previewUrl = parsePreviewUrl(raw.previewUrl);
   if (previewUrl) schema.previewUrl = previewUrl;
 
@@ -107,12 +111,14 @@ function parsePreviewUrl(raw: unknown): string | undefined {
   if (typeof raw !== 'string') throw new SchemaError('The preview URL must be text.');
   const template = raw.trim();
   if (!template.includes('{token}')) throw new SchemaError('The preview URL must contain {token}.');
+
   try {
     const { protocol } = new URL(previewUrlFor(template, 'slug', 'token'));
     if (protocol !== 'http:' && protocol !== 'https:') throw new Error('protocol');
   } catch {
     throw new SchemaError('The preview URL must be an http(s) URL.');
   }
+
   return template;
 }
 

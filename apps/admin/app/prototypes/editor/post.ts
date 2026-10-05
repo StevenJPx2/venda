@@ -61,12 +61,14 @@ export function useProtoPost() {
     await new Promise(resolve => setTimeout(resolve, PUBLISH_DELAY_MS));
     publishing.value = false;
     hasUnpublishedChanges.value = false;
+
     if (at && Date.parse(at) > Date.now()) {
       status.value = 'scheduled';
       publishAt.value = at;
       toast.add({ title: 'Scheduled', description: new Date(at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }), icon: 'i-lucide-calendar-check' });
       return;
     }
+
     const wasLive = status.value === 'published';
     status.value = 'published';
     toast.add({ title: wasLive ? 'Changes published' : 'Published', icon: 'i-lucide-check' });
@@ -83,10 +85,12 @@ export function useProtoPost() {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
+
     input.onchange = () => {
       const file = input.files?.[0];
       if (file) featureImage.value = URL.createObjectURL(file);
     };
+
     input.click();
   }
 

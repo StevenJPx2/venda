@@ -8,11 +8,13 @@ const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 async function uploadMedia(ctx: RequestContext): Promise<Response> {
   const actor = await ctx.require('media:upload');
   let form: FormData;
+
   try {
     form = await ctx.request.formData();
   } catch {
     throw new HttpError(400, 'Expected a multipart form upload');
   }
+
   const file = form.get('file');
   if (!(file instanceof File)) throw new HttpError(400, 'A file field is required');
   if (file.size > MAX_UPLOAD_BYTES) throw new HttpError(413, 'Maximum file size is 10MB');
