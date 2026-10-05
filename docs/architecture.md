@@ -1,8 +1,8 @@
 # Venda architecture
 
-Status: **proposed** (2026-10-05). Once approved it replaces the
-"Architecture decisions" in [roadmap.md](roadmap.md); the admin's look and
-behaviour stay in [redesign.md](redesign.md).
+Status: **approved** (2026-10-05). This replaces the "Architecture decisions"
+in [roadmap.md](roadmap.md); the admin's look and behaviour stay in
+[redesign.md](redesign.md).
 
 Venda is a **file-first CMS**. Content and data models live as files in the
 site's git repository: one folder per collection, a `config.ts` describing its
@@ -23,8 +23,10 @@ developers and agents edit the files. Both paths meet in git.
    use it; no package re-declares an `Entry` type.
 4. **The core knows nothing about its host.** Domain logic depends on Effect
    services. Nitro, Cloudflare, Node and GitHub appear only in adapters.
-5. **The admin is a shell; editors, blocks and fields are plugins.** The
-   Ghost-style writing editor is one plugin among others.
+5. **The admin is a shell; almost everything else is a plugin.** Editors
+   (including the Ghost-style writer), blocks, fields, browse views, pages
+   and settings sections ship as a default preset built through the same API
+   third-party plugins use.
 6. **Every background job is bounded.** Sync, scheduled work and retries have
    per-run limits and resumable cursors.
 
@@ -159,8 +161,11 @@ retries and then reports the outage.
 | `@venda/core` | Domain logic in Effect: auth, collections, entries, lifecycle, media, search, sync. Exposes `makeHandler(layer)` (a Web `fetch` handler) and `tick()`. | contract, content, `effect` |
 | `@venda/server` | Nitro host: adapters, one `/api/**` route to the core, the admin as static assets, the minute tick, presets for Cloudflare and Node. Replaces `apps/api`. | core, `nitro`, `db0`, `unstorage` |
 | `@venda/admin` | The admin shell and plugin host (Nuxt UI SPA). | contract |
+| `@venda/preset-default` | The default plugins below, as one install. | the plugins |
 | `@venda/editor-writer` | The Ghost-style writing editor (today's Focus prototype). | admin plugin API |
 | `@venda/editor-form` | Form editor for `single` and `records`. | admin plugin API |
+| `@venda/views-core` | Posts list, records table, media grid. | admin plugin API |
+| `@venda/pages-core` | Media library, settings (general, team, API tokens). | admin plugin API |
 | `@venda/blocks-core` | Paragraph, headings, lists, quote, code, image, divider, callout. | content, admin plugin API |
 | `@venda/fields-core` | Text, textarea, number, toggle, date and time, tags, image, relation, JSON. | admin plugin API |
 | `@venda/nuxt` | Site module: typed reads, preview, `<VendaContent>`; can mount the server inside the site's own Nitro. | contract, richtext |
@@ -234,7 +239,38 @@ export default defineVenda({
 });
 ```
 
-A plugin contributes any of:
+**The shell** owns only what must be fixed points: sign-in, sessions and
+capability checks (plugins declare the capability they need; the server still
+enforces it), routing, the navigation frame, theme tokens, shared primitives
+(toasts, dialogs, the command menu), the API client and the plugin host.
+Everything else, including Venda's own features, is a plugin in
+`@venda/preset-default`. A site can drop a plugin or replace it.
+
+A plugin contributes to these slots and nothing else:
+
+| Slot | Contributes | Example |
+| --- | --- | --- |
+| `editor` | The screen for editing an entry of a collection kind | writer, form |
+| `block` | A rich-text block | callout, YouTube embed |
+| `field` | An input for a field type | date and time, relation |
+| `view` | How a collection is browsed | posts list, records table |
+| `page` | A whole route | media library, analytics |
+| `nav` | A navigation item | Media |
+| `settings` | A settings section | Team, API tokens |
+| `panel` | A section of the editor's sidebar | SEO, "linked from" |
+| `action` | A command on an entry | Duplicate, send as newsletter |
+
+Rules for plugins:
+
+- Plugins never import each other. Editors read the block and field
+  registries, so any block works in any editor that renders rich text.
+- Each plugin's screens are loaded when first opened, so installing plugins
+  does not slow the admin's start.
+- The plugin API stays marked unstable until the default preset has been built
+  entirely through it. Venda's live suites run against the default preset plus
+  one test plugin installed from outside the repository.
+
+In detail:
 
 - **Editor:** the screen for a collection kind. `posts` and `pages` default to
   the writer, `single` and `records` to the form editor; a collection may name
@@ -267,6 +303,13 @@ site component. An unknown block renders its text content, never raw markup.
 `pnpm e2e` drives the real server, admin and site in Chrome, and is required
 before every commit that changes behaviour.
 
+Code follows the code-breathing-room convention: blank lines group the
+statements of one phase, every braced block is its own paragraph, and scopes
+never start or end with a blank line. ESLint enforces the mechanical part
+(`@stylistic/padding-line-between-statements`, `padded-blocks`,
+`no-multiple-empty-lines` in `eslint.config.shared.mjs`); grouping by phase is
+checked in review.
+
 ## Delivery
 
 The rebuild happens in place on `platform`, one vertical slice at a time,
@@ -286,9 +329,11 @@ each through its real boundary with every live suite green before the next.
    contract test against a real throwaway repository.
 5. **Lifecycle on files.** Scheduling, unpublish, trash and restore, revisions
    from git, preview, search.
-6. **Admin shell and plugins.** The plugin host; the writer editor (promoting
-   the Focus prototype and deleting `app/prototypes`); the form editor;
-   core blocks and fields; the model editor writing `config.ts`.
+6. **Admin shell, plugin API and default preset.** The shell and plugin host;
+   every first-party screen built as a plugin: the writer editor (promoting
+   the Focus prototype and deleting `app/prototypes`), the form editor, views,
+   pages, settings, core blocks and fields, and the model editor writing
+   `config.ts`; one external test plugin.
 7. **CLI and cut-over.** `init` against a repository, `sync`, `export` from an
    existing database, `types` from `config.ts`; the hosted deployment moves to
    `@venda/server`; `apps/api` and the old core paths are deleted.
@@ -324,9 +369,10 @@ Development: `oxlint` and `@oxlint/plugins` 1.86.0, `fallow` 3.31.0,
 
 ## Risks
 
-- **Nitro 3 is in beta** (the stable line is `nitropack` 2.13.4), and its
-  database and tasks features are experimental. Venda uses neither, and only
-  `@venda/server` depends on Nitro, so a regression stays in one package.
+- **Nitro 3 is in beta** (chosen over the stable `nitropack` 2.13.4 line), and
+  its database and tasks features are experimental. Venda pins the exact beta,
+  uses neither experimental feature, and only `@venda/server` depends on
+  Nitro, so a regression stays in one package.
 - **db0 is pre-1.0.** It sits behind the `IndexDb` service, with a contract
   test per connector.
 - **GitHub availability and limits.** An outage blocks publishing, not saving.

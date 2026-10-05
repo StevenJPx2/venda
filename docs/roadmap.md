@@ -13,46 +13,13 @@ feature set is complete. SAFT stays on Sanity until that merge.
 
 ## Architecture decisions
 
-> **Being revised.** [architecture.md](architecture.md) proposes a file-first
-> architecture (content and models as files in git, a Nitro host, Effect in
-> the core, plugin-based admin). Once approved it replaces this section; until
-> then the decisions below describe the code on `platform`.
-
-These are expensive to reverse, so they are settled before feature work.
-
-1. **Framework-neutral core.** `@venda/core` is built only on Web standards
-   (`Request`, `Response`, `URL`, Web Crypto, streams); every host calls it the
-   same way:
-
-   ```ts
-   const venda = createVenda({ db: d1(env.VENDA_DB), storage: r2(env.VENDA_MEDIA), kv: kv(env.VENDA_CACHE) });
-   return venda.fetch(request); // → Response
-   ```
-2. **Pluggable runtime services.** The core talks to interfaces, never to
-   Cloudflare bindings directly:
-   - `Database` (SQL): D1, SQLite (Node), libSQL/Turso, PostgreSQL.
-   - `ObjectStore` (media): R2, S3-compatible, local filesystem.
-   - `KeyValue` (cache, sessions): KV, in-memory, Redis.
-   - `Scheduler` (scheduled publishing, plugin cron): Cron Triggers, Node timer.
-   - `Mailer` (magic links, invitations): pluggable provider.
-3. **Two deployment modes.**
-   - *Headless*: Venda runs as its own Worker or Node server; any site reads it
-     through the REST API or `@venda/client`.
-   - *Embedded*: a framework adapter mounts the core inside the site's own
-     server (like EmDash's Astro integration), sharing one deployment.
-4. **Framework packages are thin.** `@venda/client` (framework-free typed
-   client and query helpers) plus adapters for Nuxt, Astro, Next.js, SvelteKit
-   and Hono. Each adapter mounts the handler, serves the admin, and ships
-   rich-text and image renderers for its UI library.
-5. **Structured rich text.** Rich-text fields are stored as a versioned JSON
-   node tree (ProseMirror/TipTap), so every framework renders it natively and
-   content can go to email, apps or agents. HTML content is converted by a core
-   migration, and an HTML renderer is available for simple sites.
-6. **Real schema, typed output.** Collections keep a schema document; the CLI
-   generates TypeScript types from the live schema for every adapter.
-7. **One admin.** The Vue/Nuxt UI admin is a static SPA served by any runtime.
-8. **Permissions everywhere.** Every operation (REST, MCP, CLI, plugins) goes
-   through one capability check tied to a user role or an API-token scope.
+The authoritative architecture is [architecture.md](architecture.md) (approved
+2026-10-05): content and models as files in git, a live SQL index, Effect in
+the core, a Nitro 3 host, and an admin whose features are plugins. Earlier
+decisions that carry over unchanged: the core is a Web-standard `fetch`
+handler; Venda runs headless or embedded in a site's server; framework
+packages stay thin; rich text travels as a JSON document; every operation
+passes one capability check.
 
 ## Feature inventory
 
@@ -163,6 +130,7 @@ Everything ships together, but work proceeds in dependency order:
 2. Users, roles, sessions, API tokens, because every later feature records who did what. **Done.**
 3. Structured rich text and HTML migration. **Done.**
 4. Content lifecycle: drafts vs live, revisions, scheduling, preview, trash, search. **Done.**
+   - **Architecture rebuild** (slices 0 to 7 in architecture.md) happens here, before step 5, and re-delivers steps 1 to 4 on the new base.
 5. Content model: new field types, relations, singletons, i18n, typegen.
 6. Media library.
 7. Site structure: taxonomies, menus, widgets, sections, settings, redirects, SEO.
