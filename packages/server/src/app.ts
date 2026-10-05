@@ -1,8 +1,12 @@
 // Composition root: one Venda app per isolate or process. Requests for paths
 // in the contract go to the Effect API; everything else to the legacy core.
+// Collections defined by files answer from the index; any other collection
+// is not found there and falls through to the legacy core's database.
+import { CollectionNotFound } from '@venda/contract';
 import { createVenda, type VendaConfig } from '@venda/core';
-import { Layer } from 'effect';
-import { BuildInfo, contractPaths, toApiHandler } from './api';
+import { Layer, Option, Schema } from 'effect';
+import { BuildInfo, isContractPath, toApiHandler } from './api';
+import { contentSync, indexDbLayer } from './content';
 import { decodeServerEnv, type RawEnv, type ServerEnv } from './env';
 import type { Platform } from './platform';
 
@@ -11,11 +15,24 @@ export interface VendaApp {
   scheduled(): Promise<void>;
 }
 
+const decodeNotFound = Schema.decodeUnknownOption(CollectionNotFound);
+
+async function isUnknownCollection(response: Response): Promise<boolean> {
+  if (response.status !== 404) return false;
+
+  return Option.isSome(decodeNotFound(await response.clone().json().catch(() => null)));
+}
+
+// The legacy API's caching for public reads, kept for sites and CDNs.
+const PUBLIC_CACHE = 'public, max-age=60';
+
 async function build(platform: Platform, env: ServerEnv): Promise<VendaApp> {
   const services = await platform.services(env);
 
   const config: VendaConfig = {
-    ...services,
+    db: services.db,
+    storage: services.storage,
+    kv: services.kv,
     admin: { email: env.ADMIN_EMAIL, password: env.ADMIN_PASSWORD },
     sessionSecret: env.SESSION_SECRET
   };
@@ -25,16 +42,28 @@ async function build(platform: Platform, env: ServerEnv): Promise<VendaApp> {
   if (env.VENDA_VERSION !== undefined) config.version = env.VENDA_VERSION;
 
   const legacy = createVenda(config);
-  const api = toApiHandler(Layer.succeed(BuildInfo, { version: env.VENDA_VERSION ?? 'dev' }));
+  const api = toApiHandler(Layer.mergeAll(Layer.succeed(BuildInfo, { version: env.VENDA_VERSION ?? 'dev' }), indexDbLayer(services.index)));
+  const sync = services.content === undefined ? async () => {} : contentSync(services.content, services.index);
+
+  await sync();
+  services.content?.watch?.(() => void sync());
 
   return {
-    fetch(request) {
-      const isContract = request.method === 'GET' && contractPaths.has(new URL(request.url).pathname);
+    async fetch(request) {
+      const path = new URL(request.url).pathname;
 
-      return isContract ? api.handler(request) : legacy.fetch(request);
+      if (request.method !== 'GET' || !isContractPath(path)) return legacy.fetch(request);
+
+      const response = await api.handler(request);
+
+      if (await isUnknownCollection(response)) return legacy.fetch(request);
+
+      if (response.ok && path.startsWith('/api/content/')) response.headers.set('Cache-Control', PUBLIC_CACHE);
+
+      return response;
     },
     async scheduled() {
-      await legacy.scheduled();
+      await Promise.all([legacy.scheduled(), sync()]);
     }
   };
 }

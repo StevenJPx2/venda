@@ -341,7 +341,15 @@ suites; it does not replace them.
    the live suites run against this server.
 1. **Read path.** `@venda/content` (config reader, Markdown/MDX conversion,
    round-trip tests), the local content store, sync into the index, and the
-   public content API served from files.
+   public content API served from files. **Done:** configs are read as data and
+   entries as frontmatter plus Markdown with block tags (every SAFT document
+   round-trips); sync diffs git blob SHAs, reads at most 200 files per run and
+   records unreadable files in `content_problems`; `/api/content/...` serves
+   file collections through the contract in the legacy shape, and any other
+   collection falls through to the legacy core until the cut-over. Node watches
+   `VENDA_CONTENT_DIR`; Workers serves the folder bundled at build time until
+   slice 4. The Worker is 466 kB gzipped (Markdown and YAML parsing added
+   about 210 kB).
 2. **Auth and users on Effect.** A port with no behaviour change; today's
    tests are the contract.
 3. **Write path.** Working copies, publish to files, conflicts.

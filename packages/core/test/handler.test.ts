@@ -30,7 +30,7 @@ async function call(path: string, init: RequestInit & { json?: unknown } = {}): 
 
 beforeAll(async () => {
   db = sqlite(':memory:');
-  expect(await db.migrate()).toEqual(['0001_initial.sql', '0002_users.sql', '0003_lifecycle.sql']);
+  expect(await db.migrate()).toEqual(['0001_initial.sql', '0002_users.sql', '0003_lifecycle.sql', '0004_content_index.sql']);
   mediaDir = await mkdtemp(join(tmpdir(), 'venda-media-'));
   venda = createVenda({
     db,

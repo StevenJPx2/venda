@@ -6,18 +6,22 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./content": "./src/content/index.ts",
     "./cloudflare": "./src/adapters/cloudflare.ts",
     "./node": "./src/adapters/node.ts"
   },
   "scripts": {
     "test": "vitest run",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && effect-language-service diagnostics --project tsconfig.json",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
   },
   "dependencies": {
+    "@venda/content": "workspace:*",
+    "@venda/contract": "workspace:*",
     "@venda/schema": "workspace:*",
-    "@venda/richtext": "workspace:*"
+    "@venda/richtext": "workspace:*",
+    "effect": "4.0.1"
   },
   "devDependencies": {
     "@types/node": "latest",

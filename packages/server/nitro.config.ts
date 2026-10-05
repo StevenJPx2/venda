@@ -1,3 +1,5 @@
+import { createRequire } from 'node:module';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'nitro';
 
@@ -8,9 +10,28 @@ const onNode = preset === 'node' || preset === 'node_server';
 
 const here = (path: string) => fileURLToPath(new URL(path, import.meta.url));
 
+// Dependencies of @venda/content, resolved as it sees them.
+const fromContent = createRequire(here('../content/package.json'));
+
 // Placeholder IDs: local `wrangler dev` creates resources by binding name. Real
 // installs get their IDs from the CLI, which writes its own wrangler config.
 const LOCAL = 'local';
+
+function aliases() {
+  if (onNode) return { '#venda/platform': here('./src/platforms/node.ts') };
+
+  return {
+    '#venda/platform': here('./src/platforms/cloudflare.ts'),
+    // yaml's Node build loads `process` with require(), which workerd cannot do; its ESM browser build has no Node imports.
+    yaml: join(dirname(fromContent.resolve('yaml/package.json')), 'browser/index.js')
+  };
+}
+
+const bundledContent = () => {
+  const dir = process.env.VENDA_CONTENT_DIR;
+
+  return dir === undefined ? [] : [{ baseName: 'content', dir: resolve(dir) }];
+};
 
 export default defineConfig({
   preset,
@@ -18,8 +39,9 @@ export default defineConfig({
   serverDir: './server',
   // Separate outputs, so building for Node never replaces a Workers build in use.
   output: { dir: onNode ? '.output-node' : '.output' },
-  alias: { '#venda/platform': here(onNode ? './src/platforms/node.ts' : './src/platforms/cloudflare.ts') },
-  serverAssets: onNode ? [{ baseName: 'migrations', dir: here('../core/migrations') }] : [],
+  alias: aliases(),
+  // Node reads migrations at startup; Workers bundle the content folder, if one is given.
+  serverAssets: onNode ? [{ baseName: 'migrations', dir: here('../core/migrations') }] : bundledContent(),
   cloudflare: {
     deployConfig: true,
     nodeCompat: true,

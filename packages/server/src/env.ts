@@ -8,7 +8,9 @@ const ServerEnv = Schema.Struct({
   ADMIN_ORIGINS: Schema.optional(Schema.String),
   VENDA_VERSION: Schema.optional(Schema.String),
   // Node only: where SQLite and media files live.
-  VENDA_DATA_DIR: Schema.optional(Schema.String)
+  VENDA_DATA_DIR: Schema.optional(Schema.String),
+  // Node only: the content folder (one folder per collection), watched for changes.
+  VENDA_CONTENT_DIR: Schema.optional(Schema.String)
 });
 
 export type ServerEnv = typeof ServerEnv.Type;

@@ -3,14 +3,19 @@
 // Ctrl-C stops everything. State lives in .try/ and is wiped on every start.
 import { spawn } from 'node:child_process';
 import { createWriteStream } from 'node:fs';
-import { mkdir, readFile, rm } from 'node:fs/promises';
+import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { join, resolve } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const SERVER = join(ROOT, 'packages/server');
 const STATE = join(ROOT, '.try');
+// Bundled into the Workers build; Node serves (and watches) an editable copy.
+const CONTENT = join(ROOT, 'try/content');
+const LIVE_CONTENT = join(STATE, 'content');
+const CONTENT_FILE = /^\/files\/([a-z0-9-]+\/[a-z0-9-]+\.mdx?)$/;
 const PORTS = { page: 8794, workers: 8805, node: 8807 };
 const CREDENTIALS = { email: 'owner@venda.local', password: 'try-venda' };
 const SECRETS = { SESSION_SECRET: 'try-session-secret', ADMIN_EMAIL: CREDENTIALS.email, ADMIN_PASSWORD: CREDENTIALS.password };
@@ -97,11 +102,50 @@ async function page(name, response) {
   }
 }
 
+async function readBody(request) {
+  const chunks = [];
+
+  for await (const chunk of request) chunks.push(chunk);
+
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+// Local-only helpers for the slice 1 page: read and write Node's content
+// files, and list the problems its sync recorded (straight from its SQLite).
+async function files(request, response, path) {
+  if (path === '/files/problems') {
+    const db = new DatabaseSync(join(STATE, 'node/venda.sqlite'), { readOnly: true });
+    const problems = db.prepare('SELECT path, message, line FROM content_problems ORDER BY path').all();
+
+    db.close();
+    response.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(problems));
+    return;
+  }
+
+  const file = CONTENT_FILE.exec(path)?.[1];
+
+  if (!file) {
+    response.writeHead(404).end('Not found');
+    return;
+  }
+
+  if (request.method === 'PUT') {
+    await writeFile(join(LIVE_CONTENT, file), await readBody(request));
+    response.writeHead(204).end();
+    return;
+  }
+
+  const text = await readFile(join(LIVE_CONTENT, file), 'utf8').catch(() => null);
+
+  response.writeHead(text === null ? 404 : 200, { 'content-type': 'text/markdown; charset=utf-8', 'cache-control': 'no-store' }).end(text ?? 'Not found');
+}
+
 function startPageServer() {
   createServer((request, response) => {
     const url = request.url ?? '/';
+    const path = url.split('?')[0];
     const route = url.startsWith('/workers') ? ['/workers', PORTS.workers] : url.startsWith('/node') ? ['/node', PORTS.node] : null;
-    const handled = route ? proxy(request, response, route[0], route[1]) : page(url.split('?')[0], response);
+    const handled = route ? proxy(request, response, route[0], route[1]) : path.startsWith('/files/') ? files(request, response, path) : page(path, response);
 
     handled.catch(error => response.writeHead(502).end(String(error)));
   }).listen(PORTS.page);
@@ -117,16 +161,17 @@ function stopAll() {
 
 await rm(STATE, { recursive: true, force: true });
 await mkdir(join(STATE, 'workers'), { recursive: true });
+await cp(CONTENT, LIVE_CONTENT, { recursive: true });
 console.log('Venda try: building and starting both runtimes');
 
-await step('build for Workers', 'pnpm', ['exec', 'nitro', 'build']);
+await step('build for Workers', 'pnpm', ['exec', 'nitro', 'build'], { VENDA_CONTENT_DIR: CONTENT });
 await step('migrate local D1', 'npx', ['wrangler', 'd1', 'migrations', 'apply', 'VENDA_DB', '--local', '--persist-to', join(STATE, 'workers'), '--config', '.output/server/wrangler.json']);
 await step('build for Node', 'pnpm', ['exec', 'nitro', 'build'], { NITRO_PRESET: 'node' });
 
 const vars = Object.entries(SECRETS).flatMap(([key, value]) => ['--var', `${key}:${value}`]);
 
 serve('workers', 'npx', ['wrangler', 'dev', '--local', '--persist-to', join(STATE, 'workers'), '--config', '.output/server/wrangler.json', '--port', String(PORTS.workers), ...vars]);
-serve('node', 'node', ['.output-node/server/index.mjs'], { ...SECRETS, PORT: String(PORTS.node), VENDA_DATA_DIR: join(STATE, 'node') });
+serve('node', 'node', ['.output-node/server/index.mjs'], { ...SECRETS, PORT: String(PORTS.node), VENDA_DATA_DIR: join(STATE, 'node'), VENDA_CONTENT_DIR: LIVE_CONTENT });
 process.on('SIGINT', stopAll);
 process.on('SIGTERM', stopAll);
 
@@ -139,5 +184,6 @@ console.log(`
   Sign in as ${CREDENTIALS.email} / ${CREDENTIALS.password} (local only; wiped on every start)
   Workers (workerd + local D1/R2/KV): http://localhost:${PORTS.workers}
   Node (SQLite + files):              http://localhost:${PORTS.node}
+  Content: try/content (bundled into Workers) · .try/content (Node, edit freely)
   Logs: .try/*.log · Ctrl-C to stop
 `);

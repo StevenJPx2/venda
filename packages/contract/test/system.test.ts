@@ -17,7 +17,7 @@ describe('HealthStatus', () => {
 });
 
 describe('VendaApi', () => {
-  it('serves health under the /api prefix', () => {
-    expect(Object.keys(OpenApi.fromApi(VendaApi).paths)).toEqual(['/api/health']);
+  it('serves its paths under the /api prefix', () => {
+    expect(Object.keys(OpenApi.fromApi(VendaApi).paths)).toEqual(['/api/health', '/api/content/{collection}', '/api/content/{collection}/{slug}']);
   });
 });

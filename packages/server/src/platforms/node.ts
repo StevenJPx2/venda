@@ -1,5 +1,6 @@
 // Node: SQLite and media files under VENDA_DATA_DIR, keys in process memory
 // (sessions end when the process restarts), and a one-minute timer.
+import { watch } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { createDatabase } from 'db0';
 import nodeSqlite from 'db0/connectors/node-sqlite';
@@ -7,6 +8,7 @@ import { useStorage } from 'nitro/storage';
 import { createStorage } from 'unstorage';
 import fsDriver from 'unstorage/drivers/fs';
 import memoryDriver from 'unstorage/drivers/memory';
+import type { ContentSource } from '../content';
 import { db0Database, migrate, type Migration } from '../database';
 import type { Platform } from '../platform';
 import { keyValue, objectStore } from '../storage';
@@ -21,6 +23,30 @@ async function bundledMigrations(): Promise<Migration[]> {
   return Promise.all(names.map(async name => ({ name, sql: String(await assets.getItem(name)) })));
 }
 
+// Editors save in bursts (write, rename, touch); one sync after they settle.
+const SETTLE_MS = 150;
+
+/** A content folder on disk, watched for edits. */
+function contentFolder(base: string): ContentSource {
+  return {
+    storage: createStorage({ driver: fsDriver({ base }) }),
+    watch(onChange) {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+
+      // Unreferenced, so watching never keeps a stopping server alive.
+      const watcher = watch(base, { recursive: true }, () => {
+        clearTimeout(timer);
+        timer = setTimeout(onChange, SETTLE_MS).unref();
+      }).unref();
+
+      return () => {
+        clearTimeout(timer);
+        watcher.close();
+      };
+    }
+  };
+}
+
 export const platform: Platform = {
   async services(env) {
     const dir = resolve(env.VENDA_DATA_DIR ?? '.data');
@@ -31,8 +57,10 @@ export const platform: Platform = {
 
     return {
       db: db0Database(db),
+      index: db,
       storage: objectStore(createStorage({ driver: fsDriver({ base: join(dir, 'media') }) }), { nativeContentType: false }),
-      kv: keyValue(createStorage({ driver: memoryDriver() }))
+      kv: keyValue(createStorage({ driver: memoryDriver() })),
+      content: env.VENDA_CONTENT_DIR === undefined ? undefined : contentFolder(resolve(env.VENDA_CONTENT_DIR))
     };
   },
   schedule(hooks, run) {

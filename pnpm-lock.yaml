@@ -230,12 +230,21 @@ importers:
 
   packages/core:
     dependencies:
+      '@venda/content':
+        specifier: workspace:*
+        version: link:../content
+      '@venda/contract':
+        specifier: workspace:*
+        version: link:../contract
       '@venda/richtext':
         specifier: workspace:*
         version: link:../richtext
       '@venda/schema':
         specifier: workspace:*
         version: link:../schema
+      effect:
+        specifier: 4.0.1
+        version: 4.0.1
     devDependencies:
       '@types/node':
         specifier: latest

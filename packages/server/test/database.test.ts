@@ -21,7 +21,7 @@ describe('migrate', () => {
     const db = memory();
     const migrations = await coreMigrations();
 
-    expect(await migrate(db, migrations.toReversed())).toEqual(['0001_initial.sql', '0002_users.sql', '0003_lifecycle.sql']);
+    expect(await migrate(db, migrations.toReversed())).toEqual(['0001_initial.sql', '0002_users.sql', '0003_lifecycle.sql', '0004_content_index.sql']);
     expect(await migrate(db, migrations)).toEqual([]);
   });
 

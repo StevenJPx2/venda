@@ -1,11 +1,17 @@
 import type { Database, KeyValue, ObjectStore } from '@venda/core';
+import type { Database as Db0 } from 'db0';
+import type { ContentSource } from './content';
 import type { ServerEnv } from './env';
 
 /** What each platform module (`#venda/platform`) supplies to the server. */
 export interface PlatformServices {
   db: Database;
+  /** The same database for the Effect core's index. */
+  index: Db0;
   storage: ObjectStore;
   kv: KeyValue;
+  /** The content files, when this install has any. */
+  content: ContentSource | undefined;
 }
 
 export interface Platform {

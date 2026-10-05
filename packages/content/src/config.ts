@@ -37,7 +37,8 @@ function syntax(source: string): Result.Result<Program, { message: string; line:
   }
 }
 
-function modelFrom(value: Json): Result.Result<CollectionModel, string> {
+/** A model from its JSON form (as the index stores it), checked the same way as a config. */
+export function modelFrom(value: Json): Result.Result<CollectionModel, string> {
   return Result.match(decodeModelInput(value), {
     onFailure: error => Result.fail(error.message),
     onSuccess: resolveModel

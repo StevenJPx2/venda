@@ -1,5 +1,8 @@
 import { HttpApi, OpenApi } from 'effect/http-api';
+import { ContentApi } from './content';
 import { SystemApi } from './system';
+
+export { CollectionNotFound, ContentApi, EntryNotFound, PublicEntry } from './content';
 
 export { HealthStatus, SystemApi } from './system';
 
@@ -10,5 +13,6 @@ export { HealthStatus, SystemApi } from './system';
  */
 export class VendaApi extends HttpApi.make('venda')
   .add(SystemApi)
+  .add(ContentApi)
   .prefix('/api')
   .annotateMerge(OpenApi.annotations({ title: 'Venda API' })) {}

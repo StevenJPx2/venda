@@ -7,9 +7,10 @@ Venda is a small, Cloudflare-native headless CMS. The admin and landing site are
 - `apps/admin`: Nuxt UI admin dashboard, deployed with Nitro's `cloudflare_module` preset.
 - `apps/landing`: Nuxt UI marketing site, same preset.
 - `apps/api`: Worker API with cookie sessions, D1 repositories, R2 uploads, and KV cache invalidation.
-- `packages/core`: framework-neutral CMS core (`createVenda().fetch`) with Cloudflare and Node adapters; `packages/core/migrations` holds the numbered SQL migrations.
+- `packages/core`: framework-neutral CMS core (`createVenda().fetch`) with Cloudflare and Node adapters; `packages/core/migrations` holds the numbered SQL migrations. `packages/core/src/content` (`@venda/core/content`) is the new Effect code: sync from the content files into the index, and the public reads.
 - `packages/contract`: **`@venda/contract`**, the API contract in Effect Schema (`HttpApi`), shared by the server and every client. Endpoints move here from the core slice by slice ([docs/architecture.md](docs/architecture.md)).
-- `packages/server`: **`@venda/server`**, the Nitro 3 host. `pnpm --filter @venda/server build` targets Cloudflare Workers (D1, R2, KV and a one-minute Cron Trigger); `NITRO_PRESET=node` builds a Node server with SQLite and files under `VENDA_DATA_DIR`. It replaces `apps/api` once the cut-over slice lands.
+- `packages/content`: **`@venda/content`**, the file format: `config.ts` collection models read as data (never run), frontmatter, and Markdown with block tags to and from rich-text documents.
+- `packages/server`: **`@venda/server`**, the Nitro 3 host. `pnpm --filter @venda/server build` targets Cloudflare Workers (D1, R2, KV and a one-minute Cron Trigger); `NITRO_PRESET=node` builds a Node server with SQLite and files under `VENDA_DATA_DIR`. `VENDA_CONTENT_DIR` names the content folder (one folder per collection): Node watches it, and a Workers build bundles it. It replaces `apps/api` once the cut-over slice lands.
 - `apps/api/scripts/seed.mjs`: idempotent sample-data seeder (`VENDA_ADMIN_PASSWORD=… pnpm --filter @venda/api db:seed`; add `-- --update` to overwrite existing seed entries).
 
 - `packages/richtext`: **`@venda/richtext`**, the rich-text document format: validation, a safe HTML renderer, HTML conversion and plain-text helpers. Framework- and runtime-neutral.

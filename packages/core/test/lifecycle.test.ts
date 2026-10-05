@@ -180,7 +180,7 @@ describe('upgrading an existing database', () => {
     await db.run("INSERT INTO entries (id, collection_id, slug, data_json, status, created_at, updated_at) VALUES ('e1', 'c1', 'live', '{\"title\":\"Live\"}', 'published', ?, ?)", now, now);
     await db.run("INSERT INTO entries (id, collection_id, slug, data_json, status, created_at, updated_at) VALUES ('e2', 'c1', 'wip', '{}', 'draft', ?, ?)", now, now);
 
-    expect(await db.migrate()).toEqual(['0003_lifecycle.sql']);
+    expect(await db.migrate()).toEqual(['0003_lifecycle.sql', '0004_content_index.sql']);
     expect(await db.first('SELECT status, published_json, published_at FROM entries WHERE id = ?', 'e1')).toEqual({ status: 'published', published_json: '{"title":"Live"}', published_at: now });
     expect(await db.first('SELECT status, published_json FROM entries WHERE id = ?', 'e2')).toEqual({ status: 'draft', published_json: null });
     db.close();

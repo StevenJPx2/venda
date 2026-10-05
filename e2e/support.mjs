@@ -17,6 +17,9 @@ export const OWNER = { email: 'owner@example.com', password: 'recovery-password'
 const SERVER = `${ROOT}/packages/server`;
 const SERVER_CONFIG = '.output/server/wrangler.json';
 
+/** Content files for the file-first suites: the `field-notes` collection. */
+export const CONTENT_FIXTURES = `${ROOT}/e2e/fixtures/content`;
+
 const children = [];
 const results = [];
 
@@ -40,9 +43,9 @@ function start(cmd, args, cwd, env = {}, label = cmd) {
   return () => log;
 }
 
-function run(cmd, args, cwd) {
+function run(cmd, args, cwd, env = {}) {
   return new Promise((resolvePromise, reject) => {
-    const child = spawn(cmd, args, { cwd, stdio: 'ignore' });
+    const child = spawn(cmd, args, { cwd, env: { ...process.env, ...env }, stdio: 'ignore' });
     child.once('error', reject);
     child.once('exit', code => (code === 0 ? resolvePromise() : reject(new Error(`${cmd} ${args.join(' ')} exited ${code}`))));
   });
@@ -63,8 +66,9 @@ async function waitFor(url, label, getLog, seconds = 240) {
 /** Starts the API on a fresh migrated D1; returns once it answers. */
 export async function startApi() {
   const state = await mkdtemp(join(tmpdir(), 'venda-e2e-'));
-  // The Nitro server (packages/server), built for Workers; wrangler runs the build on local workerd.
-  await run('pnpm', ['exec', 'nitro', 'build'], SERVER);
+  // The Nitro server (packages/server), built for Workers with the fixture content
+  // bundled; wrangler runs the build on local workerd.
+  await run('pnpm', ['exec', 'nitro', 'build'], SERVER, { VENDA_CONTENT_DIR: CONTENT_FIXTURES });
   await run('npx', ['wrangler', 'd1', 'migrations', 'apply', 'VENDA_DB', '--local', '--persist-to', state, '--config', SERVER_CONFIG], SERVER);
   const log = start('npx', ['wrangler', 'dev', '--local', '--persist-to', state, '--config', SERVER_CONFIG, '--port', String(PORTS.api),
     '--var', `ADMIN_EMAIL:${OWNER.email}`, '--var', `ADMIN_PASSWORD:${OWNER.password}`,
