@@ -88,11 +88,111 @@ function onKeydown(event: KeyboardEvent): void {
   if (!event.metaKey && !event.ctrlKey) emit('typing');
 }
 
+// Not named like the template ref: in Vue 3.5 a matching binding captures the ref.
+const rootEl = useTemplateRef<HTMLElement>('bodyRoot');
+
+function setHandleMeta(key: 'lockDragHandle' | 'hideDragHandle', value: boolean): void {
+  const editor = editorComponent.value?.editor;
+  if (editor) editor.view.dispatch(editor.state.tr.setMeta(key, value).setMeta('addToHistory', false));
+}
+
+function handleEl(): HTMLElement | null {
+  return rootEl.value?.querySelector<HTMLElement>('[aria-label="Insert a card"]') ?? null;
+}
+const isShown = (el: HTMLElement | null): el is HTMLElement => el !== null && getComputedStyle(el).visibility !== 'hidden';
+
+// Safe triangle (menu-aim): while the pointer travels from the text towards
+// the "+", the handle stays on its block instead of jumping to whichever
+// block a sagging path crosses. pointermove fires before the mousemove the
+// drag handle listens to, so a lock set here applies to that same move.
+interface Point { x: number; y: number }
+// Widens the 28px handle so a hand's natural wobble (up to ~17px off the line) still counts as aiming.
+const TRIANGLE_SLACK_PX = 12;
+const HANDLE_SLACK_PX = 4;
+const IDLE_UNLOCK_MS = 300;
+let anchor: Point | null = null;
+let locked = false;
+let idle: ReturnType<typeof setTimeout> | undefined;
+let pointer: Point = { x: 0, y: 0 };
+
+function setLocked(next: boolean): void {
+  if (locked === next) return;
+  locked = next;
+  setHandleMeta('lockDragHandle', next);
+}
+
+function release(): void {
+  clearTimeout(idle);
+  anchor = null;
+  const wasLocked = locked;
+  setLocked(false);
+  if (!wasLocked) return;
+  // The editor ignored the pointer while locked. Catch up: hide the handle if the
+  // pointer has left, otherwise let it settle on the block the pointer rests on.
+  const box = rootEl.value?.getBoundingClientRect();
+  const inside = box && pointer.x >= box.left - 64 && pointer.x <= box.right && pointer.y >= box.top && pointer.y <= box.bottom;
+  const view = editorComponent.value?.editor?.view.dom;
+  if (!inside) setHandleMeta('hideDragHandle', true);
+  else view?.dispatchEvent(new MouseEvent('mousemove', { clientX: pointer.x, clientY: pointer.y, bubbles: true }));
+}
+
+const side = (p: Point, a: Point, b: Point) => (p.x - b.x) * (a.y - b.y) - (a.x - b.x) * (p.y - b.y);
+function inTriangle(p: Point, a: Point, b: Point, c: Point): boolean {
+  const d1 = side(p, a, b);
+  const d2 = side(p, b, c);
+  const d3 = side(p, c, a);
+  return !((d1 < 0 || d2 < 0 || d3 < 0) && (d1 > 0 || d2 > 0 || d3 > 0));
+}
+
+function onPointerMove(event: PointerEvent): void {
+  if (event.pointerType !== 'mouse') return;
+  pointer = { x: event.clientX, y: event.clientY };
+  const handle = handleEl();
+  if (!isShown(handle)) {
+    anchor = null;
+    setLocked(false);
+    return;
+  }
+  const r = handle.getBoundingClientRect();
+  const onHandle = pointer.x >= r.left - HANDLE_SLACK_PX && pointer.x <= r.right + HANDLE_SLACK_PX && pointer.y >= r.top - HANDLE_SLACK_PX && pointer.y <= r.bottom + HANDLE_SLACK_PX;
+  if (onHandle) {
+    clearTimeout(idle);
+    anchor = null;
+    setLocked(true);
+    return;
+  }
+  const top = { x: r.right, y: r.top - TRIANGLE_SLACK_PX };
+  const bottom = { x: r.right, y: r.bottom + TRIANGLE_SLACK_PX };
+  if (anchor && pointer.x < anchor.x && inTriangle(pointer, anchor, top, bottom)) {
+    setLocked(true);
+    // Resting inside the triangle means the pointer is not heading anywhere: let the handle follow again.
+    clearTimeout(idle);
+    idle = setTimeout(release, IDLE_UNLOCK_MS);
+    return;
+  }
+  clearTimeout(idle);
+  setLocked(false);
+  anchor = pointer;
+}
+
+onMounted(() => window.addEventListener('pointermove', onPointerMove, { passive: true }));
+onBeforeUnmount(() => {
+  window.removeEventListener('pointermove', onPointerMove);
+  clearTimeout(idle);
+});
+
+// Typing puts the "+" away until the pointer moves again, like the rest of the chrome.
+function onKeydownCapture(event: KeyboardEvent): void {
+  release();
+  if (event.metaKey || event.ctrlKey || event.altKey || ['Shift', 'Meta', 'Control', 'Alt'].includes(event.key)) return;
+  if (isShown(handleEl())) setHandleMeta('hideDragHandle', true);
+}
+
 defineExpose({ focusStart });
 </script>
 
 <template>
-  <div :class="['proto-body', props.serif && 'proto-body--serif']" @keydown="onKeydown">
+  <div ref="bodyRoot" :class="['proto-body', props.serif && 'proto-body--serif']" @keydown="onKeydown" @keydown.capture="onKeydownCapture">
     <UEditor
       ref="editorRef"
       v-slot="{ editor, handlers: editorHandlers }"
@@ -111,7 +211,8 @@ defineExpose({ focusStart });
         </template>
       </UEditorToolbar>
       <UEditorSuggestionMenu :editor="editor" :items="cardItems" />
-      <UEditorDragHandle v-slot="{ ui, onClick }" :editor="editor">
+      <!-- Hovered dozens of times a minute, so it moves between blocks instantly. -->
+      <UEditorDragHandle v-slot="{ ui, onClick }" :editor="editor" :ui="{ root: 'transition-none' }">
         <UButton
           icon="i-lucide-plus"
           color="neutral"
@@ -135,6 +236,31 @@ defineExpose({ focusStart });
   color: var(--ui-text);
 }
 .proto-body :deep(.ProseMirror p) { margin-block: 0 1.1em; }
+/* The handle's gutter belongs to the editor, so moving the pointer from the
+   text to "+" never leaves the editor (which would hide the handle). Phones
+   have no hover and no room for a gutter. */
+@media (min-width: 640px) {
+  .proto-body :deep(.ProseMirror) {
+    width: calc(100% + 3.5rem);
+    padding-inline-start: 3.5rem;
+    margin-inline-start: -3.5rem;
+  }
+}
+
+/* A larger invisible hit area than the 28px icon, plus press feedback. */
+.proto-body :deep([aria-label='Insert a card']) {
+  position: relative;
+  transition: transform 120ms var(--ease-out), background-color 150ms ease, color 150ms ease;
+}
+.proto-body :deep([aria-label='Insert a card'])::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+}
+.proto-body :deep([aria-label='Insert a card']):active { transform: scale(0.94); }
+@media (prefers-reduced-motion: reduce) {
+  .proto-body :deep([aria-label='Insert a card']):active { transform: none; }
+}
 .proto-body :deep(.ProseMirror h2) {
   font-size: 1.5rem;
   line-height: 1.25;
