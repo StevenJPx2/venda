@@ -155,7 +155,7 @@ watch(() => post.savedAt.value, tick);
       </div>
     </aside>
 
-    <p class="f-chrome pv-num fixed bottom-4 left-5 hidden text-xs text-dimmed sm:block">{{ post.words.value.toLocaleString() }} words</p>
+    <p class="f-chrome f-words pv-num fixed bottom-4 left-5 hidden text-xs text-dimmed sm:block">{{ post.words.value.toLocaleString() }} words</p>
   </div>
 </template>
 
@@ -171,13 +171,22 @@ watch(() => post.savedAt.value, tick);
   padding: 0 1rem;
 }
 
-/* Chrome returns a little slower than it leaves: leaving is the system
-   getting out of the way, returning is answering the pointer. */
-.f-chrome { transition: opacity 200ms var(--ease-out); }
+/* Leaving is ambient (the writer is looking at the text), so it takes its
+   time and drifts away from the page; returning answers the pointer, so it
+   is quick. */
+.f-chrome {
+  transition: opacity 150ms var(--ease-out), transform 150ms var(--ease-out);
+}
 .f[data-typing] .f-chrome {
   opacity: 0;
   pointer-events: none;
-  transition-duration: 120ms;
+  transition-duration: 280ms;
+  transition-timing-function: ease;
+}
+.f[data-typing] .f-bar { transform: translateY(-6px); }
+.f[data-typing] .f-words { transform: translateY(6px); }
+@media (prefers-reduced-motion: reduce) {
+  .f[data-typing] .f-bar, .f[data-typing] .f-words { transform: none; }
 }
 
 .f-title {

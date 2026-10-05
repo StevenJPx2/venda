@@ -133,7 +133,7 @@ against them before it ships.
 | --- | --- |
 | Should it animate? | Not keyboard-triggered actions, not things seen 100+ times a day (list navigation, the command palette, switching collections). Sheets, popovers and toasts animate. |
 | Easing | Entering and exiting: `--ease-out: cubic-bezier(0.23, 1, 0.32, 1)`. Sheets: `--ease-drawer: cubic-bezier(0.32, 0.72, 0, 1)`. Moving on screen: `--ease-in-out: cubic-bezier(0.77, 0, 0.175, 1)`. Never `ease-in`. |
-| Duration | Press 120ms; tooltips and popovers 150–200ms; sheets 240ms. Nothing in the UI over 300ms. Exits are faster than entrances. |
+| Duration | Press 120ms; tooltips and popovers 150–200ms; sheets 240ms. Nothing in the UI over 300ms. Exits are faster than entrances, except ambient exits the user isn't watching: chrome fading while you type leaves over 280ms and returns in 150ms. |
 | Properties | `transform` and `opacity` only; never `transition: all`. |
 | Entrances | From `scale(0.97)` plus `opacity: 0`, never from `scale(0)`. Popovers scale from their trigger (`transform-origin` on the trigger side); dialogs stay centred. |
 | Press feedback | Every pressable element scales to `0.97` on `:active`. |
