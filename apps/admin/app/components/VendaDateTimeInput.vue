@@ -38,6 +38,7 @@ const calendarLimits = minimum ? { minValue: toCalendarDate(minimum) } : {};
 /** Picking a day keeps the chosen time, or uses the default hour for a new one. */
 function onPickDay(next: unknown): void {
   if (!next || typeof next !== 'object' || !('day' in next)) return;
+
   const picked = next as DateValue;
   const base = value.value ?? toZoned(toCalendarDate(picked), zone).set({ hour: props.defaultHour, minute: 0 });
   value.value = base.set({ year: picked.year, month: picked.month, day: picked.day });

@@ -47,7 +47,9 @@ export function useProtoPost() {
   let timer: ReturnType<typeof setTimeout> | undefined;
   watch([title, body, slug, excerpt, tags, featured, featureImage], () => {
     saveState.value = 'saving';
+
     if (status.value === 'published') hasUnpublishedChanges.value = true;
+
     clearTimeout(timer);
     timer = setTimeout(() => {
       saveState.value = 'saved';
@@ -88,6 +90,7 @@ export function useProtoPost() {
 
     input.onchange = () => {
       const file = input.files?.[0];
+
       if (file) featureImage.value = URL.createObjectURL(file);
     };
 
@@ -107,5 +110,6 @@ export type ProtoPost = ReturnType<typeof useProtoPost>;
 export function statusLabel(post: ProtoPost): { label: string; tone: 'neutral' | 'success' | 'warning' | 'info' } {
   if (post.status.value === 'scheduled') return { label: `Scheduled for ${new Date(post.publishAt.value).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}`, tone: 'info' };
   if (post.status.value === 'published') return post.hasUnpublishedChanges.value ? { label: 'Unpublished changes', tone: 'warning' } : { label: 'Published', tone: 'success' };
+
   return { label: 'Draft', tone: 'neutral' };
 }

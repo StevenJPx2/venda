@@ -29,7 +29,9 @@ async function listEntries(ctx: RequestContext): Promise<Response> {
   const { db } = ctx.services.config;
   const collectionId = ctx.params.id ?? '';
   const schema = await collectionSchema(db, collectionId);
+
   if (!schema) throw notFound('Collection not found');
+
   const trash = ctx.url.searchParams.get('trash') === '1';
   const rows = await db.all(
     `SELECT * FROM entries WHERE collection_id = ? AND deleted_at IS ${trash ? 'NOT NULL ORDER BY deleted_at DESC' : 'NULL ORDER BY updated_at DESC'}`,
@@ -43,13 +45,19 @@ async function createEntry(ctx: RequestContext): Promise<Response> {
   const { db, kv } = ctx.services.config;
   const collectionId = ctx.params.id ?? '';
   const schema = await collectionSchema(db, collectionId);
+
   if (!schema) throw notFound('Collection not found');
+
   const body = await readJson(ctx.request);
   const slug = slugify(typeof body.slug === 'string' ? body.slug : '');
+
   if (!slug) throw new HttpError(400, 'Entry slug is required');
+
   const input = objectInput(body.data ?? {});
   const publish = statusInput(body.status ?? 'draft') === 'published';
+
   if (publish) requireScoped(actor, PUBLISH, actor.user.id, 'You do not have permission to publish this entry');
+
   rejectInvalid(entryErrors(schema, input, publish ? 'published' : 'draft'));
 
   const now = new Date().toISOString();
@@ -62,12 +70,15 @@ async function createEntry(ctx: RequestContext): Promise<Response> {
     );
   } catch (error) {
     if (isSlugConflict(error)) throw new HttpError(409, 'Entry slug already exists in this collection');
+
     throw error;
   }
 
   let row = await loadEntryRow(db, id);
   await indexEntry(db, row, schema);
+
   if (publish) row = await publishEntry(db, row, actor.user.id);
+
   await invalidateCollection(kv, collectionId);
   return json(toEntry(row, schema), { status: 201 });
 }
@@ -84,14 +95,21 @@ async function saveEntry(ctx: RequestContext): Promise<Response> {
   const { db } = ctx.services.config;
   const existing = await loadEntryRow(db, ctx.params.id ?? '');
   requireScoped(actor, EDIT, owner(existing), 'You do not have permission to edit this entry');
+
   if (existing.deleted_at) throw new HttpError(409, 'Restore this entry from the trash before editing it');
+
   const body = await readJson(ctx.request);
+
   if (body.status !== undefined) throw new HttpError(400, 'Use the publish and unpublish endpoints to change status');
 
   const slug = body.slug === undefined ? String(existing.slug) : slugify(String(body.slug));
+
   if (!slug) throw new HttpError(400, 'Entry slug is required');
+
   const schema = await collectionSchema(db, String(existing.collection_id));
+
   if (!schema) throw notFound('Collection not found');
+
   const input = body.data === undefined ? JSON.parse(String(existing.data_json)) as Record<string, unknown> : objectInput(body.data);
   rejectInvalid(entryErrors(schema, input, 'draft'));
 
@@ -99,6 +117,7 @@ async function saveEntry(ctx: RequestContext): Promise<Response> {
     await db.run('UPDATE entries SET slug = ?, data_json = ?, updated_by = ?, updated_at = ? WHERE id = ?', slug, JSON.stringify(normalizeEntryData(schema, input)), actor.user.id, new Date().toISOString(), String(existing.id));
   } catch (error) {
     if (isSlugConflict(error)) throw new HttpError(409, 'Entry slug already exists in this collection');
+
     throw error;
   }
 
@@ -130,6 +149,7 @@ async function deleteEntry(ctx: RequestContext): Promise<Response> {
 
   if (ctx.url.searchParams.get('permanent') === 'true') {
     if (!row.deleted_at) throw new HttpError(409, 'Move the entry to the trash before deleting it permanently');
+
     await db.run('DELETE FROM entries WHERE id = ?', String(row.id));
   } else if (!row.deleted_at) {
     await moveToTrash(ctx, actor, row);
@@ -146,6 +166,7 @@ async function freeSlug(db: Database, collectionId: string, slug: string, entryI
   for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt++) {
     const candidate = attempt === 0 ? slug : `${base}-${attempt + 1}`;
     const taken = await db.first('SELECT id FROM entries WHERE collection_id = ? AND slug = ? AND deleted_at IS NULL AND id != ?', collectionId, candidate, entryId);
+
     if (!taken) return candidate;
   }
 
@@ -158,7 +179,9 @@ async function restoreEntry(ctx: RequestContext): Promise<Response> {
   const { db, kv } = ctx.services.config;
   const row = await loadEntryRow(db, ctx.params.id ?? '');
   requireScoped(actor, DELETE_CONTENT, owner(row), 'You do not have permission to restore this entry');
+
   if (!row.deleted_at) throw new HttpError(409, 'This entry is not in the trash');
+
   const slug = await freeSlug(db, String(row.collection_id), String(row.slug), String(row.id));
   await db.run('UPDATE entries SET deleted_at = NULL, slug = ?, updated_by = ?, updated_at = ? WHERE id = ?', slug, actor.user.id, new Date().toISOString(), String(row.id));
   await invalidateCollection(kv, String(row.collection_id));

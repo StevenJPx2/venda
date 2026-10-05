@@ -59,6 +59,7 @@ onMounted(async () => {
 
   try {
     collection.value = (await api<Collection[]>('/collections')).find(c => c.id === collectionId) ?? null;
+
     if (!collection.value) loadError.value = 'This collection no longer exists.';
     else if (isNew) draft.begin();
     else await draft.load(String(route.params.entry));

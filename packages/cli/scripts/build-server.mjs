@@ -33,6 +33,7 @@ await run('pnpm', ['--filter', 'venda', 'exec', 'wrangler', 'deploy', '--dry-run
 
 const outputFiles = await readdir(workerOut);
 const workerBundle = outputFiles.find(file => file.endsWith('.js') && !file.endsWith('.map'));
+
 if (!workerBundle) throw new Error(`Wrangler did not emit a Worker bundle in ${workerOut}.`);
 if (workerBundle !== 'index.js') await cp(join(workerOut, workerBundle), join(workerOut, 'index.js'));
 

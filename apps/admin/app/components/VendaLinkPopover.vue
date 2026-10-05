@@ -15,16 +15,20 @@ watch(open, (isOpen) => {
 
 function normalise(value: string): string {
   const trimmed = value.trim();
+
   if (!trimmed) return '';
   if (/^(https?:|mailto:|tel:|\/|#)/i.test(trimmed)) return trimmed;
+
   return `https://${trimmed}`;
 }
 
 function apply(): void {
   const href = normalise(url.value);
   const chain = props.editor.chain().focus().extendMarkRange('link');
+
   if (href) chain.setLink({ href }).run();
   else chain.unsetLink().run();
+
   open.value = false;
 }
 

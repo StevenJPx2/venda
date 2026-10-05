@@ -12,6 +12,7 @@ interface SessionRecord { userId: string; version: number }
 
 function isSessionRecord(value: unknown): value is SessionRecord {
   if (typeof value !== 'object' || value === null) return false;
+
   const record = value as Record<string, unknown>;
   return typeof record.userId === 'string' && typeof record.version === 'number';
 }
@@ -28,15 +29,20 @@ export async function startSession(user: User, store: SessionStore): Promise<str
 async function verifiedToken(request: Request, store: SessionStore): Promise<string | null> {
   const cookie = request.headers.get('Cookie')?.match(new RegExp(`(?:^|;\\s*)${COOKIE}=([^;]+)`))?.[1];
   const [token, signature, extra] = cookie?.split('.') ?? [];
+
   if (!token || !signature || extra !== undefined) return null;
+
   return (await secretsMatch(signature, await hmac(token, store.secret))) ? token : null;
 }
 
 /** The session's user id and version; the caller checks them against the user row. */
 export async function readSession(request: Request, store: SessionStore): Promise<SessionRecord | null> {
   const token = await verifiedToken(request, store);
+
   if (!token) return null;
+
   const raw = await store.kv.get(`session:${token}`);
+
   if (!raw) return null;
 
   try {
@@ -50,6 +56,7 @@ export async function readSession(request: Request, store: SessionStore): Promis
 /** Deletes the session server-side so a copied cookie stops working. */
 export async function endSession(request: Request, store: SessionStore): Promise<void> {
   const token = await verifiedToken(request, store);
+
   if (token) await store.kv.delete(`session:${token}`);
 }
 

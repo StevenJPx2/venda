@@ -57,19 +57,24 @@ export function resourceNames(name: string) {
 
 function text(raw: Record<string, unknown>, key: string): string | undefined {
   const value = raw[key];
+
   if (value === undefined) return undefined;
   if (typeof value !== 'string') throw new ProjectError(`${CONFIG_FILE}: "${key}" must be a string.`);
+
   return value;
 }
 
 function required(raw: Record<string, unknown>, key: string): string {
   const value = text(raw, key);
+
   if (!value) throw new ProjectError(`${CONFIG_FILE}: "${key}" is required.`);
+
   return value;
 }
 
 function parseResources(raw: unknown): ResourceRefs | undefined {
   if (raw === undefined) return undefined;
+
   const r = raw as Partial<ResourceRefs>;
 
   if (!r?.d1?.name || !r.d1.id || !r.kv?.title || !r.kv.id || !r.r2?.name) {
@@ -81,17 +86,21 @@ function parseResources(raw: unknown): ResourceRefs | undefined {
 
 export function parseProject(raw: unknown): VendaProject {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) throw new ProjectError(`${CONFIG_FILE} must contain a JSON object.`);
+
   const record = raw as Record<string, unknown>;
 
   const project: VendaProject = { name: required(record, 'name'), accountId: required(record, 'accountId'), adminEmail: required(record, 'adminEmail') };
   const problem = nameProblem(project.name) ?? emailProblem(project.adminEmail);
+
   if (problem) throw new ProjectError(`${CONFIG_FILE}: ${problem}`);
 
   const domain = text(record, 'domain');
 
   if (domain) {
     const domainError = domainProblem(domain);
+
     if (domainError) throw new ProjectError(`${CONFIG_FILE}: ${domainError}`);
+
     project.domain = domain;
   }
 
@@ -103,9 +112,11 @@ export function parseProject(raw: unknown): VendaProject {
   const resources = parseResources(record.resources);
   const version = text(record, 'version');
   const url = text(record, 'url');
+
   if (resources) project.resources = resources;
   if (version) project.version = version;
   if (url) project.url = url;
+
   return project;
 }
 
@@ -122,6 +133,7 @@ export async function loadProject(dir: string): Promise<VendaProject> {
     return parseProject(JSON.parse(contents));
   } catch (error) {
     if (error instanceof ProjectError) throw error;
+
     throw new ProjectError(`${CONFIG_FILE} is not valid JSON.`);
   }
 }

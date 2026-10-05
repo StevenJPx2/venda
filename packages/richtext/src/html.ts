@@ -42,6 +42,7 @@ function parseTree(html: string): Element {
 
     if (!tag) {
       if (!dropping && !token.startsWith('<!--')) current.children.push({ text: decodeEntities(token) });
+
       continue;
     }
 
@@ -49,12 +50,15 @@ function parseTree(html: string): Element {
 
     if (dropping) {
       if (closing && name === dropping) dropping = null;
+
       continue;
     }
 
     if (closing) {
       const index = stack.map(el => el.tag).lastIndexOf(name);
+
       if (index > 0) stack.length = index;
+
       continue;
     }
 
@@ -62,6 +66,7 @@ function parseTree(html: string): Element {
 
     const element: Element = { tag: name, attrs: parseAttrs(rest ?? ''), children: [] };
     current.children.push(element);
+
     if (!VOID.has(name) && !rest?.trimEnd().endsWith('/') && stack.length < MAX_DEPTH) stack.push(element);
   }
 
@@ -82,8 +87,11 @@ function inlineNodes(children: Child[], marks: RichTextMark[], out: RichTextNode
   for (const child of children) {
     if (!isElement(child)) {
       const text = child.text.replace(/[ \t\r\n\f]+/g, ' ');
+
       if (!text) continue;
+
       const last = out[out.length - 1];
+
       if (last?.type === 'text' && sameMarks(last.marks, marks)) last.text += text;
       else out.push({ type: 'text', text, ...(marks.length ? { marks } : {}) });
     } else if (child.tag === 'br') {
@@ -100,9 +108,13 @@ function inlineNodes(children: Child[], marks: RichTextMark[], out: RichTextNode
 /** Trims collapsed whitespace at the edges of a line of inline content. */
 function trimInline(nodes: RichTextNode[]): RichTextNode[] {
   const first = nodes[0];
+
   if (first?.type === 'text') first.text = first.text!.replace(/^ +/, '');
+
   const last = nodes[nodes.length - 1];
+
   if (last?.type === 'text') last.text = last.text!.replace(/ +$/, '');
+
   return nodes.filter(node => node.type !== 'text' || node.text);
 }
 
@@ -164,7 +176,9 @@ function blocks(children: Child[]): RichTextNode[] {
 
   const flush = () => {
     const p = paragraph(run);
+
     if (p) out.push(p);
+
     run = [];
   };
 

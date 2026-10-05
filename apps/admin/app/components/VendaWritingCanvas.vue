@@ -87,8 +87,11 @@ function showBubble({ editor, view, state }: BubbleContext): boolean {
 
 function focusBody(event: KeyboardEvent): void {
   if (event.key !== 'Enter' || event.shiftKey) return;
+
   const editor = editorComponent.value?.editor;
+
   if (!editor) return;
+
   event.preventDefault();
   // TipTap's focus() moves DOM focus a frame later (requestAnimationFrame), so
   // keys typed straight after Enter could still land in the title. Set the
@@ -101,7 +104,9 @@ function focusBody(event: KeyboardEvent): void {
 function onKeydown(event: KeyboardEvent): void {
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
     const editor = editorComponent.value?.editor;
+
     if (!editor || editor.state.selection.empty) return;
+
     event.preventDefault();
     linkOpen.value = true;
   }

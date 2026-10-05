@@ -52,10 +52,14 @@ export async function createApiToken(db: Database, input: { userId: string; name
 /** Looks up a bearer token; expired or unknown tokens resolve to null. */
 export async function findApiToken(db: Database, secret: string): Promise<ApiToken | null> {
   if (!secret.startsWith(PREFIX)) return null;
+
   const row = await db.first('SELECT * FROM api_tokens WHERE token_hash = ?', await sha256(secret));
+
   if (!row) return null;
+
   const token = toApiToken(row);
   const now = Date.now();
+
   if (token.expiresAt && Date.parse(token.expiresAt) <= now) return null;
 
   if (!token.lastUsedAt || now - Date.parse(token.lastUsedAt) > LAST_USED_RESOLUTION_MS) {

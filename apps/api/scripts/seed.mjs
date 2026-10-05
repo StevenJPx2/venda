@@ -21,11 +21,15 @@ let cookie = '';
 
 async function call(path, { method = 'GET', body } = {}) {
   const headers = {};
+
   if (body) headers['Content-Type'] = 'application/json';
   if (cookie) headers.Cookie = cookie;
+
   const response = await fetch(`${API}${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined });
   const setCookie = response.headers.get('set-cookie');
+
   if (setCookie) cookie = setCookie.split(';')[0];
+
   const text = await response.text();
   const data = text ? JSON.parse(text) : null;
   return { status: response.status, data };
@@ -33,7 +37,9 @@ async function call(path, { method = 'GET', body } = {}) {
 
 async function login() {
   const { status } = await call('/auth/login', { method: 'POST', body: { email: EMAIL, password: PASSWORD } });
+
   if (status !== 200) throw new Error(`Login failed (${status}). Check VENDA_ADMIN_EMAIL / VENDA_ADMIN_PASSWORD.`);
+
   console.log(`Signed in as ${EMAIL}`);
 }
 

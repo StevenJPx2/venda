@@ -32,11 +32,13 @@ export async function readJson(request: Request): Promise<Record<string, unknown
   }
 
   if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new HttpError(400, 'Request body must be a JSON object');
+
   return value as Record<string, unknown>;
 }
 
 export function errorResponse(error: unknown): Response {
   if (error instanceof HttpError) return json({ error: error.message, ...error.details }, { status: error.status });
+
   // Unexpected failures are logged by the host; the client gets no internals.
   console.error(error);
   return json({ error: 'Internal error' }, { status: 500 });

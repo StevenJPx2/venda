@@ -39,7 +39,9 @@ export function r2(bucket: R2Like): ObjectStore {
     put: async (key, body, { contentType }) => { await bucket.put(key, body, { httpMetadata: { contentType } }); },
     get: async (key) => {
       const object = await bucket.get(key);
+
       if (!object) return null;
+
       return { body: object.body, size: object.size, ...(object.httpMetadata?.contentType ? { contentType: object.httpMetadata.contentType } : {}) };
     },
     delete: key => bucket.delete(key)

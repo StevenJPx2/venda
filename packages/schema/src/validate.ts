@@ -9,6 +9,7 @@ export function isEmptyValue(field: FieldDefinition, value: unknown): boolean {
   if (field.interface === 'wysiwyg' && (typeof value === 'string' || isRichTextDoc(value))) return isEmptyDoc(toDoc(value));
   if (typeof value === 'string') return !value.trim();
   if (Array.isArray(value)) return value.length === 0;
+
   return false;
 }
 
@@ -60,10 +61,12 @@ export function validateEntryData(schema: CollectionSchema, data: Record<string,
 
     if (isEmptyValue(field, value)) {
       if (field.required && options.published) errors.push({ field: field.key, message: `${fieldLabel(field)} is required to publish.` });
+
       continue;
     }
 
     const problem = typeProblem(field, value);
+
     if (problem) errors.push({ field: field.key, message: `${fieldLabel(field)} ${problem}.` });
   }
 

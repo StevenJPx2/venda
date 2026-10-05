@@ -20,8 +20,11 @@ async function createInvitation(ctx: RequestContext): Promise<Response> {
   const body = await readJson(ctx.request);
   const email = emailInput(body);
   const role = body.role;
+
   if (!isRole(role)) throw new HttpError(400, 'Unknown role');
+
   const { db } = ctx.services.config;
+
   if (await findUserByEmail(db, email)) throw new HttpError(409, 'A user with this email already exists');
 
   // One open invitation per address: a new invitation replaces an unused one.
@@ -34,7 +37,9 @@ async function createInvitation(ctx: RequestContext): Promise<Response> {
     id, email, role, await sha256(token), actor.user.id, new Date(now).toISOString(), new Date(now + INVITATION_TTL_MS).toISOString()
   );
   const invitation = await db.first('SELECT * FROM invitations WHERE id = ?', id);
+
   if (!invitation) throw new Error('Invitation vanished after insert');
+
   // The token is returned once, so the admin can share the acceptance link.
   return json({ invitation: toInvitation(invitation), token }, { status: 201 });
 }
@@ -56,7 +61,9 @@ async function openInvitation(ctx: RequestContext): Promise<Row> {
     'SELECT * FROM invitations WHERE token_hash = ? AND accepted_at IS NULL AND expires_at > ?',
     await sha256(ctx.params.token ?? ''), new Date().toISOString()
   );
+
   if (!row) throw notFound('This invitation is invalid or has expired');
+
   return row;
 }
 
@@ -71,13 +78,17 @@ async function acceptInvitation(ctx: RequestContext): Promise<Response> {
   const body = await readJson(ctx.request);
   const password = requiredString(body, 'password');
   const problem = passwordProblem(password);
+
   if (problem) throw new HttpError(422, problem);
+
   const role = invitation.role;
+
   if (!isRole(role)) throw new Error('Invitation has an unknown role');
 
   const { db } = ctx.services.config;
   // Claim the invitation first; a concurrent acceptance changes no rows and stops here.
   const claimed = await db.run('UPDATE invitations SET accepted_at = ? WHERE id = ? AND accepted_at IS NULL', new Date().toISOString(), String(invitation.id));
+
   if (claimed.changes !== 1) throw notFound('This invitation is invalid or has expired');
   if (await findUserByEmail(db, String(invitation.email))) throw new HttpError(409, 'A user with this email already exists');
 

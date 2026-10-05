@@ -31,6 +31,7 @@ const REASONS: Record<Revision['reason'], { label: string; color: 'success' | 'n
 
 watch(open, async (isOpen) => {
   if (!isOpen) return;
+
   loading.value = true;
 
   try {
@@ -47,12 +48,15 @@ function display(field: FieldDefinition, value: unknown): string {
   if (field.interface === 'wysiwyg') return toPlainText(toDoc(value)).slice(0, 400) || 'None';
   if (Array.isArray(value)) return value.join(', ');
   if (typeof value === 'object') return JSON.stringify(value);
+
   return String(value);
 }
 
 const changes = computed(() => {
   const revision = selected.value;
+
   if (!revision) return [];
+
   return props.schema.fields
     .filter(field => JSON.stringify(revision.data[field.key] ?? null) !== JSON.stringify(props.current[field.key] ?? null))
     .map(field => ({ key: field.key, label: fieldLabel(field), before: display(field, revision.data[field.key]), now: display(field, props.current[field.key]) }));
@@ -64,6 +68,7 @@ function when(iso: string): string {
 
 async function restore(): Promise<void> {
   if (!selected.value) return;
+
   restoring.value = true;
 
   try {

@@ -9,6 +9,7 @@ function fakeRunner(): Runner {
 
   return async (args: string[]): Promise<RunResult> => {
     const command = args.join(' ');
+
     if (command === 'd1 list --json') return { code: 0, stdout: JSON.stringify(d1), stderr: '' };
     if (command === 'kv namespace list') return { code: 0, stdout: JSON.stringify(kv), stderr: '' };
     if (command === 'r2 bucket list') return { code: 0, stdout: r2.map(name => `name: ${name}`).join('\n'), stderr: '' };
@@ -16,6 +17,7 @@ function fakeRunner(): Runner {
     else if (command === 'kv namespace create cms-cache') kv = [{ title: 'cms-cache', id: 'kv-id' }];
     else if (command === 'r2 bucket create cms-media') r2 = ['cms-media'];
     else throw new Error(`Unexpected Wrangler command: ${command}`);
+
     return { code: 0, stdout: 'created', stderr: '' };
   };
 }
@@ -32,9 +34,11 @@ describe('ensureResources', () => {
   it('does not recreate resources that already exist', async () => {
     const runner: Runner = async (args) => {
       const command = args.join(' ');
+
       if (command === 'd1 list --json') return { code: 0, stdout: '[{"name":"cms-content","uuid":"d1-id"}]', stderr: '' };
       if (command === 'kv namespace list') return { code: 0, stdout: '[{"title":"cms-cache","id":"kv-id"}]', stderr: '' };
       if (command === 'r2 bucket list') return { code: 0, stdout: 'name: cms-media', stderr: '' };
+
       throw new Error(`Existing resources must not be recreated: ${command}`);
     };
 

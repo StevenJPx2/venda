@@ -13,7 +13,9 @@ async function listUsers(ctx: RequestContext): Promise<Response> {
 
 async function loadTarget(ctx: RequestContext): Promise<User> {
   const target = await findUserById(ctx.services.config.db, ctx.params.id ?? '');
+
   if (!target) throw notFound('User not found');
+
   return target;
 }
 
@@ -32,9 +34,13 @@ async function updateUser(ctx: RequestContext): Promise<Response> {
   const body = await readJson(ctx.request);
 
   const role = body.role === undefined ? target.role : body.role;
+
   if (!isRole(role)) throw new HttpError(400, 'Unknown role');
+
   const status = body.status === undefined ? target.status : body.status;
+
   if (status !== 'active' && status !== 'disabled') throw new HttpError(400, 'Status must be active or disabled');
+
   const name = optionalString(body, 'name')?.trim().slice(0, 120) ?? target.name;
 
   await guardLastAdministrator(ctx, target, { role, status });
@@ -45,14 +51,18 @@ async function updateUser(ctx: RequestContext): Promise<Response> {
     name, role, status, accessChanged ? 1 : 0, new Date().toISOString(), target.id
   );
   const updated = await findUserById(ctx.services.config.db, target.id);
+
   if (!updated) throw notFound('User not found');
+
   return json(publicUser(updated));
 }
 
 async function deleteUser(ctx: RequestContext): Promise<Response> {
   const actor = await ctx.require('users:manage');
   const target = await loadTarget(ctx);
+
   if (target.id === actor.user.id) throw new HttpError(409, 'You cannot delete your own account');
+
   await guardLastAdministrator(ctx, target, { role: 'contributor', status: 'disabled' });
   // Their entries and media remain; authorship columns are cleared by the foreign keys.
   await ctx.services.config.db.run('DELETE FROM users WHERE id = ?', target.id);

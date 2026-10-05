@@ -19,7 +19,9 @@ export async function config(flags: Flags): Promise<void> {
     if (!key) p.note(JSON.stringify(project, null, 2), 'venda.json');
     else {
       const property = ALIASES[key];
+
       if (!property) throw new UsageError(`Unknown setting "${key}". Available: ${Object.keys(ALIASES).join(', ')}.`);
+
       p.log.info(`${key} = ${JSON.stringify(project[property] ?? null)}`);
     }
 
@@ -31,7 +33,9 @@ export async function config(flags: Flags): Promise<void> {
   }
 
   const property = ALIASES[key];
+
   if (!property) throw new UsageError(`Unknown setting "${key}". Available: ${Object.keys(ALIASES).join(', ')}.`);
+
   const value = rest.join(' ');
 
   if (property === 'domain') {

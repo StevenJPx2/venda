@@ -13,6 +13,7 @@ export function toPlainText(doc: RichTextDoc): string {
       else if (node.type === 'hardBreak') parts.push('\n');
       else if (node.content) {
         walk(node.content);
+
         if (BLOCK_SEPARATED.has(node.type)) parts.push('\n');
       }
     }
@@ -55,5 +56,6 @@ export function trimTrailingEmpty(doc: RichTextDoc): RichTextDoc {
 export function toDoc(value: unknown): RichTextDoc {
   if (isRichTextDoc(value)) return value;
   if (typeof value === 'string') return htmlToDoc(value);
+
   return { type: 'doc', content: [] };
 }

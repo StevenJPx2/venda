@@ -10,6 +10,7 @@ let failed = 0;
 
 for (const file of suites) {
   const { status } = spawnSync(process.execPath, [file], { cwd: dir, stdio: 'inherit' });
+
   if (status !== 0) failed++;
 }
 

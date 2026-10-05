@@ -17,6 +17,7 @@ function compare(a: unknown, b: unknown): number {
   if (a === undefined || a === null) return 1;
   if (b === undefined || b === null) return -1;
   if (typeof a === 'number' && typeof b === 'number') return a - b;
+
   return String(a).localeCompare(String(b), undefined, { numeric: true });
 }
 
@@ -48,6 +49,7 @@ export function collectionKey<TData>(collection: string, options: VendaCollectio
 
 export function isNotFound(error: unknown): boolean {
   if (typeof error !== 'object' || error === null) return false;
+
   const { statusCode, status } = error as { statusCode?: number; status?: number };
   return statusCode === 404 || status === 404;
 }

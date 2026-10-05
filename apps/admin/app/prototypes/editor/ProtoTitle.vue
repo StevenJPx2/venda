@@ -7,6 +7,7 @@ const el = useTemplateRef<HTMLTextAreaElement>('el');
 
 function fit(): void {
   if (!el.value) return;
+
   el.value.style.height = '0px';
   el.value.style.height = `${el.value.scrollHeight}px`;
 }

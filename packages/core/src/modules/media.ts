@@ -16,8 +16,10 @@ async function uploadMedia(ctx: RequestContext): Promise<Response> {
   }
 
   const file = form.get('file');
+
   if (!(file instanceof File)) throw new HttpError(400, 'A file field is required');
   if (file.size > MAX_UPLOAD_BYTES) throw new HttpError(413, 'Maximum file size is 10MB');
+
   const key = `${crypto.randomUUID()}-${slugify(file.name) || 'upload'}`;
   const contentType = file.type || 'application/octet-stream';
   const { db, storage } = ctx.services.config;
@@ -29,11 +31,15 @@ async function uploadMedia(ctx: RequestContext): Promise<Response> {
 
 async function serveMedia(ctx: RequestContext): Promise<Response> {
   const object = await ctx.services.config.storage.get(ctx.params.key ?? '');
+
   if (!object) throw notFound('Media not found');
+
   // Keys embed a random id, so a URL always refers to the same bytes.
   const headers = new Headers({ 'Cache-Control': 'public, max-age=31536000, immutable' });
+
   if (object.contentType) headers.set('Content-Type', object.contentType);
   if (object.size !== undefined) headers.set('Content-Length', String(object.size));
+
   return new Response(object.body, { headers });
 }
 

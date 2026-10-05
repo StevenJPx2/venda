@@ -28,12 +28,15 @@ interface Session { cookie: string }
 
 async function request(url: string, path: string, session: Session | null, init: { method?: string; body?: unknown } = {}): Promise<Response> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+
   if (session) headers.Cookie = session.cookie;
+
   return fetch(`${url}/api${path}`, { method: init.method ?? 'GET', headers, ...(init.body ? { body: JSON.stringify(init.body) } : {}) });
 }
 
 async function expectOk(response: Response, what: string): Promise<unknown> {
   if (!response.ok) throw new Error(`${what} failed (${response.status}): ${await response.text()}`);
+
   return response.json();
 }
 
@@ -41,7 +44,9 @@ export async function login(url: string, email: string, password: string): Promi
   const response = await request(url, '/auth/login', null, { method: 'POST', body: { email, password } });
   await expectOk(response, 'Signing in');
   const cookie = response.headers.getSetCookie().find(value => value.startsWith('venda_session='));
+
   if (!cookie) throw new Error('Signing in did not return a session cookie.');
+
   return { cookie: cookie.split(';')[0]! };
 }
 
@@ -50,6 +55,7 @@ export async function createSampleContent(url: string, email: string, password: 
   const session = await login(url, email, password);
 
   const collections = await expectOk(await request(url, '/collections', session), 'Listing collections') as { slug: string }[];
+
   if (collections.some(c => c.slug === 'posts')) return 'exists';
 
   const posts = await expectOk(await request(url, '/collections', session, { method: 'POST', body: { name: 'Posts', slug: 'posts', schema: POSTS_SCHEMA } }), 'Creating the Posts collection') as { id: string };

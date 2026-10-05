@@ -11,10 +11,13 @@ interface ApiErrorBody { error?: string; fields?: FieldError[] }
 
 function apiError(error: unknown): { status?: number; body?: ApiErrorBody } {
   if (typeof error !== 'object' || error === null) return {};
+
   const { statusCode, data } = error as { statusCode?: number; data?: ApiErrorBody };
   const result: { status?: number; body?: ApiErrorBody } = {};
+
   if (typeof statusCode === 'number') result.status = statusCode;
   if (data) result.body = data;
+
   return result;
 }
 
@@ -116,6 +119,7 @@ export function useEntryDraft(collectionId: string, schema: Ref<CollectionSchema
       } catch (error) {
         // Only auto-generated slugs are renamed; a slug the author chose is reported instead.
         if (apiError(error).status !== 409 || slugTouched.value || tries >= MAX_SLUG_RETRIES) throw error;
+
         attempt = { ...attempt, slug: nextSlug(attempt.slug) };
       }
     }
@@ -127,7 +131,9 @@ export function useEntryDraft(collectionId: string, schema: Ref<CollectionSchema
       : await create(body);
     // Keep the local data: the user may have typed more while the request was in flight.
     applyState(saved);
+
     if (saved.slug !== body.slug) slug.value = saved.slug;
+
     snapshot.value = JSON.stringify({ ...body, slug: saved.slug });
   }
 
@@ -135,6 +141,7 @@ export function useEntryDraft(collectionId: string, schema: Ref<CollectionSchema
     const { status: code, body } = apiError(error);
     saveState.value = 'error';
     fieldErrors.value = body?.fields ?? [];
+
     if (code === 409) errorMessage.value = body?.error ?? 'That URL is already used by another entry.';
     else if (code === 422) errorMessage.value = body?.error ?? 'Some fields are invalid.';
     else if (code === 403) errorMessage.value = body?.error ?? 'You don’t have permission to do that.';
@@ -171,6 +178,7 @@ export function useEntryDraft(collectionId: string, schema: Ref<CollectionSchema
       .catch((error: unknown) => { reportFailure(error); throw error; })
       .finally(() => {
         inFlight = null;
+
         if (queued) { queued = false; void save().catch(() => {}); } else if (dirty.value) scheduleAutosave();
       });
     return inFlight;
@@ -178,12 +186,14 @@ export function useEntryDraft(collectionId: string, schema: Ref<CollectionSchema
 
   function scheduleAutosave(): void {
     if (!editable.value || isEmpty.value || saveState.value === 'error') return;
+
     clearTimeout(timer);
     timer = setTimeout(() => void save().catch(() => {}), AUTOSAVE_DELAY_MS);
   }
 
   watch(payload, () => {
     if (!dirty.value || saveState.value === 'saving') return;
+
     // Editing after a failed save retries automatically.
     saveState.value = 'unsaved';
     scheduleAutosave();
@@ -194,6 +204,7 @@ export function useEntryDraft(collectionId: string, schema: Ref<CollectionSchema
     if (dirty.value || !id.value || inFlight) await save();
     if (inFlight) await inFlight;
     if (!id.value) throw new Error('The entry could not be saved.');
+
     return id.value;
   }
 
@@ -222,7 +233,9 @@ export function useEntryDraft(collectionId: string, schema: Ref<CollectionSchema
   /** Moves the entry to the trash. */
   async function remove(): Promise<void> {
     clearTimeout(timer);
+
     if (id.value) await api(`/entries/${id.value}`, { method: 'DELETE' });
+
     snapshot.value = JSON.stringify(payload.value);
   }
 

@@ -33,6 +33,7 @@ async function load(): Promise<void> {
       ? `/search?collection=${encodeURIComponent(props.collection.id)}&q=${encodeURIComponent(query.value.trim())}`
       : `/collections/${props.collection.id}/entries${view.value === 'trash' ? '?trash=1' : ''}`;
     const result = await api<Entry[]>(path);
+
     if (current === requestId) entries.value = result;
   } catch {
     if (current === requestId) error.value = 'Entries could not be loaded.';
@@ -68,6 +69,7 @@ const restoreEntry = (entry: Entry) => act(() => api(`/entries/${entry.id}/resto
 
 function purgeEntry(entry: Entry): void {
   if (!window.confirm(`Delete “${entryTitle(props.collection.schema, entry)}” forever? This cannot be undone.`)) return;
+
   void act(() => api(`/entries/${entry.id}?permanent=true`, { method: 'DELETE' }), 'Entry deleted permanently', 'The entry could not be deleted');
 }
 </script>

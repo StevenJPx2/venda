@@ -23,8 +23,10 @@ function togglePanel(fromKeyboard = false): void {
 
 const action = computed(() => {
   const future = post.publishAt.value && Date.parse(post.publishAt.value) > Date.now();
+
   if (post.status.value === 'draft') return future ? 'Schedule' : 'Publish';
   if (post.status.value === 'scheduled') return 'Publish now';
+
   return post.hasUnpublishedChanges.value ? 'Publish changes' : null;
 });
 

@@ -42,6 +42,7 @@ function apiMessage(error: unknown, fallback: string): string {
 
 onMounted(async () => {
   if (!(await session.ensure())) return;
+
   tokens.value = await api<ApiToken[]>('/tokens');
   ready.value = true;
 });
@@ -69,6 +70,7 @@ async function create(): Promise<void> {
 
 async function revoke(token: ApiToken): Promise<void> {
   if (!window.confirm(`Revoke “${token.name}”? Scripts using it stop working immediately.`)) return;
+
   await api(`/tokens/${token.id}`, { method: 'DELETE' });
   tokens.value = tokens.value.filter(t => t.id !== token.id);
 }

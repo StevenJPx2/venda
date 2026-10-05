@@ -8,6 +8,7 @@ export function useEditorImages() {
 
   async function insertImage(editor: Editor): Promise<void> {
     const file = await pick('image/*');
+
     if (!file) return;
 
     try {

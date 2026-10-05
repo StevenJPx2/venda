@@ -16,7 +16,9 @@ const owner = (row: Row): string | null => (row.created_by ? String(row.created_
 
 async function liveRow(ctx: RequestContext): Promise<Row> {
   const row = await loadEntryRow(ctx.services.config.db, ctx.params.id ?? '');
+
   if (row.deleted_at) throw new HttpError(409, 'This entry is in the trash');
+
   return row;
 }
 
@@ -43,10 +45,13 @@ async function unpublish(ctx: RequestContext): Promise<Response> {
 function scheduleTime(value: unknown, name: string): string | null | undefined {
   if (value === undefined) return undefined;
   if (value === null) return null;
+
   const time = typeof value === 'string' ? Date.parse(value) : Number.NaN;
+
   if (Number.isNaN(time)) throw new HttpError(400, `${name} must be an ISO 8601 date`);
   if (time <= Date.now()) throw new HttpError(400, `${name} must be in the future`);
   if (time - Date.now() > MAX_SCHEDULE_AHEAD_MS) throw new HttpError(400, `${name} is too far in the future`);
+
   return new Date(time).toISOString();
 }
 
@@ -61,12 +66,14 @@ async function schedule(ctx: RequestContext): Promise<Response> {
   const unpublishAt = scheduleTime(body.unpublishAt, 'unpublishAt');
   const nextPublish = publishAt === undefined ? (row.publish_at ? String(row.publish_at) : null) : publishAt;
   const nextUnpublish = unpublishAt === undefined ? (row.unpublish_at ? String(row.unpublish_at) : null) : unpublishAt;
+
   if (nextPublish && nextUnpublish && nextUnpublish <= nextPublish) throw new HttpError(400, 'unpublishAt must be after publishAt');
 
   if (publishAt) {
     // Catch missing required fields now rather than at publish time.
     const schema = await collectionSchema(db, String(row.collection_id));
     const errors = schema ? entryErrors(schema, JSON.parse(String(row.data_json)) as Record<string, unknown>, 'published') : [];
+
     if (errors.length) throw new HttpError(422, errors[0]?.message ?? 'Some fields are invalid', { fields: errors });
   }
 
@@ -92,10 +99,14 @@ async function viewPreview(ctx: RequestContext): Promise<Response> {
   const [entryId = '', expiresRaw = '', signature = ''] = (ctx.params.token ?? '').split('.');
   const expires = Number(expiresRaw);
   const expected = await previewSignature(entryId, expires, ctx.services.config.sessionSecret);
+
   if (!Number.isFinite(expires) || expires < Date.now() || !(await secretsMatch(signature, expected))) throw notFound('This preview link is invalid or has expired');
+
   const { db } = ctx.services.config;
   const row = await db.first('SELECT * FROM entries WHERE id = ? AND deleted_at IS NULL', entryId);
+
   if (!row) throw notFound('This preview link is invalid or has expired');
+
   const schema = await collectionSchema(db, String(row.collection_id));
   const data = JSON.parse(String(row.data_json)) as Record<string, unknown>;
   return json({

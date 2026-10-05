@@ -27,6 +27,7 @@ const placeholderProp = computed(() => (props.field.placeholder ? { placeholder:
 // datetime-local works in local time without a zone; store ISO 8601 in UTC.
 const localDatetime = computed(() => {
   if (typeof props.modelValue !== 'string' || Number.isNaN(Date.parse(props.modelValue))) return '';
+
   const date = new Date(props.modelValue);
   return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 });
@@ -54,7 +55,9 @@ function setJson(value: string): void {
 
 async function chooseImage(): Promise<void> {
   const file = await pick('image/*');
+
   if (!file) return;
+
   uploading.value = true;
 
   try {

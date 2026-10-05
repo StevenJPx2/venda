@@ -7,17 +7,21 @@ import type { Flags } from '../flags.js';
 async function confirmRemoval(name: string, keepData: boolean, flags: Flags): Promise<void> {
   if (flags.yes) return;
   if (flags.noPrompt) throw new UsageError('Uninstall requires confirmation. Pass --yes to confirm.');
+
   p.log.warn(keepData
     ? 'This removes the deployed Worker and leaves D1, KV, and R2 data in your Cloudflare account.'
     : 'This permanently deletes the Worker, D1 database, KV namespace, and R2 bucket.');
   const typed = answer(await p.text({ message: `Type "${name}" to confirm` }));
+
   if (typed.trim() !== name) throw new UsageError('The install name did not match. Uninstall cancelled.');
 }
 
 export async function uninstall(flags: Flags): Promise<void> {
   const dir = resolve(flags.dir);
   const project = await loadProject(dir);
+
   if (!project.resources) throw new UsageError('This install has no recorded resources.');
+
   await confirmRemoval(project.name, flags.keepData, flags);
 
   p.intro(`Venda · uninstall ${project.name}`);

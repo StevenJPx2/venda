@@ -28,8 +28,10 @@ function isInterface(value: unknown): value is FieldInterface {
 
 function optionalText(raw: Record<string, unknown>, name: string, key: string): string | undefined {
   const value = raw[name];
+
   if (value === undefined || value === null || value === '') return undefined;
   if (typeof value !== 'string') throw new SchemaError(`Field "${key}": ${name} must be text.`);
+
   return value.trim() || undefined;
 }
 
@@ -39,11 +41,14 @@ function parseChoices(raw: unknown, key: string): FieldChoice[] {
   const choices = raw.map((choice) => {
     const value = isRecord(choice) ? choice.value : choice;
     const label = isRecord(choice) ? choice.label : choice;
+
     if (typeof value !== 'string' || !value.trim()) throw new SchemaError(`Field "${key}": every choice needs a value.`);
+
     return { value: value.trim(), label: typeof label === 'string' && label.trim() ? label.trim() : value.trim() };
   });
 
   if (new Set(choices.map(c => c.value)).size !== choices.length) throw new SchemaError(`Field "${key}": choice values must be unique.`);
+
   return choices;
 }
 
@@ -62,6 +67,7 @@ function parseField(raw: unknown): FieldDefinition {
   const label = optionalText(raw, 'label', key);
   const note = optionalText(raw, 'note', key);
   const placeholder = optionalText(raw, 'placeholder', key);
+
   if (label) field.label = label;
   if (note) field.note = note;
   if (placeholder) field.placeholder = placeholder;
@@ -90,17 +96,21 @@ export function parseSchema(raw: unknown): CollectionSchema {
   const fields = raw.fields.map(parseField);
   const keys = fields.map(f => f.key);
   const duplicate = keys.find((key, index) => keys.indexOf(key) !== index);
+
   if (duplicate) throw new SchemaError(`Field key "${duplicate}" is used more than once.`);
 
   const schema: CollectionSchema = { version: 1, fields };
 
   if (raw.titleField !== undefined && raw.titleField !== null && raw.titleField !== '') {
     const title = fields.find(f => f.key === raw.titleField);
+
     if (!title || !TITLE_INTERFACES.includes(title.interface)) throw new SchemaError('The title field must be an existing input or textarea field.');
+
     schema.titleField = title.key;
   }
 
   const previewUrl = parsePreviewUrl(raw.previewUrl);
+
   if (previewUrl) schema.previewUrl = previewUrl;
 
   return schema;
@@ -109,11 +119,14 @@ export function parseSchema(raw: unknown): CollectionSchema {
 function parsePreviewUrl(raw: unknown): string | undefined {
   if (raw === undefined || raw === null || raw === '') return undefined;
   if (typeof raw !== 'string') throw new SchemaError('The preview URL must be text.');
+
   const template = raw.trim();
+
   if (!template.includes('{token}')) throw new SchemaError('The preview URL must contain {token}.');
 
   try {
     const { protocol } = new URL(previewUrlFor(template, 'slug', 'token'));
+
     if (protocol !== 'http:' && protocol !== 'https:') throw new Error('protocol');
   } catch {
     throw new SchemaError('The preview URL must be an http(s) URL.');
@@ -130,6 +143,7 @@ export function previewUrlFor(template: string, slug: string, token: string): st
 /** Directus-style label: explicit label, else the key in title case (`publishedAt` → "Published At"). */
 export function fieldLabel(field: FieldDefinition): string {
   if (field.label) return field.label;
+
   const spaced = field.key.replace(/_/g, ' ').replace(/([a-z0-9])([A-Z])/g, '$1 $2');
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }

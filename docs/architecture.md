@@ -304,8 +304,10 @@ site component. An unknown block renders its text content, never raw markup.
 before every commit that changes behaviour.
 
 Code follows the code-breathing-room convention: blank lines group the
-statements of one phase, every braced block is its own paragraph, and scopes
-never start or end with a blank line. ESLint enforces the mechanical part
+statements of one phase; every braced block and every `if` (one-line guards
+included) gets a blank line above and below, with a run of consecutive guards
+kept together as one paragraph; and scopes never start or end with a blank
+line. ESLint enforces the mechanical part
 (`@stylistic/padding-line-between-statements`, `padded-blocks`,
 `no-multiple-empty-lines` in `eslint.config.shared.mjs`); grouping by phase is
 checked in review.

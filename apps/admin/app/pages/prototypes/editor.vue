@@ -26,13 +26,16 @@ const ready = shallowRef(false);
 
 function moveHighlight(): void {
   const el = itemRefs.value?.[current.value];
+
   if (!el || !highlightRef.value) return;
+
   highlightRef.value.style.width = `${el.offsetWidth}px`;
   highlightRef.value.style.transform = `translateX(${el.offsetLeft}px)`;
 }
 
 function setActive(index: number): void {
   if (index < 0 || index >= variants.length) return;
+
   current.value = index;
   mountKey.value++;
   toast.clear();
@@ -42,9 +45,12 @@ function setActive(index: number): void {
 
 function onKeydown(event: KeyboardEvent): void {
   const target = event.target as HTMLElement;
+
   if (/^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName) || target.isContentEditable) return;
   if (event.metaKey || event.ctrlKey || event.altKey) return;
+
   const num = Number.parseInt(event.key, 10);
+
   if (num >= 1 && num <= variants.length) setActive(num - 1);
   else if (event.key === 'ArrowRight') setActive((current.value + 1) % variants.length);
   else if (event.key === 'ArrowLeft') setActive((current.value - 1 + variants.length) % variants.length);

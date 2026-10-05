@@ -83,6 +83,8 @@ try {
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
   p.log.error(message);
+
   if (process.env.VENDA_DEBUG === '1' && error instanceof Error && error.stack) process.stderr.write(`${error.stack}\n`);
+
   process.exitCode = 1;
 }

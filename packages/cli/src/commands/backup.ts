@@ -21,8 +21,11 @@ function timestamp(): string {
 export async function backup(flags: Flags): Promise<void> {
   const dir = resolve(flags.dir);
   const project = await loadProject(dir);
+
   if (!project.resources) throw new Error('This install has no D1 database to back up.');
+
   const output = resolve(dir, flags.output ?? `backups/${project.name}-${timestamp()}.sql`);
+
   if (await exists(output)) throw new Error(`Refusing to overwrite ${output}. Choose another path with --output.`);
 
   p.intro(`Venda · backup ${project.name}`);

@@ -19,6 +19,7 @@ const results = [];
 
 export function check(name, ok, detail = '') {
   results.push(`${ok ? 'PASS' : 'FAIL'} ${name}${ok || !detail ? '' : `: ${detail}`}`);
+
   if (!ok) process.exitCode = 1;
 }
 
@@ -80,7 +81,9 @@ export async function api(path, init = {}, cookie = '') {
 
 export async function ownerCookie() {
   const { res, body } = await api('/auth/login', { method: 'POST', body: JSON.stringify(OWNER) });
+
   if (!res.ok) throw new Error(`Owner sign-in failed: ${res.status} ${JSON.stringify(body)}`);
+
   return res.headers.getSetCookie()[0].split(';')[0];
 }
 

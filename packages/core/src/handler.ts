@@ -37,13 +37,16 @@ export function createVenda(config: VendaConfig) {
 
   async function dispatch(request: Request, url: URL): Promise<Response> {
     const path = url.pathname.replace(/\/+$/, '') || '/';
+
     if (!path.startsWith('/api')) return config.assets ? config.assets(request) : json({ error: 'Not found' }, { status: 404 });
     if (request.method === 'OPTIONS') return new Response(null, { status: 204 });
+
     const match = router.match(request.method, path);
 
     try {
       if (match.kind === 'not-found') throw new HttpError(404, 'Not found');
       if (match.kind === 'method-not-allowed') throw new HttpError(405, 'Method not allowed');
+
       return await match.handler(createContext(request, url, match.params, services));
     } catch (error) {
       return errorResponse(error);

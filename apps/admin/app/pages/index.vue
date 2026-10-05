@@ -25,6 +25,7 @@ const sidebarCollapsed = shallowRef(false);
 const apiBase = useRuntimeConfig().public.apiBase;
 const publicUrl = computed(() => {
   if (!selected.value || !import.meta.client) return '';
+
   return new URL(`${apiBase}/content/${selected.value.slug}`, window.location.origin).toString();
 });
 
@@ -96,6 +97,7 @@ async function createCollection(payload: { name: string; slug?: string }): Promi
     await loadCollections();
 
     const createdCollection = collections.value.find(collection => collection.id === created.id);
+
     if (createdCollection) selectCollection(createdCollection);
 
     toast.add({ title: 'Collection created', color: 'success', icon: 'i-lucide-circle-check' });

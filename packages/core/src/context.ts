@@ -30,17 +30,25 @@ export interface RequestContext {
 
 async function sessionActor(request: Request, services: Services): Promise<Actor | null> {
   const session = await readSession(request, services.sessions);
+
   if (!session) return null;
+
   const user = await findUserById(services.config.db, session.userId);
+
   if (!user || user.status !== 'active' || user.sessionVersion !== session.version) return null;
+
   return { user, capabilities: roleCapabilities(user.role), via: { kind: 'session' } };
 }
 
 async function tokenActor(secret: string, services: Services): Promise<Actor | null> {
   const token = await findApiToken(services.config.db, secret);
+
   if (!token) return null;
+
   const user = await findUserById(services.config.db, token.userId);
+
   if (!user || user.status !== 'active') return null;
+
   // A token can never exceed its owner's current role.
   const roleCaps = roleCapabilities(user.role);
   const capabilities = new Set(token.scopes.filter(scope => roleCaps.has(scope)));
@@ -67,8 +75,10 @@ export function createContext(request: Request, url: URL, params: Record<string,
     actor,
     async require(capability) {
       const current = await actor();
+
       if (!current) throw new HttpError(401, 'Authentication required');
       if (capability && !current.capabilities.has(capability)) throw new HttpError(403, 'You do not have permission to do that');
+
       return current;
     }
   };

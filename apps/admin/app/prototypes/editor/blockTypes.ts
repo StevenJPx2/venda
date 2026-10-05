@@ -31,12 +31,16 @@ export function blockTypeOf(node: DocNode): BlockType | null {
 /** First and last text positions inside the block, so commands apply to all of it. */
 function textRange(node: DocNode, pos: number): { from: number; to: number } | null {
   if (node.isTextblock) return { from: pos + 1, to: pos + 1 + node.content.size };
+
   let from = -1;
   let to = -1;
   node.descendants((child, offset) => {
     if (!child.isTextblock) return true;
+
     const start = pos + 1 + offset + 1;
+
     if (from < 0) from = start;
+
     to = start + child.content.size;
     return false;
   });
@@ -46,26 +50,34 @@ function textRange(node: DocNode, pos: number): { from: number; to: number } | n
 /** Converts the block at `pos`: first back to plain paragraphs, then to the target type. */
 export function turnInto(editor: Editor, pos: number, type: BlockType): void {
   const node = editor.state.doc.nodeAt(pos);
+
   if (!node || blockTypeOf(node) === type) return;
+
   const range = textRange(node, pos);
+
   if (!range) return;
+
   const chain = editor.chain().focus().setTextSelection(range).clearNodes();
+
   if (type === 'heading2') chain.setHeading({ level: 2 });
   else if (type === 'heading3') chain.setHeading({ level: 3 });
   else if (type === 'bulletList') chain.toggleBulletList();
   else if (type === 'orderedList') chain.toggleOrderedList();
   else if (type === 'blockquote') chain.setBlockquote();
   else if (type === 'codeBlock') chain.setCodeBlock();
+
   // Leave a caret, not the whole block selected, or the next keystroke replaces it.
   chain.selectTextblockEnd().run();
 }
 
 export function duplicateBlock(editor: Editor, pos: number): void {
   const node = editor.state.doc.nodeAt(pos);
+
   if (node) editor.chain().focus().insertContentAt(pos + node.nodeSize, node.toJSON()).run();
 }
 
 export function deleteBlock(editor: Editor, pos: number): void {
   const node = editor.state.doc.nodeAt(pos);
+
   if (node) editor.chain().focus().deleteRange({ from: pos, to: pos + node.nodeSize }).run();
 }

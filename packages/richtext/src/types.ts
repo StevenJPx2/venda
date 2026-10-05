@@ -36,11 +36,13 @@ function validMarks(marks: unknown): boolean {
 /** Structural check of an untrusted value; unknown node types are allowed and rendered as their children. */
 export function isRichTextDoc(value: unknown): value is RichTextDoc {
   if (!isRecord(value) || value.type !== 'doc' || !Array.isArray(value.content)) return false;
+
   let count = 0;
   const stack: { node: unknown; depth: number }[] = value.content.map(node => ({ node, depth: 1 }));
 
   while (stack.length) {
     const { node, depth } = stack.pop()!;
+
     if (++count > MAX_NODES || depth > MAX_DEPTH) return false;
     if (!isRecord(node) || typeof node.type !== 'string' || node.type === 'doc') return false;
     if (node.attrs !== undefined && !isRecord(node.attrs)) return false;
@@ -49,6 +51,7 @@ export function isRichTextDoc(value: unknown): value is RichTextDoc {
 
     if (node.content !== undefined) {
       if (!Array.isArray(node.content)) return false;
+
       for (const child of node.content) stack.push({ node: child, depth: depth + 1 });
     }
   }

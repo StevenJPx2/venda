@@ -20,6 +20,7 @@ export function schemaInput(raw: unknown): { schema: CollectionSchema } | { erro
     return { schema: parseSchema(raw) };
   } catch (error) {
     if (error instanceof SchemaError) return { error: error.message };
+
     throw error;
   }
 }
@@ -40,11 +41,14 @@ export function entryErrors(schema: CollectionSchema, data: Record<string, unkno
  */
 export function normalizeEntryData(schema: CollectionSchema, data: Record<string, unknown>): Record<string, unknown> {
   const richText = schema.fields.filter(field => field.interface === 'wysiwyg' && data[field.key] !== undefined && data[field.key] !== null);
+
   if (!richText.length) return data;
+
   const normalized = { ...data };
 
   for (const field of richText) {
     const value = data[field.key];
+
     if (typeof value === 'string' || (typeof value === 'object' && value !== null)) normalized[field.key] = trimTrailingEmpty(toDoc(value));
   }
 

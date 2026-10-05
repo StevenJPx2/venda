@@ -14,6 +14,7 @@ export interface DeployResult {
 /** Renders wrangler.jsonc for the release this CLI ships; returns the release dir. */
 export async function prepareRelease(dir: string, project: VendaProject): Promise<{ releaseDir: string; version: string }> {
   if (!project.resources) throw new Error('This install has no resources yet. Run `venda init` to finish setting it up.');
+
   const version = await cliVersion();
   const releaseDir = await installRelease(dir, version);
   const config = renderWranglerConfig(project, project.resources, releaseDir, version);
@@ -41,6 +42,7 @@ export async function deployRelease(runner: Runner, dir: string, project: VendaP
   onStep('Deploying Worker');
   const output = await wrangler(runner, ['deploy'], { cwd: dir });
   const url = parseDeployUrl(output, project.domain) ?? project.url;
+
   if (!url) throw new Error('Deployed, but Wrangler did not report a URL. Check the Workers dashboard, or set a domain in venda.json.');
 
   const result: DeployResult = { url, version, ...(project.version && project.version !== version ? { previousVersion: project.version } : {}) };
@@ -60,6 +62,7 @@ export async function waitForHealth(url: string, timeoutMs = 90_000): Promise<{ 
   while (Date.now() < deadline) {
     try {
       const response = await fetch(`${url}/api/health`, { headers: { 'cache-control': 'no-cache' } });
+
       if (response.ok) return { ok: true, ...(await response.json() as { version?: string }) };
     } catch {
       // DNS or TLS not ready yet; keep polling.

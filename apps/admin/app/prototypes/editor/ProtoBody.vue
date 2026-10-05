@@ -24,6 +24,7 @@ const handlers = {
 
       input.onchange = () => {
         const file = input.files?.[0];
+
         if (file) editor.chain().focus().setImage({ src: URL.createObjectURL(file), alt: file.name }).run();
       };
 
@@ -75,7 +76,9 @@ const showBubble = ({ editor, view, state }: BubbleContext) => view.hasFocus() &
 
 function focusStart(): void {
   const editor = editorComponent.value?.editor;
+
   if (!editor) return;
+
   editor.commands.focus('start');
   editor.view.focus();
 }
@@ -83,7 +86,9 @@ function focusStart(): void {
 function onKeydown(event: KeyboardEvent): void {
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
     const editor = editorComponent.value?.editor;
+
     if (!editor || editor.state.selection.empty) return;
+
     event.preventDefault();
     linkOpen.value = true;
     return;
@@ -97,6 +102,7 @@ const rootEl = useTemplateRef<HTMLElement>('bodyRoot');
 
 function setHandleMeta(key: 'lockDragHandle' | 'hideDragHandle', value: boolean): void {
   const editor = editorComponent.value?.editor;
+
   if (editor) editor.view.dispatch(editor.state.tr.setMeta(key, value).setMeta('addToHistory', false));
 }
 
@@ -122,7 +128,9 @@ function buildMenu(editor: Editor, pos: number): DropdownMenuItem[][] {
     { label: 'Duplicate', icon: 'i-lucide-copy', onSelect: () => duplicateBlock(editor, pos) },
     { label: 'Delete', icon: 'i-lucide-trash-2', color: 'error', onSelect: () => deleteBlock(editor, pos) }
   ];
+
   if (!current) return [actions];
+
   const turnInto: DropdownMenuItem[] = [
     { type: 'label', label: 'Turn into' },
     ...BLOCK_TYPES.map(block => ({ type: 'checkbox' as const, label: block.label, icon: block.icon, checked: block.type === current, onSelect: () => turnBlockInto(editor, pos, block.type) }))
@@ -133,6 +141,7 @@ function buildMenu(editor: Editor, pos: number): DropdownMenuItem[][] {
 function openMenu(editor: Editor): void {
   // A click on the grip while the menu is open first closes it (pointer-down outside); don't reopen.
   if (hoveredPos.value === null || menuOpen.value || performance.now() - closedAt < REOPEN_GUARD_MS) return;
+
   clearTimeout(idle);
   anchor = null;
   locked = true;
@@ -151,12 +160,14 @@ function openMenu(editor: Editor): void {
 
 function closeMenu(editor: Editor): void {
   if (!menuOpen.value) return;
+
   menuOpen.value = false;
   closedAt = performance.now();
   targetBox.value = null;
   locked = false;
   setHandleMeta('lockDragHandle', false);
   setHandleMeta('hideDragHandle', true);
+
   if (!editor.view.hasFocus()) editor.view.focus();
 }
 
@@ -178,6 +189,7 @@ let pointer: Point = { x: 0, y: 0 };
 
 function setLocked(next: boolean): void {
   if (locked === next) return;
+
   locked = next;
   setHandleMeta('lockDragHandle', next);
 }
@@ -187,12 +199,15 @@ function release(): void {
   anchor = null;
   const wasLocked = locked;
   setLocked(false);
+
   if (!wasLocked) return;
+
   // The editor ignored the pointer while locked. Catch up: hide the handle if the
   // pointer has left, otherwise let it settle on the block the pointer rests on.
   const box = rootEl.value?.getBoundingClientRect();
   const inside = box && pointer.x >= box.left - 64 && pointer.x <= box.right && pointer.y >= box.top && pointer.y <= box.bottom;
   const view = editorComponent.value?.editor?.view.dom;
+
   if (!inside) setHandleMeta('hideDragHandle', true);
   else view?.dispatchEvent(new MouseEvent('mousemove', { clientX: pointer.x, clientY: pointer.y, bubbles: true }));
 }
@@ -208,6 +223,7 @@ function inTriangle(p: Point, a: Point, b: Point, c: Point): boolean {
 
 function onPointerMove(event: PointerEvent): void {
   if (event.pointerType !== 'mouse' || menuOpen.value) return;
+
   pointer = { x: event.clientX, y: event.clientY };
   const handle = handleEl();
 
@@ -266,12 +282,15 @@ let typingFrom: Point = { x: 0, y: 0 };
 
 function onKeydownCapture(event: KeyboardEvent): void {
   release();
+
   if (event.metaKey || event.ctrlKey || event.altKey || ['Shift', 'Meta', 'Control', 'Alt'].includes(event.key)) return;
+
   typing.value = true;
   typingFrom = pointer;
   // Typing again cancels a pending return.
   clearTimeout(returnTimer);
   returnTimer = undefined;
+
   if (isShown(handleEl())) setHandleMeta('hideDragHandle', true);
 }
 
@@ -284,6 +303,7 @@ let returnTimer: ReturnType<typeof setTimeout> | undefined;
 function onPointerMoveWhileTyping(event: PointerEvent): void {
   if (!typing.value || returnTimer !== undefined) return;
   if (Math.hypot(event.clientX - typingFrom.x, event.clientY - typingFrom.y) <= JITTER_PX) return;
+
   returnTimer = setTimeout(() => {
     typing.value = false;
     returnTimer = undefined;

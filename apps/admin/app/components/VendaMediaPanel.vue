@@ -24,6 +24,7 @@ function onFileChange(value: File | File[] | null | undefined): void {
 function formatSize(size: number): string {
   if (size < 1024) return `${size} B`;
   if (size < 1024 * 1024) return `${Math.ceil(size / 1024)} KB`;
+
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }
 </script>

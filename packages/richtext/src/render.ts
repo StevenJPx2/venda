@@ -10,6 +10,7 @@ const SAFE_IMAGE = /^(https?:|\/)/i;
 /** A URL safe to place in an attribute, or null (e.g. `javascript:` links). */
 function safeUrl(value: unknown, pattern: RegExp): string | null {
   if (typeof value !== 'string') return null;
+
   const url = value.trim();
   return pattern.test(url) ? url : null;
 }
@@ -19,7 +20,9 @@ const MARK_TAGS: Record<string, string> = { bold: 'strong', italic: 'em', strike
 function openMark(mark: RichTextMark): [string, string] {
   if (mark.type === 'link') {
     const href = safeUrl(mark.attrs?.href, SAFE_LINK);
+
     if (!href) return ['', ''];
+
     const external = /^https?:/i.test(href);
     return [`<a href="${escapeHtml(href)}"${external ? ' rel="noopener noreferrer"' : ''}>`, '</a>'];
   }
@@ -47,7 +50,9 @@ function headingLevel(node: RichTextNode): number {
 
 function renderImage(node: RichTextNode): string {
   const src = safeUrl(node.attrs?.src, SAFE_IMAGE);
+
   if (!src) return '';
+
   const alt = typeof node.attrs?.alt === 'string' ? node.attrs.alt : '';
   const title = typeof node.attrs?.title === 'string' ? ` title="${escapeHtml(node.attrs.title)}"` : '';
   return `<img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}"${title} loading="lazy">`;
@@ -89,6 +94,7 @@ export function renderHtml(doc: RichTextDoc): string {
     if (node.type === 'hardBreak') return '<br>';
     if (node.type === 'horizontalRule') return '<hr>';
     if (node.type === 'image') return renderImage(node);
+
     return wrap(node, (node.content ?? []).map(child => renderNode(child, depth + 1)).join(''));
   };
 

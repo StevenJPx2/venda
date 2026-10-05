@@ -12,6 +12,7 @@ const COMPATIBILITY_DATE = '2026-09-22';
  */
 export function renderWranglerConfig(project: VendaProject, resources: ResourceRefs, releaseDir: string, version: string): Record<string, unknown> {
   const vars: Record<string, string> = { ADMIN_EMAIL: project.adminEmail, VENDA_VERSION: version };
+
   if (project.adminOrigins?.length) vars.ADMIN_ORIGINS = project.adminOrigins.join(',');
 
   return {

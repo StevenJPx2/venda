@@ -21,8 +21,10 @@ export type PublicUser = Omit<User, 'passwordHash' | 'sessionVersion'>;
 
 export function toUser(row: Row): User {
   const role = row.role;
+
   // The CHECK constraint on users.role guarantees a known role.
   if (!isRole(role)) throw new Error(`User ${String(row.id)} has an unknown role`);
+
   return {
     id: String(row.id),
     email: String(row.email),
@@ -61,7 +63,9 @@ export async function insertUser(db: Database, user: { email: string; name: stri
     id, normalizeEmail(user.email), user.name, user.role, 'active', user.passwordHash, now, now
   );
   const created = await findUserById(db, id);
+
   if (!created) throw new Error('User vanished after insert');
+
   return created;
 }
 

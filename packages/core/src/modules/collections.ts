@@ -20,9 +20,13 @@ async function createCollection(ctx: RequestContext): Promise<Response> {
   const body = await readJson(ctx.request);
   const name = typeof body.name === 'string' ? body.name.trim() : '';
   const slug = slugify(typeof body.slug === 'string' ? body.slug : name);
+
   if (!name || !slug) throw new HttpError(400, 'Name is required');
+
   const parsed = schemaInput(body.schema);
+
   if ('error' in parsed) throw new HttpError(400, parsed.error);
+
   const now = new Date().toISOString();
   const id = crypto.randomUUID();
 
@@ -41,15 +45,21 @@ async function updateCollection(ctx: RequestContext): Promise<Response> {
   const { db, kv } = ctx.services.config;
   const id = ctx.params.id ?? '';
   const existing = await db.first('SELECT * FROM collections WHERE id = ?', id);
+
   if (!existing) throw notFound('Collection not found');
+
   const body = await readJson(ctx.request);
   const name = body.name === undefined ? String(existing.name) : String(body.name).trim();
+
   if (!name) throw new HttpError(400, 'Name is required');
+
   let schema = storedSchema(existing.schema_json);
 
   if (body.schema !== undefined) {
     const parsed = schemaInput(body.schema);
+
     if ('error' in parsed) throw new HttpError(400, parsed.error);
+
     schema = parsed.schema;
   }
 

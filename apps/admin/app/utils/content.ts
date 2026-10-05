@@ -18,6 +18,7 @@ export function hyphenateSlug(value: string, caret = value.length): { value: str
 
   for (let i = 0; i < value.length; i++) {
     if (i === caret) nextCaret = out.length;
+
     const char = value[i]!;
     const afterSpace = /\s/.test(value[i - 1] ?? '');
 
@@ -46,9 +47,11 @@ export function cleanEntryData(schema: CollectionSchema, data: Record<string, un
 
   return Object.fromEntries(Object.entries(data).flatMap(([key, raw]) => {
     const field = fields.get(key);
+
     if (!field) return [[key, raw]];
 
     let value = raw;
+
     // The editor keeps an empty trailing paragraph for the cursor; don't persist it.
     if (field.interface === 'wysiwyg' && value !== undefined && value !== null) value = trimTrailingEmpty(toDoc(value));
     else if (typeof value === 'string' && field.interface !== 'code') value = value.trim();

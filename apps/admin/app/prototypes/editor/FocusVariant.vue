@@ -45,6 +45,7 @@ let last: { x: number; y: number } | null = null;
 
 function onPointerMove(event: PointerEvent): void {
   if (last && Math.hypot(event.clientX - last.x, event.clientY - last.y) > 4) typing.value = false;
+
   last = { x: event.clientX, y: event.clientY };
 }
 
@@ -63,6 +64,7 @@ function onKeydown(event: KeyboardEvent): void {
 // The sidebar is a parallel panel and stays open; only the publish popover closes on an outside click.
 function onPointerDown(event: PointerEvent): void {
   const target = event.target as Element;
+
   // Floating content opened from inside the popover (the calendar) renders at the end of <body>.
   if (target.closest?.('[data-reka-popper-content-wrapper]')) return;
   if (confirmOpen.value && publishRef.value && !publishRef.value.contains(target)) confirmOpen.value = false;

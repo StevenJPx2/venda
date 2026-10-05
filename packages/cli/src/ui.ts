@@ -32,13 +32,16 @@ export async function textOption(opts: {
 }): Promise<string> {
   if (opts.flag !== undefined) {
     const problem = opts.flag === '' && opts.optional ? undefined : opts.validate?.(opts.flag);
+
     if (problem) throw new UsageError(`--${opts.flagName}: ${problem}`);
+
     return opts.flag;
   }
 
   if (opts.noPrompt) {
     if (opts.optional) return '';
     if (opts.initialValue !== undefined && !opts.validate?.(opts.initialValue)) return opts.initialValue;
+
     throw new UsageError(`--${opts.flagName} is required with --no-prompt.`);
   }
 
@@ -48,7 +51,9 @@ export async function textOption(opts: {
     ...(opts.placeholder !== undefined ? { placeholder: opts.placeholder } : {}),
     validate: value => {
       const text = value ?? '';
+
       if (opts.optional && !text) return undefined;
+
       return opts.validate?.(text);
     }
   })).trim();
@@ -57,6 +62,7 @@ export async function textOption(opts: {
 export async function confirmOption(opts: { flag: boolean | undefined; noPrompt: boolean; message: string; initialValue: boolean }): Promise<boolean> {
   if (opts.flag !== undefined) return opts.flag;
   if (opts.noPrompt) return opts.initialValue;
+
   return answer(await p.confirm({ message: opts.message, initialValue: opts.initialValue }));
 }
 

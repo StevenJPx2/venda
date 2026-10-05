@@ -11,11 +11,15 @@ async function search(ctx: RequestContext): Promise<Response> {
   await ctx.require('content:read');
   const { db } = ctx.services.config;
   const terms = searchTerms(ctx.url.searchParams.get('q') ?? '');
+
   if (!terms.length) return json([]);
+
   await backfillSearchIndex(db);
   const collectionId = ctx.url.searchParams.get('collection') ?? undefined;
   const ids = await searchEntryIds(db, { terms, variant: 'draft', ...(collectionId ? { collectionId } : {}) });
+
   if (!ids.length) return json([]);
+
   const rows = await db.all<Row>(
     `SELECT e.*, c.schema_json FROM entries e JOIN collections c ON c.id = e.collection_id WHERE e.id IN (${ids.map(() => '?').join(', ')})`,
     ...ids

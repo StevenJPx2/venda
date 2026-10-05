@@ -23,6 +23,7 @@ function compile(pattern: string): Segment[] {
   return pattern.split('/').filter(Boolean).map((part): Segment => {
     if (part.startsWith(':')) return { kind: 'param', name: part.slice(1) };
     if (part.startsWith('*')) return { kind: 'rest', name: part.slice(1) };
+
     return { kind: 'literal', value: part };
   });
 }
@@ -33,12 +34,15 @@ function matchSegments(segments: Segment[], parts: string[]): Record<string, str
   for (const [index, segment] of segments.entries()) {
     if (segment.kind === 'rest') {
       const rest = parts.slice(index);
+
       if (!rest.length) return null;
+
       params[segment.name] = rest.map(decodeURIComponent).join('/');
       return params;
     }
 
     const part = parts[index];
+
     if (part === undefined) return null;
     if (segment.kind === 'literal' && segment.value !== part) return null;
     if (segment.kind === 'param') params[segment.name] = decodeURIComponent(part);
@@ -59,8 +63,10 @@ export function createRouter(routes: Route[]) {
 
       for (const candidate of compiled) {
         const params = matchSegments(candidate.segments, parts);
+
         if (!params) continue;
         if (candidate.method === method) return { kind: 'found', handler: candidate.handler, params };
+
         pathMatched = true;
       }
 

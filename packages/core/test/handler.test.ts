@@ -15,7 +15,9 @@ let cookie = '';
 
 async function call(path: string, init: RequestInit & { json?: unknown } = {}): Promise<Response> {
   const headers = new Headers(init.headers);
+
   if (cookie) headers.set('Cookie', cookie);
+
   let body = init.body;
 
   if (init.json !== undefined) {

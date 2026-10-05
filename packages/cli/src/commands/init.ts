@@ -22,18 +22,22 @@ async function ensureLoggedIn(runner: Runner, noPrompt: boolean): Promise<Accoun
 
   if (!who.loggedIn) throw new UsageError('Not signed in to Cloudflare. Run `npx wrangler login`, or set CLOUDFLARE_API_TOKEN for CI.');
   if (!who.accounts.length) throw new UsageError('Your Cloudflare login has no accounts available.');
+
   return who.accounts;
 }
 
 async function chooseAccount(accounts: Account[], flag: string | undefined, noPrompt: boolean): Promise<Account> {
   if (flag) {
     const match = accounts.find(a => a.id === flag || a.name === flag);
+
     if (!match) throw new UsageError(`--account "${flag}" is not one of your accounts: ${accounts.map(a => a.name).join(', ')}.`);
+
     return match;
   }
 
   if (accounts.length === 1) return accounts[0]!;
   if (noPrompt) throw new UsageError(`You have ${accounts.length} Cloudflare accounts; choose one with --account.`);
+
   const id = answer(await p.select({ message: 'Which Cloudflare account should host Venda?', options: accounts.map(a => ({ value: a.id, label: a.name, hint: a.id })) }));
   return accounts.find(a => a.id === id)!;
 }
@@ -50,9 +54,13 @@ async function ensureInstallDir(dir: string): Promise<VendaProject | undefined> 
   await mkdir(dir, { recursive: true });
   const entries = await readdir(dir);
   const existing = entries.includes(CONFIG_FILE) ? await loadProject(dir) : undefined;
+
   if (existing?.resources && (existing.version || existing.url)) throw new UsageError(`${dir} is already a deployed Venda install. Use \`venda deploy\` or \`venda update\` there.`);
+
   const unexpected = entries.filter(entry => !entry.startsWith('.') && entry !== CONFIG_FILE);
+
   if (unexpected.length) throw new UsageError(`${dir} is not empty. Choose a new directory for the install.`);
+
   return existing;
 }
 
@@ -67,6 +75,7 @@ async function writeGitignore(dir: string): Promise<void> {
   }
 
   const missing = GITIGNORE.split('\n').filter(line => line && !current.split(/\r?\n/).includes(line));
+
   if (missing.length) await writeFile(path, `${current.trimEnd()}${current.trimEnd() ? '\n' : ''}${missing.join('\n')}\n`);
 }
 
@@ -79,6 +88,7 @@ export async function init(flags: Flags): Promise<void> {
   const account = existing
     ? accounts.find(item => item.id === existing.accountId)
     : await chooseAccount(accounts, flags.account, flags.noPrompt);
+
   if (!account) throw new UsageError(`The incomplete install belongs to Cloudflare account ${existing?.accountId}, which this login cannot access.`);
 
   if (existing && flags.account && flags.account !== existing.accountId && flags.account !== account.name) {
@@ -126,5 +136,6 @@ function printSummary(dir: string, url: string, email: string, password: string,
   ].join('\n'), 'Your Venda is ready');
 
   if (!online) p.log.warn('The Worker is deployed but not answering yet. New workers.dev URLs can take a minute. Check with `venda doctor`.');
+
   p.outro(`Next: cd ${where} && npx venda status`);
 }

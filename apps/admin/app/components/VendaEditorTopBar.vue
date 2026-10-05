@@ -34,12 +34,14 @@ const saveLabel = computed(() => ({ new: 'New', saving: 'Saving…', error: 'Not
 const stateLabel = computed(() => {
   if (props.status === 'published') return props.hasUnpublishedChanges ? 'Published · Unpublished changes' : 'Published';
   if (props.publishAt) return `Scheduled for ${new Date(props.publishAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}`;
+
   return 'Draft';
 });
 
 const stateColor = computed(() => {
   if (props.saveState === 'error') return 'text-error';
   if (props.status === 'published') return props.hasUnpublishedChanges ? 'text-warning' : 'text-success';
+
   return props.publishAt ? 'text-info' : 'text-muted';
 });
 </script>

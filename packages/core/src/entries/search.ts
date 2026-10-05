@@ -36,6 +36,7 @@ export async function backfillSearchIndex(db: Database): Promise<number> {
  */
 export async function searchEntryIds(db: Database, options: { terms: string[]; variant: 'draft' | 'published'; collectionId?: string }): Promise<string[]> {
   if (!options.terms.length) return [];
+
   const title = `s.${options.variant}_title`;
   const body = `s.${options.variant}_text`;
   const conditions = options.terms.map(() => `(${title} LIKE ? ESCAPE '\\' OR ${body} LIKE ? ESCAPE '\\')`);
@@ -47,6 +48,7 @@ export async function searchEntryIds(db: Database, options: { terms: string[]; v
   }
 
   if (options.variant === 'published') conditions.push("e.status = 'published'");
+
   const rows = await db.all<{ entry_id: string }>(
     `SELECT s.entry_id FROM entry_search s JOIN entries e ON e.id = s.entry_id
      WHERE e.deleted_at IS NULL AND ${conditions.join(' AND ')}

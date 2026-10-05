@@ -18,7 +18,9 @@ const open = shallowRef(false);
 const search = shallowRef('');
 const filteredCollections = computed(() => {
   const query = search.value.trim().toLowerCase();
+
   if (!query) return props.collections;
+
   return props.collections.filter(collection => `${collection.name} ${collection.slug}`.toLowerCase().includes(query));
 });
 

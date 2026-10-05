@@ -23,6 +23,7 @@ const hasUnmapped = computed(() => Object.keys(props.unmapped).length > 0);
 // datetime-local works in local time without a zone; the API stores UTC.
 function toLocalInput(iso: string | null): string {
   if (!iso) return '';
+
   const date = new Date(iso);
   return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 }

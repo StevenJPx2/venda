@@ -41,6 +41,7 @@ const interfaceOptions = computed(() => (Object.keys(FIELD_INTERFACES) as FieldI
 
 watch(open, (isOpen) => {
   if (!isOpen) return;
+
   const field = props.field;
   Object.assign(state, {
     interface: field?.interface ?? 'input',
@@ -83,6 +84,7 @@ function submit(): void {
   if (!isEdit.value && props.existingKeys.includes(key)) { error.value = `A field with key "${key}" already exists.`; return; }
 
   const field: FieldDefinition = { key, interface: state.interface };
+
   if (state.label.trim()) field.label = state.label.trim();
   if (state.note.trim()) field.note = state.note.trim();
   if (state.placeholder.trim()) field.placeholder = state.placeholder.trim();

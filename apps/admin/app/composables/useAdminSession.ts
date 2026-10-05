@@ -28,7 +28,9 @@ export function useAdminSession() {
 
   async function ensure(): Promise<boolean> {
     const current = await refresh();
+
     if (!current) await navigateTo('/');
+
     return Boolean(current);
   }
 

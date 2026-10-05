@@ -50,6 +50,7 @@ export function createRunner(accountId?: string): Runner {
     child.stderr?.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
     child.on('error', reject);
     child.on('close', code => resolve({ code: code ?? 1, stdout, stderr }));
+
     if (!options.inherit) child.stdin?.end(options.input ?? '');
   });
 }
@@ -57,7 +58,9 @@ export function createRunner(accountId?: string): Runner {
 /** Runs Wrangler and throws a readable error on a non-zero exit. */
 export async function wrangler(runner: Runner, args: string[], options?: RunOptions): Promise<string> {
   const result = await runner(args, options);
+
   if (result.code !== 0) throw new WranglerError(args, result);
+
   return result.stdout;
 }
 
@@ -65,7 +68,9 @@ export async function wrangler(runner: Runner, args: string[], options?: RunOpti
 export function extractJson(output: string): unknown {
   const text = stripAnsi(output);
   const start = text.search(/[[{]/);
+
   if (start < 0) throw new Error('Expected JSON from wrangler but got none.');
+
   return JSON.parse(text.slice(start));
 }
 
@@ -94,6 +99,7 @@ export function parseR2List(output: string): string[] {
 /** The public URL from `wrangler deploy` output: a custom domain or workers.dev. */
 export function parseDeployUrl(output: string, domain?: string): string | undefined {
   if (domain) return `https://${domain}`;
+
   return stripAnsi(output).match(/https:\/\/[a-z0-9.-]+\.workers\.dev/)?.[0];
 }
 

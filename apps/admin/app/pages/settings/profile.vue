@@ -14,6 +14,7 @@ const passwordError = shallowRef('');
 
 onMounted(async () => {
   if (!(await session.ensure())) return;
+
   name.value = session.user.value?.name ?? '';
   ready.value = true;
 });

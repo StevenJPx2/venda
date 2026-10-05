@@ -13,6 +13,7 @@ function toSql(value: unknown): SQLInputValue {
   if (value === undefined || value === null) return null;
   if (typeof value === 'boolean') return value ? 1 : 0;
   if (typeof value === 'number' || typeof value === 'bigint' || typeof value === 'string' || value instanceof Uint8Array) return value;
+
   return JSON.stringify(value);
 }
 
@@ -63,7 +64,9 @@ export function fileStore(root: string): ObjectStore {
 
   const pathFor = (key: string) => {
     const path = resolve(base, key);
+
     if (!path.startsWith(base + sep)) throw new Error('Invalid object key');
+
     return path;
   };
 
@@ -101,6 +104,7 @@ export function startScheduler(venda: { scheduled(): Promise<unknown> }, options
   let running = false;
   const timer = setInterval(() => {
     if (running) return;
+
     running = true;
     venda.scheduled().catch(options.onError ?? console.error).finally(() => { running = false; });
   }, options.intervalMs ?? 60_000);
@@ -113,6 +117,7 @@ export function memoryKv(): KeyValue {
   return {
     async get(key) {
       const item = values.get(key);
+
       if (!item) return null;
 
       if (item.expiresAt !== undefined && item.expiresAt <= Date.now()) {

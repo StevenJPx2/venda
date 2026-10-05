@@ -62,7 +62,9 @@ export function toRevision(row: Row, schema: CollectionSchema | null): Revision 
 
 export async function loadEntryRow(db: Database, id: string): Promise<Row> {
   const row = await db.first('SELECT * FROM entries WHERE id = ?', id);
+
   if (!row) throw notFound('Entry not found');
+
   return row;
 }
 
@@ -73,6 +75,7 @@ export function searchText(schema: CollectionSchema, data: Record<string, unknow
 
   for (const field of schema.fields) {
     const value = data[field.key];
+
     if (field.key === schema.titleField || value === undefined || value === null) continue;
     if (field.interface === 'wysiwyg') parts.push(toPlainText(toDoc(value)));
     else if (typeof value === 'string' && ['input', 'textarea', 'dropdown'].includes(field.interface)) parts.push(value);
@@ -100,6 +103,7 @@ export async function recordRevision(db: Database, row: Row, reason: RevisionRea
 
   if (reason === 'save') {
     const latest = await db.first<{ created_at: string; data_json: string }>('SELECT created_at, data_json FROM entry_revisions WHERE entry_id = ? ORDER BY created_at DESC LIMIT 1', entryId);
+
     if (latest && (latest.data_json === row.data_json || Date.now() - Date.parse(latest.created_at) < SAVE_REVISION_INTERVAL_MS)) return;
   }
 
@@ -120,10 +124,14 @@ export async function invalidateCollection(kv: KeyValue, collectionId: string): 
  */
 export async function publishEntry(db: Database, row: Row, userId: string | null): Promise<Row> {
   const schema = await collectionSchema(db, String(row.collection_id));
+
   if (!schema) throw notFound('Collection not found');
   if (row.deleted_at) throw new HttpError(409, 'Restore this entry from the trash before publishing it');
+
   const errors = entryErrors(schema, parseData(row.data_json), 'published');
+
   if (errors.length) throw new HttpError(422, errors[0]?.message ?? 'Some fields are invalid', { fields: errors });
+
   const now = new Date().toISOString();
   await db.run(
     "UPDATE entries SET published_json = data_json, status = 'published', published_at = COALESCE(published_at, ?), publish_at = NULL, schedule_error = NULL, updated_by = COALESCE(?, updated_by), updated_at = ? WHERE id = ?",
@@ -143,6 +151,8 @@ export async function unpublishEntry(db: Database, row: Row, userId: string | nu
   );
   const updated = await loadEntryRow(db, String(row.id));
   const schema = await collectionSchema(db, String(row.collection_id));
+
   if (schema) await indexEntry(db, updated, schema);
+
   return updated;
 }

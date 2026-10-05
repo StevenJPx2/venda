@@ -47,9 +47,12 @@ function reset(from: Collection): void {
 
 onMounted(async () => {
   if (!(await session.ensure())) return;
+
   const found = (await api<Collection[]>('/collections')).find(c => c.id === collectionId);
+
   if (found) reset(found);
   else error.value = 'This collection no longer exists.';
+
   loading.value = false;
 });
 
@@ -59,21 +62,28 @@ function openEdit(field: FieldDefinition): void { editing.value = field; modalOp
 
 function saveField(field: FieldDefinition): void {
   const index = fields.value.findIndex(f => f.key === field.key);
+
   if (index >= 0) fields.value.splice(index, 1, field);
   else fields.value.push(field);
+
   modalOpen.value = false;
 }
 
 function move(index: number, by: -1 | 1): void {
   const target = index + by;
+
   if (target < 0 || target >= fields.value.length) return;
+
   const [field] = fields.value.splice(index, 1);
+
   if (field) fields.value.splice(target, 0, field);
 }
 
 function removeField(key: string): void {
   fields.value = fields.value.filter(f => f.key !== key);
+
   if (titleKey.value === key) titleKey.value = undefined;
+
   pendingDelete.value = null;
 }
 

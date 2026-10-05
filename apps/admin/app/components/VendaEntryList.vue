@@ -22,6 +22,7 @@ const emit = defineEmits<{
 function badge(entry: Entry): { label: string; color: 'success' | 'warning' | 'info' | 'neutral' } {
   if (entry.status === 'published') return entry.hasUnpublishedChanges ? { label: 'Unpublished changes', color: 'warning' } : { label: 'Published', color: 'success' };
   if (entry.publishAt) return { label: `Scheduled ${new Date(entry.publishAt).toLocaleDateString()}`, color: 'info' };
+
   return { label: 'Draft', color: 'neutral' };
 }
 
@@ -30,8 +31,10 @@ function badge(entry: Entry): { label: string; color: 'success' | 'warning' | 'i
 function preview(data: Record<string, unknown>): string {
   for (const field of props.schema.fields) {
     if (field.key === props.schema.titleField) continue;
+
     const value = data[field.key];
     const text = field.interface === 'wysiwyg' ? richTextPreview(value) : typeof value === 'string' ? value.trim() : '';
+
     if (text && ['input', 'textarea', 'wysiwyg'].includes(field.interface)) return text;
   }
 
@@ -40,6 +43,7 @@ function preview(data: Record<string, unknown>): string {
 
 function meta(entry: Entry): string {
   if (entry.deletedAt) return `/${entry.slug} · Trashed ${new Date(entry.deletedAt).toLocaleDateString()}`;
+
   return `/${entry.slug} · Updated ${new Date(entry.updatedAt).toLocaleDateString()}`;
 }
 </script>

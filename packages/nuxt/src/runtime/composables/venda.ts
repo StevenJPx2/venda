@@ -70,6 +70,7 @@ export function useVendaEntry<TData = Record<string, unknown>>(
         return await (token ? preview<TData>(token) : get<TData>(toValue(collection), toValue(slug)));
       } catch (error) {
         if (isNotFound(error)) return null;
+
         throw error;
       }
     },

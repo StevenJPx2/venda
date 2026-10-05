@@ -12,6 +12,7 @@ function compareVersions(a: string, b: string): number {
 
   for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
     const diff = (pa[i] || 0) - (pb[i] || 0);
+
     if (diff) return Math.sign(diff);
   }
 
@@ -28,6 +29,7 @@ export async function deploy(flags: Flags, mode: 'deploy' | 'update'): Promise<v
   if (project.version && compareVersions(version, project.version) < 0) {
     // Code can roll back; D1 migrations are forward-only, so warn before a downgrade.
     const ok = await confirmOption({ flag: flags.yes ? true : undefined, noPrompt: flags.noPrompt, initialValue: false, message: `This CLI ships v${version}, older than the deployed v${project.version}. Roll back anyway? Database migrations are not reverted.` });
+
     if (!ok) throw new UsageError('Rollback cancelled. Pass --yes to confirm a downgrade.');
   } else if (mode === 'update' && project.version === version) {
     p.log.info(`Already on v${version}. To get a newer release run \`npx venda@latest update\`. Redeploying anyway.`);
@@ -39,6 +41,7 @@ export async function deploy(flags: Flags, mode: 'deploy' | 'update'): Promise<v
 
   if (result.previousVersion) p.log.success(`Updated v${result.previousVersion} → v${result.version}`);
   if (!health.ok) p.log.warn('Deployed, but /api/health did not answer. Run `venda doctor`.');
+
   p.outro(result.url);
 }
 

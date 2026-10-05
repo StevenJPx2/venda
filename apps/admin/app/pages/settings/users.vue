@@ -27,6 +27,7 @@ async function load(): Promise<void> {
 onMounted(async () => {
   if (!(await session.ensure())) return;
   if (!session.can('users:manage')) return navigateTo('/settings/profile');
+
   await load();
   ready.value = true;
 });
@@ -69,6 +70,7 @@ async function updateUser(user: User, change: Partial<Pick<User, 'role' | 'statu
 
 async function removeUser(user: User): Promise<void> {
   if (!window.confirm(`Delete ${user.email}? Their entries are kept.`)) return;
+
   busyId.value = user.id;
 
   try {
