@@ -1,5 +1,6 @@
-// Shared harness for live end-to-end checks: starts the real Worker (wrangler +
-// local D1), the admin and landing dev servers, and reports named checks.
+// Shared harness for live end-to-end checks: starts the real Worker (the Nitro
+// server on wrangler + local D1), the admin and landing dev servers, and
+// reports named checks.
 import { spawn } from 'node:child_process';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -13,6 +14,8 @@ export const API = `http://localhost:${PORTS.api}`;
 export const ADMIN = `http://localhost:${PORTS.admin}`;
 export const LANDING = `http://localhost:${PORTS.landing}`;
 export const OWNER = { email: 'owner@example.com', password: 'recovery-password' };
+const SERVER = `${ROOT}/packages/server`;
+const SERVER_CONFIG = '.output/server/wrangler.json';
 
 const children = [];
 const results = [];
@@ -23,12 +26,17 @@ export function check(name, ok, detail = '') {
   if (!ok) process.exitCode = 1;
 }
 
-function start(cmd, args, cwd, env = {}) {
+const logs = new Map();
+
+function start(cmd, args, cwd, env = {}, label = cmd) {
   const child = spawn(cmd, args, { cwd, env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
   let log = '';
+
   child.stdout.on('data', data => { log += data; });
   child.stderr.on('data', data => { log += data; });
   children.push(child);
+  logs.set(label, () => log);
+
   return () => log;
 }
 
@@ -55,21 +63,29 @@ async function waitFor(url, label, getLog, seconds = 240) {
 /** Starts the API on a fresh migrated D1; returns once it answers. */
 export async function startApi() {
   const state = await mkdtemp(join(tmpdir(), 'venda-e2e-'));
-  await run('npx', ['wrangler', 'd1', 'migrations', 'apply', 'VENDA_DB', '--local', '--persist-to', state], `${ROOT}/apps/api`);
-  // --test-scheduled exposes /__scheduled so suites can fire the Cron Trigger on demand.
-  const log = start('npx', ['wrangler', 'dev', '--local', '--test-scheduled', '--persist-to', state, '--port', String(PORTS.api),
+  // The Nitro server (packages/server), built for Workers; wrangler runs the build on local workerd.
+  await run('pnpm', ['exec', 'nitro', 'build'], SERVER);
+  await run('npx', ['wrangler', 'd1', 'migrations', 'apply', 'VENDA_DB', '--local', '--persist-to', state, '--config', SERVER_CONFIG], SERVER);
+  const log = start('npx', ['wrangler', 'dev', '--local', '--persist-to', state, '--config', SERVER_CONFIG, '--port', String(PORTS.api),
     '--var', `ADMIN_EMAIL:${OWNER.email}`, '--var', `ADMIN_PASSWORD:${OWNER.password}`,
-    '--var', 'SESSION_SECRET:e2e-secret', '--var', `ADMIN_ORIGINS:${ADMIN}`], `${ROOT}/apps/api`);
+    '--var', 'SESSION_SECRET:e2e-secret', '--var', `ADMIN_ORIGINS:${ADMIN}`], SERVER, {}, 'api');
   await waitFor(`${API}/api/health`, 'API', log);
 }
 
+/** Fires the Worker's Cron Trigger through wrangler's local scheduled route. */
+export async function fireCron() {
+  const response = await fetch(`${API}/cdn-cgi/local/scheduled?cron=${encodeURIComponent('* * * * *')}`);
+
+  if (!response.ok) throw new Error(`Cron trigger failed: ${response.status}`);
+}
+
 export async function startAdmin() {
-  const log = start('pnpm', ['exec', 'nuxt', 'dev', '--port', String(PORTS.admin)], `${ROOT}/apps/admin`, { NUXT_PUBLIC_API_BASE: `${API}/api` });
+  const log = start('pnpm', ['exec', 'nuxt', 'dev', '--port', String(PORTS.admin)], `${ROOT}/apps/admin`, { NUXT_PUBLIC_API_BASE: `${API}/api` }, 'admin');
   await waitFor(ADMIN, 'admin', log);
 }
 
 export async function startLanding() {
-  const log = start('pnpm', ['exec', 'nuxt', 'dev', '--port', String(PORTS.landing)], `${ROOT}/apps/landing`, { NUXT_PUBLIC_VENDA_API_BASE: `${API}/api` });
+  const log = start('pnpm', ['exec', 'nuxt', 'dev', '--port', String(PORTS.landing)], `${ROOT}/apps/landing`, { NUXT_PUBLIC_VENDA_API_BASE: `${API}/api` }, 'landing');
   await waitFor(LANDING, 'landing', log);
 }
 
@@ -91,7 +107,14 @@ export async function signInAsOwner(page) {
   await page.goto(ADMIN, { waitUntil: 'networkidle', timeout: 120000 });
   await page.locator('input[name="email"]').fill(OWNER.email);
   await page.locator('input[name="password"]').fill(OWNER.password);
-  await page.getByRole('button', { name: 'Sign in' }).click();
+
+  // Wait for the session cookie: navigating straight after the click can beat the login response.
+  const [login] = await Promise.all([
+    page.waitForResponse(response => response.url().endsWith('/api/auth/login') && response.request().method() === 'POST'),
+    page.getByRole('button', { name: 'Sign in' }).click()
+  ]);
+
+  if (!login.ok()) throw new Error(`Owner sign-in failed: ${login.status()}`);
 }
 
 /** Runs a suite, always stopping servers and printing results. */
@@ -102,6 +125,10 @@ export async function suite(name, body) {
     await body();
   } catch (error) {
     results.push(`ERROR ${error instanceof Error ? error.stack : String(error)}`);
+
+    // The servers' recent output usually says why a page never appeared.
+    for (const [label, log] of logs) results.push(`--- ${label} log (last 1500 chars)\n${log().slice(-1500)}`);
+
     process.exitCode = 1;
   } finally {
     for (const child of children) {

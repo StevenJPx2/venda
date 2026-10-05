@@ -25,7 +25,11 @@ async function call(path, { method = 'GET', body } = {}) {
   if (body) headers['Content-Type'] = 'application/json';
   if (cookie) headers.Cookie = cookie;
 
-  const response = await fetch(`${API}${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  const init = { method, headers };
+
+  if (body) init.body = JSON.stringify(body);
+
+  const response = await fetch(`${API}${path}`, init);
   const setCookie = response.headers.get('set-cookie');
 
   if (setCookie) cookie = setCookie.split(';')[0];

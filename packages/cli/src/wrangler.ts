@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
+import { stripVTControlCharacters } from 'node:util';
 
 export interface RunResult {
   code: number;
@@ -26,10 +27,8 @@ export class WranglerError extends Error {
   }
 }
 
-const ANSI = /\x1b\[[0-9;]*[A-Za-z]/g;
-
 export function stripAnsi(text: string): string {
-  return text.replace(ANSI, '');
+  return stripVTControlCharacters(text);
 }
 
 /** Runs the Wrangler version the CLI depends on, scoped to one Cloudflare account. */

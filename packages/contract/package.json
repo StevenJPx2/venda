@@ -1,0 +1,24 @@
+{
+  "name": "@venda/contract",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Venda's API contract: Effect Schema entities and the HttpApi definition shared by the server, admin, site modules and CLI.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit && effect-language-service diagnostics --project tsconfig.json",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
+  },
+  "dependencies": {
+    "effect": "4.0.1"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.70.1",
+    "vitest": "5.0.2"
+  }
+}

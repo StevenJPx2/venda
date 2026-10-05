@@ -303,6 +303,13 @@ site component. An unknown block renders its text content, never raw markup.
 `pnpm e2e` drives the real server, admin and site in Chrome, and is required
 before every commit that changes behaviour.
 
+Oxlint with anti-slop (vendored in `tools/oxlint/anti-slop`, provenance in its
+`UPSTREAM.md`) and the Fallow gate (`scripts/fallow-gate.mjs`) cover the
+packages listed in `tools/new-architecture.json`. A package joins that list
+when its slice rewrites it; legacy packages stay on ESLint until then, and
+Oxlint's default rules apply everywhere with warnings denied. The gate never
+loosens for a listed package.
+
 Code follows the code-breathing-room convention: blank lines group the
 statements of one phase; every braced block and every `if` (one-line guards
 included) gets a blank line above and below, with a run of consecutive guards
@@ -320,7 +327,11 @@ each through its real boundary with every live suite green before the next.
 0. **Gate and skeleton.** Oxlint, Fallow and Effect diagnostics in the gate;
    `@venda/contract`; `@venda/server` serving the current core unchanged on
    wrangler dev and Node, with D1 through db0 and the cron tick. Measures the
-   Worker bundle (budget: 1 MB gzipped).
+   Worker bundle (budget: 1 MB gzipped). **Done:** `/api/health` is served by
+   the Effect `HttpApi` from the contract and every other path by the legacy
+   core; D1, R2 and KV run through db0 and unstorage on Workers, SQLite, files
+   and memory on Node; the Worker is 254 kB gzipped (Effect is 215 kB of it);
+   the live suites run against this server.
 1. **Read path.** `@venda/content` (config reader, Markdown/MDX conversion,
    round-trip tests), the local content store, sync into the index, and the
    public content API served from files.
@@ -382,5 +393,5 @@ Development: `oxlint` and `@oxlint/plugins` 1.86.0, `fallow` 3.31.0,
 - **Markdown fidelity.** Some editor states have no Markdown form (for example
   overlapping marks); conversion normalises them, and round-trip tests define
   what is kept.
-- **Worker size.** Effect, the Markdown stack and the core must fit the budget
-  measured in slice 0.
+- **Worker size.** Effect, the Markdown stack and the core must fit the
+  1 MB budget; slice 0 measured 254 kB gzipped before the Markdown stack.

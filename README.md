@@ -8,6 +8,8 @@ Venda is a small, Cloudflare-native headless CMS. The admin and landing site are
 - `apps/landing`: Nuxt UI marketing site, same preset.
 - `apps/api`: Worker API with cookie sessions, D1 repositories, R2 uploads, and KV cache invalidation.
 - `packages/core`: framework-neutral CMS core (`createVenda().fetch`) with Cloudflare and Node adapters; `packages/core/migrations` holds the numbered SQL migrations.
+- `packages/contract`: **`@venda/contract`**, the API contract in Effect Schema (`HttpApi`), shared by the server and every client. Endpoints move here from the core slice by slice ([docs/architecture.md](docs/architecture.md)).
+- `packages/server`: **`@venda/server`**, the Nitro 3 host. `pnpm --filter @venda/server build` targets Cloudflare Workers (D1, R2, KV and a one-minute Cron Trigger); `NITRO_PRESET=node` builds a Node server with SQLite and files under `VENDA_DATA_DIR`. It replaces `apps/api` once the cut-over slice lands.
 - `apps/api/scripts/seed.mjs`: idempotent sample-data seeder (`VENDA_ADMIN_PASSWORD=… pnpm --filter @venda/api db:seed`; add `-- --update` to overwrite existing seed entries).
 
 - `packages/richtext`: **`@venda/richtext`**, the rich-text document format: validation, a safe HTML renderer, HTML conversion and plain-text helpers. Framework- and runtime-neutral.
@@ -146,15 +148,16 @@ Invalid schemas are rejected with `400`; entries that break their collection's s
 ## Checks
 
 ```sh
-pnpm lint       # ESLint flat config across all packages
-pnpm typecheck
+pnpm lint       # ESLint in every package, then Oxlint (warnings denied)
+pnpm typecheck  # tsc, plus Effect diagnostics in the Effect packages
 pnpm test
 pnpm build
-pnpm check      # lint + typecheck + test in one go
-pnpm e2e        # live suites: real Worker, admin and landing driven by Playwright (system Chrome)
+pnpm fallow     # dead code, complexity and duplication in the new-architecture packages
+pnpm check      # lint + typecheck + test + fallow in one go
+pnpm e2e        # live suites: the Nitro server on workerd (and Node), admin and landing, driven by Playwright (system Chrome)
 ```
 
-Linting uses ESLint flat config. Shared rules live in `eslint.config.shared.mjs`; the Nuxt apps extend their project-aware config via `@nuxt/eslint`'s `withNuxt()`, and the API Worker uses `typescript-eslint`. Run `pnpm lint:fix` to auto-fix.
+Linting uses ESLint flat config. Shared rules live in `eslint.config.shared.mjs`; the Nuxt apps extend their project-aware config via `@nuxt/eslint`'s `withNuxt()`, and the other packages use `typescript-eslint`. Packages on the new architecture (`tools/new-architecture.json`) also get Oxlint's vendored anti-slop and Effect rules. Run `pnpm lint:fix` to auto-fix.
 
 ## Current platform notes
 

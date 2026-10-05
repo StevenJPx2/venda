@@ -1,6 +1,6 @@
 // Content lifecycle: working copy vs live, preview on the site, history, trash, search, scheduled publishing.
 import { chromium } from 'playwright';
-import { ADMIN, API, LANDING, api, check, ownerCookie, signInAsOwner, startAdmin, startApi, startLanding, suite } from './support.mjs';
+import { ADMIN, LANDING, api, check, fireCron, ownerCookie, signInAsOwner, startAdmin, startApi, startLanding, suite } from './support.mjs';
 
 const landingText = async path => (await fetch(`${LANDING}${path}`)).text();
 
@@ -54,11 +54,12 @@ await suite('lifecycle', async () => {
   await page.getByLabel('Search entries').fill('');
 
   await page.locator('[data-slug="other"]').getByRole('button', { name: 'Trash' }).click();
-  await page.getByText('Moved to trash').waitFor({ timeout: 15000 });
+  // Toast text can also appear in the toaster's screen-reader announcement, hence first().
+  await page.getByText('Moved to trash').first().waitFor({ timeout: 15000 });
   await page.getByRole('button', { name: 'Trash', exact: true }).first().click();
   await page.locator('[data-slug="other"]').waitFor({ timeout: 15000 });
   await page.locator('[data-slug="other"]').getByRole('button', { name: 'Restore' }).click();
-  await page.getByText('Entry restored as a draft').waitFor({ timeout: 15000 });
+  await page.getByText('Entry restored as a draft').first().waitFor({ timeout: 15000 });
   check('trashed entries can be restored', true);
   await browser.close();
 
@@ -69,7 +70,15 @@ await suite('lifecycle', async () => {
   const scheduled = await api(`/entries/${target.id}/schedule`, { method: 'PUT', body: JSON.stringify({ publishAt }) }, cookie);
   check('scheduling is accepted', scheduled.res.ok, JSON.stringify(scheduled.body));
   await new Promise(r => setTimeout(r, 4000));
-  await fetch(`${API}/__scheduled?cron=*+*+*+*+*`);
-  const live = await api('/content/blog/other');
+  await fireCron();
+
+  // The scheduled work runs in waitUntil, so it may finish after the trigger answers.
+  let live = await api('/content/blog/other');
+
+  for (let attempt = 0; attempt < 10 && !live.res.ok; attempt++) {
+    await new Promise(r => setTimeout(r, 500));
+    live = await api('/content/blog/other');
+  }
+
   check('the Cron Trigger publishes due entries', live.res.ok && live.body?.data?.title === 'Another story', JSON.stringify(live.body));
 });

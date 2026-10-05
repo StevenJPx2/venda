@@ -1,6 +1,10 @@
 node_modules
 .output
+.output-node
 .nuxt
+.data
+# Fallow's analysis cache
+.fallow
 .wrangler
 .env
 .env.*
