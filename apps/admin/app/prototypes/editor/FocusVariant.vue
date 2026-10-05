@@ -279,23 +279,29 @@ onBeforeUnmount(() => {
   .f-option:hover { background: var(--ui-bg-elevated); }
 }
 
-/* Docked sidebar from "Quiet": a parallel panel, so no scrim. On wide screens
+/* Floating sidebar (from "Quiet"): a parallel panel, so no scrim. On wide screens
    the text column only moves as far as it must to clear the panel (none at
    1440px); narrower screens get the panel over the text. */
 .f-panel {
   position: fixed;
   z-index: 10;
-  top: var(--bar-h);
+  /* Floats off the bar and the bottom edge, attached to the right edge. */
+  top: calc(var(--bar-h) + 0.5rem);
   right: 0;
-  bottom: 0;
+  bottom: 0.75rem;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   width: min(var(--panel-w), 100vw);
-  border-left: 1px solid var(--ui-border);
+  border: 1px solid var(--ui-border);
+  border-right: 0;
+  border-radius: 12px 0 0 12px;
   background: color-mix(in oklab, var(--ui-bg) 92%, transparent);
   backdrop-filter: blur(20px) saturate(1.6);
   -webkit-backdrop-filter: blur(20px) saturate(1.6);
-  transform: translateX(100%);
+  box-shadow: -12px 0 32px -16px rgb(0 0 0 / 0.14), 0 2px 8px -4px rgb(0 0 0 / 0.06);
+  /* Past its own width so the shadow leaves with it. */
+  transform: translateX(calc(100% + 32px));
   /* Closing is quicker than opening. `translate` (not `transform`) carries the
      typing drift, so it never fights the open/close slide. */
   transition: transform 180ms var(--ease-drawer), opacity 150ms var(--ease-out), translate 150ms var(--ease-out);

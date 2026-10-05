@@ -5,6 +5,21 @@ import type { ProtoPost } from './post';
 const props = defineProps<{ post: ProtoPost }>();
 const p = props.post;
 const EXCERPT_LIMIT = 300;
+
+// Spaces become hyphens as you type; the full clean-up waits for blur.
+function onSlugInput(event: Event): void {
+  const input = event.target as HTMLInputElement;
+  const { value, caret } = hyphenateSlug(input.value, input.selectionStart ?? input.value.length);
+  p.slug.value = value;
+  if (input.value !== value) {
+    input.value = value;
+    input.setSelectionRange(caret, caret);
+  }
+}
+
+function onSlugBlur(): void {
+  p.slug.value = slugify(p.slug.value) || p.slug.value;
+}
 </script>
 
 <template>
@@ -13,7 +28,7 @@ const EXCERPT_LIMIT = 300;
       <span class="pv-label">URL</span>
       <span class="flex items-center rounded-md border border-default focus-within:border-inverted">
         <span class="shrink-0 pl-2.5 text-[13px] text-dimmed">/blog/</span>
-        <input v-model="p.slug.value" class="min-w-0 flex-1 bg-transparent py-[7px] pr-2.5 text-[13px] text-highlighted outline-none" spellcheck="false" autocomplete="off">
+        <input :value="p.slug.value" class="min-w-0 flex-1 bg-transparent py-[7px] pr-2.5 text-[13px] text-highlighted outline-none" spellcheck="false" autocomplete="off" aria-label="URL slug" @input="onSlugInput" @blur="onSlugBlur">
       </span>
     </label>
 
