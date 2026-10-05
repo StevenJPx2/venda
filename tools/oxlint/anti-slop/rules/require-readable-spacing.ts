@@ -21,6 +21,8 @@ const paddingRule = createPaddingLineRule([
   { blankLine: "always", prev: "*", next: ["return", "if", "switch", "try", "for", "while", "do"] },
   { blankLine: "always", prev: "block-like", next: "*" },
   { blankLine: "any", prev: "import", next: "import" },
+  // Venda: consecutive guards read as one paragraph (eslint.config.shared.mjs).
+  { blankLine: "any", prev: "if", next: "if" },
   {
     blankLine: "any",
     prev: {

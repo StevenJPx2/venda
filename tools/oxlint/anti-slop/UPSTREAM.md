@@ -12,7 +12,11 @@
 
 ## Local deviations
 
-None. Every generic and Effect rule is enabled at `error`.
+Every generic and Effect rule is enabled at `error`. One rule is changed:
+
+- `rules/require-readable-spacing.ts` allows an `if` straight after an `if`,
+  so consecutive guards stay grouped as one paragraph. This matches the
+  breathing-room rule in `eslint.config.shared.mjs`.
 
 Scope is a Venda policy, not a change to the rules: Oxlint covers the packages
 listed in `oxlint.config.ts`, which grows as each package moves onto the new

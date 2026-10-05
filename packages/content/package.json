@@ -1,0 +1,34 @@
+{
+  "name": "@venda/content",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Venda's file format: collection configs read as data, and Markdown with block tags to and from rich-text documents.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit && effect-language-service diagnostics --project tsconfig.json",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
+  },
+  "dependencies": {
+    "@venda/richtext": "workspace:*",
+    "acorn": "8.18.0",
+    "effect": "4.0.1",
+    "mdast-util-from-markdown": "2.1.0",
+    "mdast-util-gfm": "3.1.0",
+    "mdast-util-mdx-jsx": "3.2.0",
+    "mdast-util-to-markdown": "2.2.0",
+    "micromark-extension-gfm": "3.0.0",
+    "micromark-extension-mdx-jsx": "3.0.2",
+    "yaml": "2.9.1"
+  },
+  "devDependencies": {
+    "@types/mdast": "4.0.4",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.70.1",
+    "vitest": "5.0.2"
+  }
+}

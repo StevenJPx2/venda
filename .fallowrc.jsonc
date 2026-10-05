@@ -14,14 +14,17 @@
   "boundaries": {
     "zones": [
       { "name": "contract", "patterns": ["packages/contract/**"] },
+      { "name": "content", "patterns": ["packages/content/**"] },
       { "name": "core", "patterns": ["packages/core/**"] },
       { "name": "server", "patterns": ["packages/server/**"] }
     ],
-    // Dependencies only point down: the server hosts the core, both speak the contract.
+    // Dependencies only point down: the server hosts the core, both speak the
+    // contract and read files through content.
     "rules": [
       { "from": "contract", "allow": [] },
-      { "from": "core", "allow": ["contract"] },
-      { "from": "server", "allow": ["core", "contract"] }
+      { "from": "content", "allow": [] },
+      { "from": "core", "allow": ["contract", "content"] },
+      { "from": "server", "allow": ["core", "contract", "content"] }
     ]
   }
 }
