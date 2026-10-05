@@ -219,9 +219,9 @@ onBeforeUnmount(() => {
 
 /* Leaving is ambient (the writer is looking at the text), so it takes its
    time and drifts away from the page; returning answers the pointer, so it
-   is quick. */
+   is quicker, and drifts back along the same path. */
 .f-chrome {
-  transition: opacity 150ms var(--ease-out), transform 150ms var(--ease-out);
+  transition: opacity 220ms var(--ease-out), transform 220ms var(--ease-out);
 }
 .f[data-typing] .f-chrome {
   opacity: 0;
@@ -308,7 +308,7 @@ onBeforeUnmount(() => {
 }
 .f-panel[data-open] {
   transform: translateX(0);
-  transition-duration: 240ms, 150ms, 150ms;
+  transition-duration: 240ms, 220ms, 220ms;
 }
 .f-panel[data-instant] { transition: none; }
 /* Fades with the other controls while you write; it stays open, and the text

@@ -239,6 +239,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener('pointermove', onPointerMove);
   window.removeEventListener('pointermove', onPointerMoveWhileTyping);
+  clearTimeout(returnTimer);
   clearTimeout(idle);
 });
 
@@ -255,11 +256,25 @@ function onKeydownCapture(event: KeyboardEvent): void {
   if (event.metaKey || event.ctrlKey || event.altKey || ['Shift', 'Meta', 'Control', 'Alt'].includes(event.key)) return;
   typing.value = true;
   typingFrom = pointer;
+  // Typing again cancels a pending return.
+  clearTimeout(returnTimer);
+  returnTimer = undefined;
   if (isShown(handleEl())) setHandleMeta('hideDragHandle', true);
 }
 
+// After typing, the handle waits a beat once the pointer moves, then snaps
+// back with no fade: the first move after writing is rarely aimed at it.
+// The beat matches the chrome's 220ms drift back, so they arrive together.
+const RETURN_DELAY_MS = 220;
+let returnTimer: ReturnType<typeof setTimeout> | undefined;
+
 function onPointerMoveWhileTyping(event: PointerEvent): void {
-  if (typing.value && Math.hypot(event.clientX - typingFrom.x, event.clientY - typingFrom.y) > JITTER_PX) typing.value = false;
+  if (!typing.value || returnTimer !== undefined) return;
+  if (Math.hypot(event.clientX - typingFrom.x, event.clientY - typingFrom.y) <= JITTER_PX) return;
+  returnTimer = setTimeout(() => {
+    typing.value = false;
+    returnTimer = undefined;
+  }, RETURN_DELAY_MS);
 }
 
 defineExpose({ focusStart });
