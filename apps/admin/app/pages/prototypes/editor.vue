@@ -63,7 +63,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', moveHighlight);
 });
 
-useHead({ title: 'Editor prototypes — Venda' });
+useHead({ title: 'Editor prototypes · Venda' });
 </script>
 
 <template>

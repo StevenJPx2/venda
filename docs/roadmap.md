@@ -155,7 +155,7 @@ Status: `[ ]` not started · `[~]` partial · `[x]` done.
 Everything ships together, but work proceeds in dependency order:
 
 1. Core extraction and runtime interfaces (D1/R2/KV first, then Node/SQLite/S3). **D1/R2/KV and SQLite/filesystem/memory done.**
-2. Users, roles, sessions, API tokens — every later feature records who did what. **Done.**
+2. Users, roles, sessions, API tokens, because every later feature records who did what. **Done.**
 3. Structured rich text and HTML migration. **Done.**
 4. Content lifecycle: drafts vs live, revisions, scheduling, preview, trash, search. **Done.**
 5. Content model: new field types, relations, singletons, i18n, typegen.

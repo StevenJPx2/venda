@@ -13,6 +13,7 @@
     "deploy": "NUXT_PUBLIC_API_BASE=https://api.venda.stevenjohn.co/api nuxt build && wrangler deploy"
   },
   "dependencies": {
+    "@internationalized/date": "3.12.4",
     "@nuxt/ui": "4.11.2",
     "@venda/schema": "workspace:*",
     "@vue/shared": "3.5.43",

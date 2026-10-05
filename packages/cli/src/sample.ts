@@ -19,7 +19,7 @@ const WELCOME_BODY = [
   '<h2>Start writing</h2>',
   '<p>Open this post in the editor. Select text to format it, type <code>/</code> on an empty line to add a card, or use Markdown shortcuts like <code>## </code> for a heading.</p>',
   '<h2>Shape your content</h2>',
-  '<p>Each collection has a <strong>data model</strong>. Add fields — rich text, images, dropdowns, dates — and every entry gets a matching form.</p>',
+  '<p>Each collection has a <strong>data model</strong>. Add fields such as rich text, images, dropdowns and dates, and every entry gets a matching form.</p>',
   '<h2>Deliver it anywhere</h2>',
   '<p>Published entries are served from <code>/api/content/posts</code>. In a Nuxt site, install <code>@venda/nuxt</code> and call <code>useVendaCollection(\'posts\')</code>.</p>'
 ].join('');

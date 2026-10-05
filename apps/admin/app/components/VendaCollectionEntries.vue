@@ -80,11 +80,11 @@ function purgeEntry(entry: Entry): void {
       </UCard>
       <UCard>
         <p class="text-sm text-muted">Published entries</p>
-        <p class="mt-2 text-2xl font-semibold text-success">{{ view === 'entries' && !searching ? publishedCount : '—' }}</p>
+        <p class="mt-2 text-2xl font-semibold text-success">{{ view === 'entries' && !searching ? publishedCount : 'n/a' }}</p>
       </UCard>
       <UCard>
         <p class="text-sm text-muted">Draft entries</p>
-        <p class="mt-2 text-2xl font-semibold text-warning">{{ view === 'entries' && !searching ? draftCount : '—' }}</p>
+        <p class="mt-2 text-2xl font-semibold text-warning">{{ view === 'entries' && !searching ? draftCount : 'n/a' }}</p>
       </UCard>
     </div>
 

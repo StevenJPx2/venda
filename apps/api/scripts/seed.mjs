@@ -2,7 +2,7 @@
 // Usage: VENDA_ADMIN_PASSWORD=... node apps/api/scripts/seed.mjs
 //   VENDA_API_BASE       (default http://localhost:8787/api)
 //   VENDA_ADMIN_EMAIL    (default admin@example.com)
-//   VENDA_ADMIN_PASSWORD (required — never hardcode credentials)
+//   VENDA_ADMIN_PASSWORD (required; never hardcode credentials)
 
 const API = process.env.VENDA_API_BASE ?? 'http://localhost:8787/api';
 const EMAIL = process.env.VENDA_ADMIN_EMAIL ?? 'admin@example.com';
@@ -42,7 +42,7 @@ async function ensureCollection(collection) {
   const existing = list.data.find((item) => item.slug === collection.slug);
   if (existing && UPDATE) {
     const updated = await call(`/collections/${existing.id}`, { method: 'PATCH', body: { name: collection.name, schema: collection.schema } });
-    console.log(`~ collection "${collection.slug}" data model updated (${updated.status})${updated.status >= 400 ? ` — ${JSON.stringify(updated.data)}` : ''}`);
+    console.log(`~ collection "${collection.slug}" data model updated (${updated.status})${updated.status >= 400 ? `: ${JSON.stringify(updated.data)}` : ''}`);
     return existing.id;
   }
   if (existing) {
@@ -124,7 +124,7 @@ const collections = [
       { slug: 'sign-in', status: 'published', data: { order: 1, title: 'Sign in', description: 'Log in to the admin with a signed session cookie.' } },
       { slug: 'create-a-collection', status: 'published', data: { order: 2, title: 'Create a collection', description: 'Name it, give it a slug, and describe its shape.' } },
       { slug: 'write-entries', status: 'published', data: { order: 3, title: 'Write entries', description: 'Author and publish entries in the rich-text editor.' } },
-      { slug: 'deliver', status: 'published', data: { order: 4, title: 'Deliver', description: 'Read published content from the public API — like this page does.' } },
+      { slug: 'deliver', status: 'published', data: { order: 4, title: 'Deliver', description: 'Read published content from the public API, like this page does.' } },
     ],
   },
   {

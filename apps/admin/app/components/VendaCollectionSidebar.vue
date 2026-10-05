@@ -124,7 +124,7 @@ function submitCollection(): void {
           <UFormField label="Name" name="name" required>
             <UInput v-model="state.name" placeholder="Articles" autofocus />
           </UFormField>
-          <UFormField label="Slug" name="slug" description="Optional — generated from the name when empty.">
+          <UFormField label="Slug" name="slug" description="Optional. Generated from the name when empty.">
             <UInput v-model="state.slug" placeholder="articles" />
           </UFormField>
           <div class="flex justify-end gap-2">

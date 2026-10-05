@@ -67,7 +67,7 @@ export async function step<T>(title: string, work: (update: (message: string) =>
     spinner.stop(done ? done(result) : title);
     return result;
   } catch (error) {
-    spinner.error(`${title} — failed`);
+    spinner.error(`${title}: failed`);
     throw error;
   }
 }

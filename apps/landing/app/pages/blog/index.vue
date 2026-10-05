@@ -7,7 +7,7 @@ function formatDate(value: string): string {
   return new Date(value).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 }
 
-useSeoMeta({ title: 'Blog — Venda', description: 'Posts written and published with Venda.' });
+useSeoMeta({ title: 'Blog · Venda', description: 'Posts written and published with Venda.' });
 </script>
 
 <template>

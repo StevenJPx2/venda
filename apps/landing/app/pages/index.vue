@@ -26,7 +26,7 @@ function stepTitle(index: number, title: string | undefined): string {
   return `${String(index + 1).padStart(2, '0')} · ${title ?? ''}`;
 }
 
-useSeoMeta({ title: 'Venda — a Cloudflare-native headless CMS', description: () => hero.value.description });
+useSeoMeta({ title: 'Venda: a Cloudflare-native headless CMS', description: () => hero.value.description });
 </script>
 
 <template>

@@ -46,7 +46,7 @@ function setJson(value: string): void {
     emit('update:modelValue', JSON.parse(value));
     jsonError.value = '';
   } catch {
-    jsonError.value = 'Not valid JSON yet — changes are saved once it parses.';
+    jsonError.value = 'Not valid JSON yet. Changes are saved once it parses.';
   }
 }
 

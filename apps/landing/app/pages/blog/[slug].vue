@@ -18,7 +18,7 @@ if (!post.value) {
 const title = computed(() => post.value?.data.title ?? slug);
 const published = computed(() => post.value ? new Date(post.value.publishedAt ?? post.value.updatedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '');
 
-useSeoMeta({ title: () => `${title.value} — Venda`, description: () => post.value?.data.excerpt ?? '', robots: () => (previewToken ? 'noindex' : undefined) });
+useSeoMeta({ title: () => `${title.value} · Venda`, description: () => post.value?.data.excerpt ?? '', robots: () => (previewToken ? 'noindex' : undefined) });
 </script>
 
 <template>

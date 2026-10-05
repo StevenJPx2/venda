@@ -42,8 +42,8 @@ watch(open, async (isOpen) => {
 
 /** A short, readable form of a field value for comparison. */
 function display(field: FieldDefinition, value: unknown): string {
-  if (value === undefined || value === null || value === '') return '—';
-  if (field.interface === 'wysiwyg') return toPlainText(toDoc(value)).slice(0, 400) || '—';
+  if (value === undefined || value === null || value === '') return 'None';
+  if (field.interface === 'wysiwyg') return toPlainText(toDoc(value)).slice(0, 400) || 'None';
   if (Array.isArray(value)) return value.join(', ');
   if (typeof value === 'object') return JSON.stringify(value);
   return String(value);

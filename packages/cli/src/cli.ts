@@ -12,7 +12,7 @@ import { cliVersion } from './release.js';
 import { parseFlags } from './flags.js';
 import { p, UsageError } from './ui.js';
 
-const HELP = `Venda — self-hosted CMS on Cloudflare
+const HELP = `Venda: self-hosted CMS on Cloudflare
 
 Usage: venda <command> [options]
 

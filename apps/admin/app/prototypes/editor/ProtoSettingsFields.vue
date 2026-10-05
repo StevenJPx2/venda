@@ -32,11 +32,16 @@ function onSlugBlur(): void {
       </span>
     </label>
 
-    <label class="block space-y-1.5">
-      <span class="pv-label">Publish date</span>
-      <input v-model="p.publishAt.value" type="datetime-local" class="pv-field pv-num">
+    <div class="space-y-1.5">
+      <span id="publish-date-label" class="pv-label">Publish date</span>
+      <VendaDateTimeInput
+        :model-value="p.publishAt.value || null"
+        future
+        aria-label="Publish date"
+        @update:model-value="value => (p.publishAt.value = value ?? '')"
+      />
       <span class="block text-xs text-muted">Leave empty to publish immediately.</span>
-    </label>
+    </div>
 
     <label class="block space-y-1.5">
       <span class="flex items-baseline justify-between">

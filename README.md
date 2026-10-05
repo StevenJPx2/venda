@@ -4,16 +4,16 @@ Venda is a small, Cloudflare-native headless CMS. The admin and landing site are
 
 ## Repository
 
-- `apps/admin` — Nuxt UI admin dashboard, deployed with Nitro's `cloudflare_module` preset.
-- `apps/landing` — Nuxt UI marketing site, same preset.
-- `apps/api` — Worker API with cookie sessions, D1 repositories, R2 uploads, and KV cache invalidation.
-- `packages/core` — framework-neutral CMS core (`createVenda().fetch`) with Cloudflare and Node adapters; `packages/core/migrations` holds the numbered SQL migrations.
-- `apps/api/scripts/seed.mjs` — idempotent sample-data seeder (`VENDA_ADMIN_PASSWORD=… pnpm --filter @venda/api db:seed`; add `-- --update` to overwrite existing seed entries).
+- `apps/admin`: Nuxt UI admin dashboard, deployed with Nitro's `cloudflare_module` preset.
+- `apps/landing`: Nuxt UI marketing site, same preset.
+- `apps/api`: Worker API with cookie sessions, D1 repositories, R2 uploads, and KV cache invalidation.
+- `packages/core`: framework-neutral CMS core (`createVenda().fetch`) with Cloudflare and Node adapters; `packages/core/migrations` holds the numbered SQL migrations.
+- `apps/api/scripts/seed.mjs`: idempotent sample-data seeder (`VENDA_ADMIN_PASSWORD=… pnpm --filter @venda/api db:seed`; add `-- --update` to overwrite existing seed entries).
 
-- `packages/richtext` — **`@venda/richtext`**, the rich-text document format: validation, a safe HTML renderer, HTML conversion and plain-text helpers. Framework- and runtime-neutral.
-- `packages/schema` — **`@venda/schema`**, the content model: field definitions, schema parsing and entry validation, shared by the API and the admin so both enforce the same rules.
-- `packages/nuxt` — **`@venda/nuxt`**, a Nuxt module any Nuxt 4 site can install to read Venda content (`useVendaCollection`, `useVendaEntry`, `<VendaContent>`). See [its README](packages/nuxt/README.md).
-- `packages/cli` — **`venda`**, a self-hosting CLI that provisions D1, KV, R2 and deploys an admin/API single-Worker install into your Cloudflare account.
+- `packages/richtext`: **`@venda/richtext`**, the rich-text document format: validation, a safe HTML renderer, HTML conversion and plain-text helpers. Framework- and runtime-neutral.
+- `packages/schema`: **`@venda/schema`**, the content model: field definitions, schema parsing and entry validation, shared by the API and the admin so both enforce the same rules.
+- `packages/nuxt`: **`@venda/nuxt`**, a Nuxt module any Nuxt 4 site can install to read Venda content (`useVendaCollection`, `useVendaEntry`, `<VendaContent>`). See [its README](packages/nuxt/README.md).
+- `packages/cli`: **`venda`**, a self-hosting CLI that provisions D1, KV, R2 and deploys an admin/API single-Worker install into your Cloudflare account.
 
 ## Content model (Directus-style)
 
@@ -137,9 +137,9 @@ The self-hosted install serves the admin and API from the same origin, uses a re
 - `POST /api/media`, `GET /api/media/:key`
 - `GET /api/content/:collection` (`?q=` to search) and `GET /api/content/:collection/:slug` are public delivery endpoints serving published snapshots only.
 
-Each entry has a **working copy**, which saves never publish, and a **published snapshot**, which is what the public API serves. Publishing copies the working copy into the snapshot and records a revision; saves record at most one revision every 10 minutes, and the newest 50 are kept per entry. Background work — scheduled publishing and unpublishing, purging trash older than 30 days, and search indexing — runs from `venda.scheduled()`: a one-minute Cron Trigger on Cloudflare, or `startScheduler(venda)` from `@venda/core/node` in a Node process.
+Each entry has a **working copy**, which saves never publish, and a **published snapshot**, which is what the public API serves. Publishing copies the working copy into the snapshot and records a revision; saves record at most one revision every 10 minutes, and the newest 50 are kept per entry. Background work (scheduled publishing and unpublishing, purging trash older than 30 days, and search indexing) runs from `venda.scheduled()`: a one-minute Cron Trigger on Cloudflare, or `startScheduler(venda)` from `@venda/core/node` in a Node process.
 
-Admin endpoints accept a session cookie or an API token (`Authorization: Bearer venda_…`). Every request is checked against the caller's role — administrator, editor, author or contributor — and a token is further limited to its scopes. Authors and contributors act only on entries they created; contributors cannot publish. The configured `ADMIN_EMAIL`/`ADMIN_PASSWORD` always signs in as an administrator, so access can be recovered by rotating that secret.
+Admin endpoints accept a session cookie or an API token (`Authorization: Bearer venda_…`). Every request is checked against the caller's role (administrator, editor, author or contributor), and a token is further limited to its scopes. Authors and contributors act only on entries they created; contributors cannot publish. The configured `ADMIN_EMAIL`/`ADMIN_PASSWORD` always signs in as an administrator, so access can be recovered by rotating that secret.
 
 Invalid schemas are rejected with `400`; entries that break their collection's schema get `422` with a `fields` array naming each problem. Entry `data` is stored as JSON, so changing the data model never needs a database migration.
 

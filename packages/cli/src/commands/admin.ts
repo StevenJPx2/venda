@@ -37,7 +37,7 @@ export async function admin(flags: Flags): Promise<void> {
 
   p.intro(`Venda · admin password for ${project.name}`);
   await step('Updating admin credentials', () => setSecrets(createRunner(project.accountId), dir, secrets), () => 'Credentials updated');
-  if (password.generated) p.note(password.value, 'New password — shown once');
+  if (password.generated) p.note(password.value, 'New password (shown once)');
   if (flags.signOutEveryone) p.log.info('All existing sessions have been signed out.');
   p.outro('Done');
 }

@@ -59,7 +59,10 @@ function onKeydown(event: KeyboardEvent): void {
 
 // The sidebar is a parallel panel and stays open; only the publish popover closes on an outside click.
 function onPointerDown(event: PointerEvent): void {
-  if (confirmOpen.value && publishRef.value && !publishRef.value.contains(event.target as Node)) confirmOpen.value = false;
+  const target = event.target as Element;
+  // Floating content opened from inside the popover (the calendar) renders at the end of <body>.
+  if (target.closest?.('[data-reka-popper-content-wrapper]')) return;
+  if (confirmOpen.value && publishRef.value && !publishRef.value.contains(target)) confirmOpen.value = false;
 }
 
 async function confirm(): Promise<void> {
@@ -116,7 +119,14 @@ onBeforeUnmount(() => {
                 <input v-model="when" type="radio" value="later" class="accent-current">
                 <span>Schedule for later</span>
               </label>
-              <input v-if="when === 'later'" v-model="laterAt" type="datetime-local" class="pv-field pv-num mt-1">
+              <VendaDateTimeInput
+                v-if="when === 'later'"
+                :model-value="laterAt || null"
+                future
+                aria-label="Publish at"
+                class="mt-1"
+                @update:model-value="value => (laterAt = value ?? '')"
+              />
             </div>
             <div class="mt-4 flex justify-end gap-1">
               <button type="button" class="pv-btn pv-btn--ghost pv-press" @click="confirmOpen = false">Cancel</button>

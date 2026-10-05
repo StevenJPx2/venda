@@ -75,7 +75,7 @@ export async function doctor(flags: Flags): Promise<void> {
   checks.push(await healthCheck(project, version));
 
   for (const check of checks) {
-    const line = `${check.name} — ${check.detail}`;
+    const line = `${check.name}: ${check.detail}`;
     if (check.ok) p.log.success(line);
     else p.log.error(`${line}\n  → ${check.fix ?? ''}`);
   }

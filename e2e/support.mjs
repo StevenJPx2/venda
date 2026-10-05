@@ -18,7 +18,7 @@ const children = [];
 const results = [];
 
 export function check(name, ok, detail = '') {
-  results.push(`${ok ? 'PASS' : 'FAIL'} ${name}${ok || !detail ? '' : ` — ${detail}`}`);
+  results.push(`${ok ? 'PASS' : 'FAIL'} ${name}${ok || !detail ? '' : `: ${detail}`}`);
   if (!ok) process.exitCode = 1;
 }
 

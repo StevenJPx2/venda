@@ -38,7 +38,7 @@ async function chooseAccount(accounts: Account[], flag: string | undefined, noPr
 async function gatherProject(dir: string, flags: Flags, accountId: string): Promise<VendaProject> {
   const name = await textOption({ flag: flags.name, flagName: 'name', noPrompt: flags.noPrompt, message: 'Name for this install (used for the Worker and its resources)', initialValue: suggestName(basename(dir)), validate: nameProblem });
   const adminEmail = await textOption({ flag: flags.email, flagName: 'email', noPrompt: flags.noPrompt, message: 'Admin email (you will sign in with this)', placeholder: 'you@example.com', validate: emailProblem });
-  const domain = await textOption({ flag: flags.domain, flagName: 'domain', noPrompt: flags.noPrompt, optional: true, message: 'Custom domain (optional — leave empty to use workers.dev)', placeholder: 'cms.example.com', validate: domainProblem });
+  const domain = await textOption({ flag: flags.domain, flagName: 'domain', noPrompt: flags.noPrompt, optional: true, message: 'Custom domain (optional; leave empty to use workers.dev)', placeholder: 'cms.example.com', validate: domainProblem });
 
   return { name, accountId, adminEmail: adminEmail.toLowerCase(), ...(domain ? { domain } : {}) };
 }
@@ -115,6 +115,6 @@ function printSummary(dir: string, url: string, email: string, password: string,
     'or rotate it any time with `venda admin password`.'
   ].join('\n'), 'Your Venda is ready');
 
-  if (!online) p.log.warn('The Worker is deployed but not answering yet — new workers.dev URLs can take a minute. Check with `venda doctor`.');
+  if (!online) p.log.warn('The Worker is deployed but not answering yet. New workers.dev URLs can take a minute. Check with `venda doctor`.');
   p.outro(`Next: cd ${where} && npx venda status`);
 }
