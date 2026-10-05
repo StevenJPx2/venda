@@ -1,7 +1,8 @@
 <script setup lang="ts">
-// Prototype "Focus": editorial serif type; all chrome fades away while you
-// write and returns when the pointer moves. Settings float in a sheet and
-// publishing is a deliberate two-step confirmation.
+// Prototype "Focus": editorial serif type; the controls fade away while you
+// write and return when the pointer moves. From "Quiet": the status line in
+// the top bar, the feature image above the title, and a docked settings
+// sidebar (⌘.). Publishing is a deliberate two-step confirmation.
 import ProtoBody from './ProtoBody.vue';
 import ProtoSettingsFields from './ProtoSettingsFields.vue';
 import ProtoTitle from './ProtoTitle.vue';
@@ -10,30 +11,31 @@ import { statusLabel, useProtoPost } from './post';
 const post = useProtoPost();
 const status = computed(() => statusLabel(post));
 const bodyRef = useTemplateRef<InstanceType<typeof ProtoBody>>('bodyRef');
-const sheetRef = useTemplateRef<HTMLElement>('sheetRef');
 const publishRef = useTemplateRef<HTMLElement>('publishRef');
 
 const typing = shallowRef(false);
-const sheetOpen = shallowRef(false);
+const panelOpen = shallowRef(false);
+// Keyboard toggles are instant: they repeat too often to animate.
+const instant = shallowRef(false);
 const confirmOpen = shallowRef(false);
 const when = shallowRef<'now' | 'later'>('now');
 const laterAt = shallowRef('');
-
-const savedAgo = shallowRef('just now');
-let clock: ReturnType<typeof setInterval> | undefined;
-function tick(): void {
-  const seconds = Math.round((Date.now() - post.savedAt.value) / 1000);
-  savedAgo.value = seconds < 10 ? 'just now' : seconds < 60 ? `${seconds}s ago` : `${Math.round(seconds / 60)}m ago`;
-}
+const scrolled = shallowRef(false);
+const onScroll = () => { scrolled.value = window.scrollY > 4; };
 
 const canPublish = computed(() => post.status.value !== 'published' || post.hasUnpublishedChanges.value);
 const publishLabel = computed(() => (post.status.value === 'published' ? 'Publish changes' : 'Publish'));
 
-function startTyping(): void {
-  if (!sheetOpen.value && !confirmOpen.value) typing.value = true;
+function togglePanel(fromKeyboard = false): void {
+  instant.value = fromKeyboard;
+  panelOpen.value = !panelOpen.value;
 }
 
-// Ignore sub-pixel jitter: only a deliberate move brings the chrome back.
+function startTyping(): void {
+  if (!confirmOpen.value) typing.value = true;
+}
+
+// Ignore sub-pixel jitter: only a deliberate move brings the controls back.
 let last: { x: number; y: number } | null = null;
 function onPointerMove(event: PointerEvent): void {
   if (last && Math.hypot(event.clientX - last.x, event.clientY - last.y) > 4) typing.value = false;
@@ -41,16 +43,19 @@ function onPointerMove(event: PointerEvent): void {
 }
 
 function onKeydown(event: KeyboardEvent): void {
+  if ((event.metaKey || event.ctrlKey) && event.key === '.') {
+    event.preventDefault();
+    togglePanel(true);
+    return;
+  }
   if (event.key !== 'Escape') return;
   if (confirmOpen.value) confirmOpen.value = false;
-  else if (sheetOpen.value) sheetOpen.value = false;
   else typing.value = false;
 }
 
+// The sidebar is a parallel panel and stays open; only the publish popover closes on an outside click.
 function onPointerDown(event: PointerEvent): void {
-  const target = event.target as Node;
-  if (sheetOpen.value && sheetRef.value && !sheetRef.value.contains(target) && !(target as Element).closest?.('[data-sheet-trigger]')) sheetOpen.value = false;
-  if (confirmOpen.value && publishRef.value && !publishRef.value.contains(target)) confirmOpen.value = false;
+  if (confirmOpen.value && publishRef.value && !publishRef.value.contains(event.target as Node)) confirmOpen.value = false;
 }
 
 async function confirm(): Promise<void> {
@@ -62,28 +67,28 @@ onMounted(() => {
   window.addEventListener('pointermove', onPointerMove);
   window.addEventListener('pointerdown', onPointerDown);
   window.addEventListener('keydown', onKeydown);
-  clock = setInterval(tick, 5000);
+  window.addEventListener('scroll', onScroll, { passive: true });
 });
 onBeforeUnmount(() => {
+  window.removeEventListener('scroll', onScroll);
   window.removeEventListener('pointermove', onPointerMove);
   window.removeEventListener('pointerdown', onPointerDown);
   window.removeEventListener('keydown', onKeydown);
-  clearInterval(clock);
 });
-watch(() => post.savedAt.value, tick);
 </script>
 
 <template>
-  <div class="pv f" :data-typing="typing || undefined">
-    <header class="f-chrome f-bar">
+  <div class="pv f" :data-typing="typing || undefined" :data-panel="panelOpen || undefined">
+    <header class="f-chrome f-bar" :data-scrolled="scrolled || undefined">
       <button type="button" class="pv-btn pv-btn--ghost pv-press -ml-2">
         <UIcon name="i-lucide-arrow-left" class="size-4" />Posts
       </button>
-      <p class="hidden min-w-0 items-center gap-2 text-[13px] text-muted sm:flex" aria-live="polite">
+      <p class="flex min-w-0 items-center gap-2 text-[13px]" aria-live="polite">
         <span class="pv-dot" :data-tone="status.tone" />
-        <span class="truncate">{{ status.label }} — {{ post.saveState.value === 'saving' ? 'saving…' : `saved ${savedAgo}` }}</span>
+        <span class="truncate text-highlighted">{{ status.label }}</span>
+        <span class="hidden shrink-0 text-dimmed sm:inline">{{ post.saveState.value === 'saving' ? 'Saving…' : 'Saved' }}</span>
       </p>
-      <div class="ml-auto flex items-center gap-1">
+      <div class="ml-auto flex shrink-0 items-center gap-1">
         <button type="button" class="pv-btn pv-btn--ghost pv-press pv-wide">Preview</button>
         <div ref="publishRef" class="relative">
           <button
@@ -117,35 +122,50 @@ watch(() => post.savedAt.value, tick);
             </div>
           </div>
         </div>
-        <button type="button" data-sheet-trigger class="pv-btn pv-btn--ghost pv-btn--icon pv-press" aria-label="Post settings" :aria-expanded="sheetOpen" @click="sheetOpen = !sheetOpen">
-          <UIcon name="i-lucide-sliders-horizontal" class="size-4" />
+        <button
+          type="button"
+          class="pv-btn pv-btn--ghost pv-btn--icon pv-press"
+          :aria-pressed="panelOpen"
+          aria-label="Post settings (⌘.)"
+          title="Post settings (⌘.)"
+          @click="togglePanel()"
+        >
+          <UIcon name="i-lucide-panel-right" class="size-[18px]" :class="panelOpen && 'text-highlighted'" />
         </button>
       </div>
     </header>
 
-    <main class="mx-auto max-w-[680px] px-6 pb-48 pt-[16vh]">
-      <figure v-if="post.featureImage.value" class="mb-12 overflow-hidden rounded">
-        <img :src="post.featureImage.value" alt="" class="aspect-[16/9] w-full object-cover">
-      </figure>
-      <ProtoTitle v-model="post.title.value" class="f-title" @enter="bodyRef?.focusStart()" @typing="startTyping" />
-      <p class="f-chrome mt-4 text-[13px] text-dimmed">
-        {{ post.author }} · <span class="pv-num">{{ post.readingMinutes.value }} min read</span>
-      </p>
-      <div class="h-8" />
-      <ProtoBody ref="bodyRef" v-model="post.body.value" serif @typing="startTyping" />
+    <main class="f-main">
+      <div class="mx-auto max-w-[680px] px-6 pb-48 pt-[14vh]">
+        <figure v-if="post.featureImage.value" class="group relative mb-12 overflow-hidden rounded-lg">
+          <img :src="post.featureImage.value" alt="" class="aspect-[16/9] w-full object-cover">
+          <button type="button" class="f-chrome pv-btn pv-press absolute right-3 top-3 bg-black/60 text-white backdrop-blur" @click="post.featureImage.value = null">Remove</button>
+        </figure>
+        <button v-else type="button" class="f-chrome pv-btn pv-btn--ghost pv-press -ml-3 mb-4" @click="post.pickFeatureImage">
+          <UIcon name="i-lucide-image-plus" class="size-4" />Add feature image
+        </button>
+
+        <ProtoTitle v-model="post.title.value" class="f-title" @enter="bodyRef?.focusStart()" @typing="startTyping" />
+        <!-- Part of the post, not a control, so it stays while you type. -->
+        <p class="mt-4 flex items-center gap-2 text-[13px] text-muted">
+          <span class="grid size-6 place-items-center rounded-full bg-elevated text-[10px] font-semibold text-muted" aria-hidden="true">AW</span>
+          <span>{{ post.author }}</span>
+          <span class="text-dimmed" aria-hidden="true">·</span>
+          <span class="pv-num text-dimmed">{{ post.readingMinutes.value }} min read</span>
+        </p>
+        <div class="h-8" />
+        <ProtoBody ref="bodyRef" v-model="post.body.value" serif @typing="startTyping" />
+      </div>
     </main>
 
-    <aside ref="sheetRef" class="f-sheet" :data-open="sheetOpen || undefined" :inert="!sheetOpen" aria-label="Post settings">
+    <aside class="f-panel" :data-open="panelOpen || undefined" :data-instant="instant || undefined" :inert="!panelOpen" aria-label="Post settings">
       <div class="flex h-12 shrink-0 items-center justify-between px-5">
         <h2 class="text-[13px] font-semibold text-highlighted">Post settings</h2>
-        <button type="button" class="pv-btn pv-btn--ghost pv-btn--icon pv-press -mr-2" aria-label="Close settings" @click="sheetOpen = false">
+        <button type="button" class="pv-btn pv-btn--ghost pv-btn--icon pv-press -mr-2" aria-label="Close settings" @click="togglePanel()">
           <UIcon name="i-lucide-x" class="size-4" />
         </button>
       </div>
-      <div class="min-h-0 flex-1 overflow-y-auto px-5 pb-6 pt-1">
-        <button v-if="!post.featureImage.value" type="button" class="pv-press mb-6 grid aspect-[16/9] w-full place-items-center rounded-lg border border-dashed border-default text-xs text-muted" @click="post.pickFeatureImage">
-          <span class="flex items-center gap-1.5"><UIcon name="i-lucide-image-plus" class="size-4" />Add feature image</span>
-        </button>
+      <div class="min-h-0 flex-1 overflow-y-auto px-5 pb-6 pt-2">
         <ProtoSettingsFields :post="post" />
       </div>
       <div class="flex shrink-0 items-center gap-1 border-t border-default px-3 py-2.5">
@@ -160,6 +180,11 @@ watch(() => post.savedAt.value, tick);
 </template>
 
 <style scoped>
+.f {
+  --panel-w: 340px;
+  --bar-h: 3.5rem;
+}
+
 .f-bar {
   position: fixed;
   inset: 0 0 auto 0;
@@ -167,8 +192,25 @@ watch(() => post.savedAt.value, tick);
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  height: 3.5rem;
+  height: var(--bar-h);
   padding: 0 1rem;
+  background: color-mix(in oklab, var(--ui-bg) 82%, transparent);
+  backdrop-filter: blur(16px) saturate(1.6);
+  -webkit-backdrop-filter: blur(16px) saturate(1.6);
+}
+/* The hairline only appears once text scrolls under the bar. */
+.f-bar::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 1px;
+  background: var(--ui-border);
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+.f-bar[data-scrolled]::after { opacity: 1; }
+@media (prefers-reduced-transparency: reduce) {
+  .f-bar { background: var(--ui-bg); backdrop-filter: none; }
 }
 
 /* Leaving is ambient (the writer is looking at the text), so it takes its
@@ -233,39 +275,42 @@ watch(() => post.savedAt.value, tick);
   .f-option:hover { background: var(--ui-bg-elevated); }
 }
 
-/* A parallel panel: floats over the page without a scrim. */
-.f-sheet {
+/* Docked sidebar from "Quiet": a parallel panel, so no scrim. On wide screens
+   the text column only moves as far as it must to clear the panel (none at
+   1440px); narrower screens get the panel over the text. */
+.f-panel {
   position: fixed;
-  z-index: 30;
-  /* Below the bar, so the toggle that opened it stays in reach. */
-  top: 3.5rem;
-  right: 0.75rem;
-  bottom: 0.75rem;
+  z-index: 10;
+  top: var(--bar-h);
+  right: 0;
+  bottom: 0;
   display: flex;
   flex-direction: column;
-  width: min(360px, calc(100vw - 1.5rem));
-  border-radius: 12px;
-  background: color-mix(in oklab, var(--ui-bg) 88%, transparent);
-  backdrop-filter: blur(24px) saturate(1.6);
-  -webkit-backdrop-filter: blur(24px) saturate(1.6);
-  box-shadow: 0 0 0 1px var(--ui-border), 0 24px 48px -12px rgb(0 0 0 / 0.22), 0 4px 12px rgb(0 0 0 / 0.06);
-  transform-origin: top right;
-  opacity: 0;
-  transform: translateX(12px) scale(0.98);
-  pointer-events: none;
-  transition: opacity 150ms var(--ease-out), transform 150ms var(--ease-out);
+  width: min(var(--panel-w), 100vw);
+  border-left: 1px solid var(--ui-border);
+  background: color-mix(in oklab, var(--ui-bg) 92%, transparent);
+  backdrop-filter: blur(20px) saturate(1.6);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  transform: translateX(100%);
+  /* Closing is quicker than opening. */
+  transition: transform 180ms var(--ease-drawer);
 }
-.f-sheet[data-open] {
-  opacity: 1;
-  transform: none;
-  pointer-events: auto;
+.f-panel[data-open] {
+  transform: translateX(0);
   transition-duration: 240ms;
+}
+.f-panel[data-instant] { transition: none; }
+@media (min-width: 1024px) {
+  /* Centred in what's left of the viewport: text column (680) + panel + gutters. */
+  .f[data-panel] .f-main { padding-right: max(0px, calc(680px + 2 * var(--panel-w) + 48px - 100vw)); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .f-pop, .f-sheet { transform: none; }
+  .f-pop { transform: none; }
+  .f-panel { transform: none; opacity: 0; transition: opacity 150ms ease; }
+  .f-panel[data-open] { opacity: 1; }
 }
 @media (prefers-reduced-transparency: reduce) {
-  .f-sheet { background: var(--ui-bg); backdrop-filter: none; }
+  .f-panel { background: var(--ui-bg); backdrop-filter: none; }
 }
 </style>
