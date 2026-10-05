@@ -324,6 +324,13 @@ checked in review.
 The rebuild happens in place on `platform`, one vertical slice at a time,
 each through its real boundary with every live suite green before the next.
 
+**Every slice ships a way to try it.** A slice is not done until `pnpm try`
+starts what it delivers with throwaway local credentials, and `try/slice-N.html`
+(listed on `try/index.html`) lets a person exercise it: plain HTML with one
+button per behaviour, showing a clear pass or fail and the raw requests and
+responses, on every runtime the slice touches. The page complements the live
+suites; it does not replace them.
+
 0. **Gate and skeleton.** Oxlint, Fallow and Effect diagnostics in the gate;
    `@venda/contract`; `@venda/server` serving the current core unchanged on
    wrangler dev and Node, with D1 through db0 and the cron tick. Measures the

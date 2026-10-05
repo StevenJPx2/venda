@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Slice 0 · Try Venda</title>
+  <style>
+    :root { color-scheme: light dark; --ink: #18181b; --muted: #71717a; --line: #e4e4e7; --bg: #fff; --soft: #fafafa; --pass: #15803d; --fail: #b91c1c; --wait: #b45309; }
+    @media (prefers-color-scheme: dark) { :root { --ink: #f4f4f5; --muted: #a1a1aa; --line: #27272a; --bg: #09090b; --soft: #111113; --pass: #4ade80; --fail: #f87171; --wait: #fbbf24; } }
+    * { box-sizing: border-box; }
+    body { margin: 0; font: 14px/1.55 system-ui, sans-serif; color: var(--ink); background: var(--bg); }
+    main { max-width: 1040px; margin: 0 auto; padding: 48px 24px 96px; }
+    a { color: inherit; }
+    header { display: flex; justify-content: space-between; align-items: end; gap: 16px; margin-bottom: 28px; flex-wrap: wrap; }
+    h1 { font-size: 26px; letter-spacing: -0.02em; margin: 4px 0 6px; }
+    .lede { color: var(--muted); max-width: 620px; margin: 0; }
+    .crumb { font-size: 13px; color: var(--muted); text-decoration: none; }
+    button { font: inherit; font-size: 13px; font-weight: 500; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 6px; padding: 6px 12px; cursor: pointer; transition: transform 120ms cubic-bezier(0.23, 1, 0.32, 1); }
+    button:active { transform: scale(0.97); }
+    button.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+    button:disabled { opacity: 0.5; cursor: default; }
+    .check { border: 1px solid var(--line); border-radius: 12px; margin-bottom: 16px; overflow: hidden; }
+    .check-head { display: flex; justify-content: space-between; gap: 16px; padding: 16px 18px; align-items: start; flex-wrap: wrap; }
+    .check h2 { font-size: 15px; margin: 0 0 2px; }
+    .check p { margin: 0; color: var(--muted); max-width: 560px; }
+    .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+    .runs { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--line); }
+    .run { padding: 12px 18px; min-height: 64px; background: var(--soft); min-width: 0; }
+    .run + .run { border-left: 1px solid var(--line); }
+    .run-label { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); display: flex; gap: 8px; align-items: center; }
+    .verdict { font-size: 12px; font-weight: 600; text-transform: none; letter-spacing: 0; }
+    .verdict.pass { color: var(--pass); } .verdict.fail { color: var(--fail); } .verdict.wait { color: var(--wait); }
+    .note { margin: 6px 0 0; color: var(--ink); }
+    pre { margin: 8px 0 0; font: 12px/1.5 ui-monospace, SFMono-Regular, monospace; white-space: pre-wrap; word-break: break-all; max-height: 180px; overflow: auto; color: var(--muted); }
+    img.proof { display: block; margin-top: 8px; height: 48px; border-radius: 4px; border: 1px solid var(--line); }
+    .creds { font-size: 13px; color: var(--muted); }
+    code { font: 12px ui-monospace, SFMono-Regular, monospace; }
+    @media (max-width: 720px) { .runs { grid-template-columns: 1fr; } .run + .run { border-left: 0; border-top: 1px solid var(--line); } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <a class="crumb" href="/">← Try Venda</a>
+        <h1>Slice 0 · The new server</h1>
+        <p class="lede">The API now runs on <code>@venda/server</code> (Nitro 3). Health comes from the Effect contract in <code>@venda/contract</code>; everything else still goes to the legacy core. Each check runs against both runtimes: Workers (workerd with local D1, R2 and KV) and Node (SQLite and files).</p>
+      </div>
+      <div style="text-align:right">
+        <button class="primary" id="run-all">Run every check on both</button>
+        <div class="creds" style="margin-top:8px">Signs in as <code>owner@venda.local</code></div>
+      </div>
+    </header>
+    <div id="checks"></div>
+  </main>
+
+  <script type="module">
+    const RUNTIMES = { workers: 'Workers', node: 'Node' };
+    const CREDENTIALS = { email: 'owner@venda.local', password: 'try-venda' };
+    const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+    async function call(runtime, method, path, body) {
+      const init = { method, headers: {} };
+
+      if (body instanceof FormData) init.body = body;
+      else if (body !== undefined) {
+        init.headers['Content-Type'] = 'application/json';
+        init.body = JSON.stringify(body);
+      }
+
+      const response = await fetch(`/${runtime}${path}`, init);
+      const text = await response.text();
+      let data = text;
+
+      try { data = JSON.parse(text); } catch { /* not JSON */ }
+
+      return { status: response.status, ok: response.ok, headers: response.headers, data, line: `${method} ${path} → ${response.status}` };
+    }
+
+    async function signIn(runtime, log) {
+      const login = await call(runtime, 'POST', '/api/auth/login', CREDENTIALS);
+
+      log(login.line);
+
+      if (!login.ok) throw new Error(`Sign-in failed: ${JSON.stringify(login.data)}`);
+    }
+
+    // A small PNG drawn on the spot, so every upload is unique.
+    async function makePng() {
+      const canvas = Object.assign(document.createElement('canvas'), { width: 220, height: 48 });
+      const context = canvas.getContext('2d');
+
+      context.fillStyle = '#15803d';
+      context.fillRect(0, 0, 220, 48);
+      context.fillStyle = '#fff';
+      context.font = '600 16px system-ui';
+      context.fillText(`Venda ${new Date().toLocaleTimeString()}`, 14, 30);
+
+      return new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+    }
+
+    async function ensureCollection(runtime, log) {
+      const list = await call(runtime, 'GET', '/api/collections');
+      const existing = Array.isArray(list.data) ? list.data.find(collection => collection.slug === 'try-notes') : undefined;
+
+      if (existing) return existing;
+
+      const schema = { titleField: 'title', fields: [{ key: 'title', interface: 'input', required: true }] };
+      const created = await call(runtime, 'POST', '/api/collections', { name: 'Try notes', slug: 'try-notes', schema });
+
+      log(created.line);
+
+      return created.data;
+    }
+
+    async function waitForPublish(runtime, slug, log, note) {
+      // Node runs its tick every minute; Workers runs it when the cron trigger fires.
+      const deadline = Date.now() + (runtime === 'node' ? 75_000 : 8_000);
+
+      while (Date.now() < deadline) {
+        const read = await call(runtime, 'GET', `/api/content/try-notes/${slug}`);
+
+        if (read.ok) return read;
+
+        if (runtime === 'node') note(`Waiting for Node's one-minute timer… ${Math.ceil((deadline - Date.now()) / 1000)}s left at most`);
+
+        await sleep(runtime === 'node' ? 2000 : 500);
+      }
+
+      return call(runtime, 'GET', `/api/content/try-notes/${slug}`);
+    }
+
+    const CHECKS = [
+      {
+        id: 'health',
+        title: 'Health, from the Effect contract',
+        description: 'GET /api/health is the first endpoint served by the Effect HttpApi defined in @venda/contract. The response must match its HealthStatus schema.',
+        async run(runtime, { log }) {
+          const health = await call(runtime, 'GET', '/api/health');
+
+          log(health.line, health.data);
+
+          return { pass: health.ok && health.data?.ok === true && typeof health.data?.version === 'string', note: `version ${health.data?.version}` };
+        }
+      },
+      {
+        id: 'session',
+        title: 'Sign in and read your profile',
+        description: 'The legacy core, now behind the new server: the password check, a session in KV (Workers) or memory (Node), and the profile it identifies.',
+        async run(runtime, { log }) {
+          await signIn(runtime, log);
+          const me = await call(runtime, 'GET', '/api/auth/me');
+
+          log(me.line, me.data);
+
+          return { pass: me.ok && me.data?.user?.email === CREDENTIALS.email, note: `signed in as ${me.data?.user?.email ?? 'nobody'}` };
+        }
+      },
+      {
+        id: 'media',
+        title: 'Upload an image and get it back',
+        description: 'Media goes through unstorage: R2 on Workers, files on Node. The image must come back with its bytes and its content type.',
+        async run(runtime, { log, show }) {
+          await signIn(runtime, log);
+          const png = await makePng();
+          const form = new FormData();
+
+          form.append('file', png, 'venda.png');
+          const upload = await call(runtime, 'POST', '/api/media', form);
+
+          log(upload.line, upload.data);
+
+          if (!upload.ok) return { pass: false, note: 'upload rejected' };
+
+          const url = `/${runtime}/api/media/${upload.data.key}`;
+          const served = await fetch(url);
+          const bytes = (await served.arrayBuffer()).byteLength;
+
+          log(`GET /api/media/${upload.data.key} → ${served.status} · ${served.headers.get('content-type')} · ${bytes} bytes`);
+          show(url);
+
+          return { pass: served.ok && served.headers.get('content-type') === 'image/png' && bytes === png.size, note: `${bytes} bytes, ${served.headers.get('content-type')}` };
+        }
+      },
+      {
+        id: 'schedule',
+        title: 'Schedule a post and let the tick publish it',
+        description: 'Creates a draft due in 3 seconds and checks it is not public yet. On Workers the cron trigger is fired for you; on Node the one-minute timer does it, so allow up to a minute.',
+        async run(runtime, { log, note }) {
+          await signIn(runtime, log);
+          await ensureCollection(runtime, log);
+          const collections = await call(runtime, 'GET', '/api/collections');
+          const collection = collections.data.find(item => item.slug === 'try-notes');
+          const slug = `note-${Date.now()}`;
+          const entry = await call(runtime, 'POST', `/api/collections/${collection.id}/entries`, { slug, data: { title: `Scheduled at ${new Date().toLocaleTimeString()}` } });
+
+          log(entry.line);
+          const schedule = await call(runtime, 'PUT', `/api/entries/${entry.data.id}/schedule`, { publishAt: new Date(Date.now() + 3000).toISOString() });
+
+          log(schedule.line);
+          const before = await call(runtime, 'GET', `/api/content/try-notes/${slug}`);
+
+          log(`${before.line} (not public yet)`);
+          note('Waiting until it is due…');
+          await sleep(3500);
+
+          if (runtime === 'workers') {
+            const cron = await fetch(`/workers/cdn-cgi/local/scheduled?cron=${encodeURIComponent('* * * * *')}`);
+
+            log(`cron trigger → ${cron.status}`);
+          }
+
+          const after = await waitForPublish(runtime, slug, log, note);
+
+          log(after.line, after.data);
+
+          return { pass: before.status === 404 && after.ok, note: after.ok ? `published: “${after.data.data.title}”` : 'still not public' };
+        }
+      }
+    ];
+
+    function render(check) {
+      const card = document.createElement('section');
+
+      card.className = 'check';
+      card.innerHTML = `
+        <div class="check-head">
+          <div><h2>${check.title}</h2><p>${check.description}</p></div>
+          <div class="actions">
+            <button data-on="workers">Run on Workers</button>
+            <button data-on="node">Run on Node</button>
+            <button data-on="both">Both</button>
+          </div>
+        </div>
+        <div class="runs">${Object.entries(RUNTIMES).map(([key, label]) => `
+          <div class="run" data-runtime="${key}">
+            <div class="run-label">${label} <span class="verdict"></span></div>
+            <div class="note">Not run yet.</div>
+            <pre hidden></pre>
+          </div>`).join('')}
+        </div>`;
+      document.getElementById('checks').append(card);
+
+      for (const button of card.querySelectorAll('button')) {
+        button.addEventListener('click', () => {
+          const targets = button.dataset.on === 'both' ? Object.keys(RUNTIMES) : [button.dataset.on];
+
+          targets.forEach(runtime => execute(check, card, runtime));
+        });
+      }
+
+      return card;
+    }
+
+    async function execute(check, card, runtime) {
+      const pane = card.querySelector(`[data-runtime="${runtime}"]`);
+      const verdict = pane.querySelector('.verdict');
+      const noteEl = pane.querySelector('.note');
+      const pre = pane.querySelector('pre');
+      const lines = [];
+
+      pane.querySelector('img')?.remove();
+      pre.hidden = false;
+      pre.textContent = '';
+      verdict.className = 'verdict wait';
+      verdict.textContent = 'Running…';
+      noteEl.textContent = '';
+
+      const tools = {
+        log(line, data) {
+          lines.push(data === undefined ? line : `${line}\n${typeof data === 'string' ? data : JSON.stringify(data, null, 2)}`);
+          pre.textContent = lines.join('\n\n');
+        },
+        note(text) { noteEl.textContent = text; },
+        show(url) { pane.append(Object.assign(document.createElement('img'), { src: url, className: 'proof', alt: 'The uploaded image, served back' })); }
+      };
+
+      try {
+        const result = await check.run(runtime, tools);
+
+        verdict.className = `verdict ${result.pass ? 'pass' : 'fail'}`;
+        verdict.textContent = result.pass ? '✓ Pass' : '✕ Fail';
+        noteEl.textContent = result.note ?? '';
+      } catch (error) {
+        verdict.className = 'verdict fail';
+        verdict.textContent = '✕ Error';
+        noteEl.textContent = String(error.message ?? error);
+      }
+
+      return verdict.classList.contains('pass');
+    }
+
+    const cards = CHECKS.map(check => [check, render(check)]);
+
+    const runAll = document.getElementById('run-all');
+
+    runAll.addEventListener('click', async () => {
+      runAll.disabled = true;
+
+      // One check at a time, both runtimes together, so results fill in top to bottom.
+      for (const [check, card] of cards) await Promise.all(Object.keys(RUNTIMES).map(runtime => execute(check, card, runtime)));
+
+      runAll.disabled = false;
+    });
+  </script>
+</body>
+</html>

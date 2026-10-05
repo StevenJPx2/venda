@@ -3,6 +3,8 @@ node_modules
 .output-node
 .nuxt
 .data
+# `pnpm try` state and logs
+.try
 # Fallow's analysis cache
 .fallow
 .wrangler

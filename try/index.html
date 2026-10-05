@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Try Venda</title>
+  <style>
+    :root { color-scheme: light dark; --ink: #18181b; --muted: #71717a; --line: #e4e4e7; --bg: #fff; --soft: #fafafa; }
+    @media (prefers-color-scheme: dark) { :root { --ink: #f4f4f5; --muted: #a1a1aa; --line: #27272a; --bg: #09090b; --soft: #111113; } }
+    body { margin: 0; font: 15px/1.55 system-ui, sans-serif; color: var(--ink); background: var(--bg); }
+    main { max-width: 680px; margin: 0 auto; padding: 64px 24px; }
+    h1 { font-size: 28px; letter-spacing: -0.02em; margin: 0 0 6px; }
+    p { color: var(--muted); margin: 0 0 32px; }
+    a.slice { display: flex; justify-content: space-between; gap: 16px; padding: 16px 18px; border: 1px solid var(--line); border-radius: 10px; color: inherit; text-decoration: none; margin-bottom: 10px; background: var(--soft); }
+    a.slice:hover { border-color: var(--muted); }
+    .title { font-weight: 600; }
+    .desc { color: var(--muted); font-size: 14px; }
+    .status { font-size: 13px; color: #15803d; white-space: nowrap; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Try Venda</h1>
+    <p>One page per slice of the rebuild (docs/architecture.md). Each page exercises what that slice delivers against the servers `pnpm try` started.</p>
+    <a class="slice" href="/slice-0">
+      <span>
+        <span class="title">Slice 0 · The new server</span><br>
+        <span class="desc">Health from the Effect contract, sign-in, media and scheduled publishing, on Workers and on Node.</span>
+      </span>
+      <span class="status">Done</span>
+    </a>
+  </main>
+</body>
+</html>

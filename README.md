@@ -155,6 +155,7 @@ pnpm build
 pnpm fallow     # dead code, complexity and duplication in the new-architecture packages
 pnpm check      # lint + typecheck + test + fallow in one go
 pnpm e2e        # live suites: the Nitro server on workerd (and Node), admin and landing, driven by Playwright (system Chrome)
+pnpm try        # start the server on Workers and Node and open http://localhost:8794 to try each rebuilt slice by hand
 ```
 
 Linting uses ESLint flat config. Shared rules live in `eslint.config.shared.mjs`; the Nuxt apps extend their project-aware config via `@nuxt/eslint`'s `withNuxt()`, and the other packages use `typescript-eslint`. Packages on the new architecture (`tools/new-architecture.json`) also get Oxlint's vendored anti-slop and Effect rules. Run `pnpm lint:fix` to auto-fix.

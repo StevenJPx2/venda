@@ -14,7 +14,8 @@
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm fallow",
     "db:migrate:local": "pnpm --filter @venda/api db:migrate:local",
     "db:migrate:remote": "pnpm --filter @venda/api db:migrate:remote",
-    "e2e": "node e2e/run.mjs"
+    "e2e": "node e2e/run.mjs",
+    "try": "node scripts/try.mjs"
   },
   "devDependencies": {
     "@effect/language-service": "0.87.3",
