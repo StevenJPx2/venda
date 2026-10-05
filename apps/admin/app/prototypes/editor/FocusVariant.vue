@@ -14,7 +14,11 @@ const bodyRef = useTemplateRef<InstanceType<typeof ProtoBody>>('bodyRef');
 const publishRef = useTemplateRef<HTMLElement>('publishRef');
 
 const typing = shallowRef(false);
-const panelOpen = shallowRef(false);
+// Open by default wherever it docks beside the text; narrower screens would
+// get it on top of the writing. The page renders client-side only, so this is
+// the first paint and the panel doesn't slide in on load.
+const DOCKED_MIN_WIDTH = 1024;
+const panelOpen = shallowRef(import.meta.client && window.innerWidth >= DOCKED_MIN_WIDTH);
 // Keyboard toggles are instant: they repeat too often to animate.
 const instant = shallowRef(false);
 const confirmOpen = shallowRef(false);
@@ -292,20 +296,30 @@ onBeforeUnmount(() => {
   backdrop-filter: blur(20px) saturate(1.6);
   -webkit-backdrop-filter: blur(20px) saturate(1.6);
   transform: translateX(100%);
-  /* Closing is quicker than opening. */
-  transition: transform 180ms var(--ease-drawer);
+  /* Closing is quicker than opening. `translate` (not `transform`) carries the
+     typing drift, so it never fights the open/close slide. */
+  transition: transform 180ms var(--ease-drawer), opacity 150ms var(--ease-out), translate 150ms var(--ease-out);
 }
 .f-panel[data-open] {
   transform: translateX(0);
-  transition-duration: 240ms;
+  transition-duration: 240ms, 150ms, 150ms;
 }
 .f-panel[data-instant] { transition: none; }
+/* Fades with the other controls while you write; it stays open, and the text
+   column keeps its place, so it returns where you left it. */
+.f[data-typing] .f-panel[data-open] {
+  opacity: 0;
+  translate: 8px 0;
+  pointer-events: none;
+  transition: transform 240ms var(--ease-drawer), opacity 280ms ease, translate 280ms ease;
+}
 @media (min-width: 1024px) {
   /* Centred in what's left of the viewport: text column (680) + panel + gutters. */
   .f[data-panel] .f-main { padding-right: max(0px, calc(680px + 2 * var(--panel-w) + 48px - 100vw)); }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .f[data-typing] .f-panel[data-open] { translate: none; }
   .f-pop { transform: none; }
   .f-panel { transform: none; opacity: 0; transition: opacity 150ms ease; }
   .f-panel[data-open] { opacity: 1; }

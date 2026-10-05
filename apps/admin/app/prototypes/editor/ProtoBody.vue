@@ -232,24 +232,41 @@ function onPointerMove(event: PointerEvent): void {
   anchor = pointer;
 }
 
-onMounted(() => window.addEventListener('pointermove', onPointerMove, { passive: true }));
+onMounted(() => {
+  window.addEventListener('pointermove', onPointerMove, { passive: true });
+  window.addEventListener('pointermove', onPointerMoveWhileTyping, { passive: true });
+});
 onBeforeUnmount(() => {
   window.removeEventListener('pointermove', onPointerMove);
+  window.removeEventListener('pointermove', onPointerMoveWhileTyping);
   clearTimeout(idle);
 });
 
-// Typing puts the "+" away until the pointer moves again, like the rest of the chrome.
+// Typing puts the handle away until the pointer moves deliberately, like the
+// rest of the chrome. A CSS state rather than the editor's own hide, because
+// the editor re-shows the handle a frame after any mouse move, including
+// jitter, and including a move that lands just before the first keystroke.
+const JITTER_PX = 4;
+const typing = shallowRef(false);
+let typingFrom: Point = { x: 0, y: 0 };
+
 function onKeydownCapture(event: KeyboardEvent): void {
   release();
   if (event.metaKey || event.ctrlKey || event.altKey || ['Shift', 'Meta', 'Control', 'Alt'].includes(event.key)) return;
+  typing.value = true;
+  typingFrom = pointer;
   if (isShown(handleEl())) setHandleMeta('hideDragHandle', true);
+}
+
+function onPointerMoveWhileTyping(event: PointerEvent): void {
+  if (typing.value && Math.hypot(event.clientX - typingFrom.x, event.clientY - typingFrom.y) > JITTER_PX) typing.value = false;
 }
 
 defineExpose({ focusStart });
 </script>
 
 <template>
-  <div ref="bodyRoot" :class="['proto-body', props.serif && 'proto-body--serif']" @keydown="onKeydown" @keydown.capture="onKeydownCapture">
+  <div ref="bodyRoot" :class="['proto-body', props.serif && 'proto-body--serif']" :data-typing="typing || undefined" @keydown="onKeydown" @keydown.capture="onKeydownCapture">
     <UEditor
       ref="editorRef"
       v-slot="{ editor, handlers: editorHandlers }"
@@ -344,10 +361,14 @@ defineExpose({ focusStart });
 
 /* Hidden by the editor (typing, or the pointer leaving): fade out rather than
    vanish. Appearing stays instant, because it answers the pointer. */
-.proto-body :deep(.proto-handle[style*='visibility: hidden']) {
+.proto-body :deep(.proto-handle[style*='visibility: hidden']),
+.proto-body[data-typing] :deep(.proto-handle) {
   opacity: 0;
+  visibility: hidden;
   transition: opacity 180ms ease, visibility 0s linear 180ms;
 }
+/* The editor sets pointer-events inline when it shows the handle. */
+.proto-body[data-typing] :deep(.proto-handle) { pointer-events: none !important; }
 
 /* Taller invisible hit areas than the 28px icons (not wider: the two sit side by side), plus press feedback. */
 .proto-body :deep([data-block-handle] button) {
