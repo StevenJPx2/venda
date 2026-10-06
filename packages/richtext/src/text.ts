@@ -1,5 +1,4 @@
-import { htmlToDoc } from './html';
-import { isRichTextDoc, type RichTextDoc, type RichTextNode } from './types';
+import type { RichTextDoc, RichTextNode } from './types';
 
 const BLOCK_SEPARATED = new Set(['paragraph', 'heading', 'blockquote', 'listItem', 'codeBlock']);
 
@@ -46,16 +45,4 @@ export function trimTrailingEmpty(doc: RichTextDoc): RichTextDoc {
   const content = [...doc.content];
   while (content.length && isEmptyParagraph(content[content.length - 1]!)) content.pop();
   return { type: 'doc', content };
-}
-
-/**
- * A stored rich-text value as a document: documents pass through, HTML strings
- * (content written before documents were the format) are converted, anything
- * else is empty.
- */
-export function toDoc(value: unknown): RichTextDoc {
-  if (isRichTextDoc(value)) return value;
-  if (typeof value === 'string') return htmlToDoc(value);
-
-  return { type: 'doc', content: [] };
 }

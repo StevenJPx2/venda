@@ -46,7 +46,7 @@
       <div>
         <a class="crumb" href="/">← Try Venda</a>
         <h1>Slice 1 · Content from files</h1>
-        <p class="lede">The <code>journal</code> collection is a folder of Markdown files with a <code>config.ts</code> model (<code>try/content/journal</code>). Sync reads them into the index and <code>/api/content</code> serves them through the Effect contract. Workers serves the folder bundled at build time; Node serves and watches <code>.try/content</code>, which you can edit here or in your editor.</p>
+        <p class="lede">The <code>journal</code> collection is a folder of Markdown files with a <code>config.ts</code> model (<code>try/content/journal</code>). Sync reads them into the index and <code>/api/content</code> serves them through the Effect contract. Workers serves the folder bundled at build time; Node serves and watches <code>.try/node/content</code>, which you can edit here or in your editor.</p>
       </div>
       <div style="text-align:right">
         <button class="primary" id="run-all">Run every check on both</button>
@@ -103,6 +103,18 @@
     const SCRATCH = 'try-scratch.md';
 
     const CHECKS = [
+      {
+        id: 'health',
+        title: 'The server answers on both presets',
+        description: 'GET /api/health from the Effect contract. On first use each server applied drizzle-kit’s migrations (D1 on Workers, node:sqlite on Node) and synced the content folder.',
+        async run(runtime, { log }) {
+          const health = await call(runtime, 'GET', '/api/health');
+
+          log(health.line, health.data);
+
+          return { pass: health.ok && health.data?.ok === true, note: `version ${health.data?.version}` };
+        }
+      },
       {
         id: 'list',
         title: 'List a file collection',
@@ -166,7 +178,7 @@
         only: 'node',
         description: 'Change a-quiet-start.md below (try the title) and save it to disk. Node’s watcher re-syncs and the API serves the change. Workers serves the folder bundled at build time, so there it needs a rebuild until the GitHub store arrives (slice 4).',
         extra: `
-          <div class="row"><span class="note" style="margin:0">.try/content/journal/a-quiet-start.md</span><button data-act="reload">Reload from disk</button></div>
+          <div class="row"><span class="note" style="margin:0">.try/node/content/journal/a-quiet-start.md</span><button data-act="reload">Reload from disk</button></div>
           <textarea spellcheck="false"></textarea>`,
         async setup(card) {
           const area = card.querySelector('textarea');
@@ -232,17 +244,15 @@
         }
       },
       {
-        id: 'legacy',
-        title: 'Database collections still work',
-        description: 'A collection that has no folder falls through to the legacy core, which answers from the database as before (slice 0’s try-notes, or a 404 in its own shape).',
+        id: 'unknown',
+        title: 'Unknown collections are a typed 404',
+        description: 'A collection with no folder is not found, with the contract’s CollectionNotFound error naming it.',
         async run(runtime, { log }) {
           const missing = await call(runtime, 'GET', '/api/content/no-such-collection');
-          const notes = await call(runtime, 'GET', '/api/content/try-notes');
 
           log(missing.line, missing.data);
-          log(notes.line, notes.data);
 
-          return { pass: missing.status === 404 && missing.data?.error === 'Collection not found' && [200, 404].includes(notes.status), note: `legacy answered ${missing.status} “${missing.data?.error}”` };
+          return { pass: missing.status === 404 && missing.data?._tag === 'CollectionNotFound' && missing.data?.collection === 'no-such-collection', note: `${missing.status} ${missing.data?._tag}` };
         }
       }
     ];

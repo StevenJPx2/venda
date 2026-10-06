@@ -3,10 +3,7 @@ import type { PostData } from '~/types';
 
 const route = useRoute();
 const slug = String(route.params.slug);
-
-// Editors open unpublished drafts here with ?preview=<token> from the Venda admin.
-const previewToken = typeof route.query.preview === 'string' ? route.query.preview : null;
-const { data: post, error } = await useVendaEntry<PostData>('blog', slug, { preview: previewToken });
+const { data: post, error } = await useVendaEntry<PostData>('blog', slug);
 
 if (error.value) {
   throw createError({ statusCode: 502, statusMessage: 'Content is temporarily unavailable', fatal: true });
@@ -17,14 +14,13 @@ if (!post.value) {
 }
 
 const title = computed(() => post.value?.data.title ?? slug);
-const published = computed(() => post.value ? new Date(post.value.publishedAt ?? post.value.updatedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '');
+const published = computed(() => (post.value?.publishedAt ? new Date(post.value.publishedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : ''));
 
-useSeoMeta({ title: () => `${title.value} · Venda`, description: () => post.value?.data.excerpt ?? '', robots: () => (previewToken ? 'noindex' : undefined) });
+useSeoMeta({ title: () => `${title.value} · Venda`, description: () => post.value?.data.excerpt ?? '' });
 </script>
 
 <template>
   <UContainer v-if="post" class="max-w-3xl py-16 sm:py-24">
-    <UAlert v-if="previewToken" color="warning" variant="subtle" icon="i-lucide-eye" title="Preview" description="You are viewing unpublished changes. This page is not visible to readers until it is published." class="mb-8" />
     <UButton label="All posts" icon="i-lucide-arrow-left" color="neutral" variant="link" to="/blog" class="-ml-2.5 mb-8" />
 
     <header class="mb-10 space-y-4">

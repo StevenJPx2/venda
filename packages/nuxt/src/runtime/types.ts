@@ -1,24 +1,7 @@
-/** A published entry as returned by Venda's public content API. */
-export interface VendaEntry<TData = Record<string, unknown>> {
-  id: string;
-  collectionId: string;
-  slug: string;
-  data: TData;
-  /** `draft` only when read through a preview link. */
-  status: 'published' | 'draft';
-  /** When the entry was first published. */
-  publishedAt?: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
+import type { PublicEntry } from '@venda/contract';
 
-export interface VendaEntryOptions {
-  /**
-   * A preview token from the Venda editor (e.g. `route.query.preview`). When
-   * set, the entry's unpublished working copy is fetched instead.
-   */
-  preview?: string | null;
-}
+/** A published entry as the content API sends it (`PublicEntry`), with the site's own type for its fields. */
+export type VendaEntry<TData = Record<string, unknown>> = Omit<typeof PublicEntry.Encoded, 'data'> & { readonly data: TData };
 
 export interface VendaCollectionOptions<TData> {
   /** Sort by a field inside `data` (e.g. `'order'`). Defaults to the API order: most recently updated first. */

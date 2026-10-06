@@ -1,6 +1,6 @@
 // Prototype only: a realistic post with simulated autosave and publishing, so
 // every variant behaves like the real editor without an API.
-import { toDoc, wordCount, type RichTextDoc } from '@venda/richtext';
+import { wordCount, type RichTextDoc } from '@venda/richtext';
 
 const text = (value: string, marks?: { type: string }[]) => ({ type: 'text', text: value, ...(marks ? { marks } : {}) });
 const paragraph = (...content: object[]) => ({ type: 'paragraph', content });
@@ -41,7 +41,7 @@ export function useProtoPost() {
   const publishing = shallowRef(false);
   const savedAt = shallowRef(Date.now());
 
-  const words = computed(() => wordCount(toDoc(body.value)));
+  const words = computed(() => wordCount(body.value));
   const readingMinutes = computed(() => Math.max(1, Math.round(words.value / 230)));
 
   let timer: ReturnType<typeof setTimeout> | undefined;

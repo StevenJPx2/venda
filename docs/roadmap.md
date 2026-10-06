@@ -15,30 +15,30 @@ feature set is complete. SAFT stays on Sanity until that merge.
 
 The authoritative architecture is [architecture.md](architecture.md) (approved
 2026-10-05): content and models as files in git, a live SQL index, Effect in
-the core, a Nitro 3 host, and an admin whose features are plugins. Earlier
-decisions that carry over unchanged: the core is a Web-standard `fetch`
-handler; Venda runs headless or embedded in a site's server; framework
-packages stay thin; rich text travels as a JSON document; every operation
-passes one capability check.
+the core, a Nitro 3 host, and an admin whose features are plugins. Venda is
+greenfield: nothing is kept for compatibility, and features from the first
+generation return only as their slices build them. Decisions that carry over:
+Venda runs headless or embedded in a site's server; framework packages stay
+thin; rich text travels as a JSON document; every operation passes one
+capability check.
 
 ## Feature inventory
 
 Status: `[ ]` not started · `[~]` partial · `[x]` done.
 
 ### 1. Core and runtime
-- [x] Framework-neutral request handler (`@venda/core`)
-- [~] Database adapters: D1 and SQLite done; libSQL/Turso, PostgreSQL to do
-- [~] Storage adapters: R2 and local filesystem done; S3-compatible to do
-- [~] Cache/session adapters: KV and memory done; Redis to do
-- [ ] Versioned core migrations runnable on every database
-- [ ] Node.js server deployment (in addition to Cloudflare)
+- [x] Server on any Nitro preset; Cloudflare Workers by default, Node built and tested
+- [~] Databases: D1 and node:sqlite done; libSQL/Turso and Durable Object SQLite through Drizzle's drivers to do
+- [ ] Storage and cache through Nitro storage mounts (R2, KV, filesystem, S3-compatible, Redis)
+- [x] Versioned migrations from drizzle-kit, applied atomically at startup on every database
 - [ ] Object cache with invalidation on writes (menus, settings, taxonomies too)
 - [ ] Secrets and key management guidance and rotation
 - [ ] Schema evolution on deployed sites without data loss
 
 ### 2. Content model
-- [x] Collections defined in the admin with field schemas
-- [~] Field types: text, textarea, rich text (structured document), number, toggle, date, dropdown, tags, image, JSON
+- [x] Collections as folders with a `config.ts` model, read as data; entries as Markdown files
+- [ ] Collections and models edited in the admin (writing `config.ts`)
+- [x] Field types in models: text, textarea, rich text, number, boolean, date, datetime, tags, image, URL, select, relation, JSON
 - [ ] More field types: slug, email, URL, color, multi-select, file, repeater/list, group, blocks
 - [ ] Relations/references between collections (e.g. post → author), both directions
 - [ ] Singletons (single-entry collections such as a home page)
@@ -46,13 +46,13 @@ Status: `[ ]` not started · `[~]` partial · `[x]` done.
 - [ ] TypeScript type generation from the live schema (CLI)
 
 ### 3. Content lifecycle
-- [x] Draft / published status
-- [x] Draft edits that leave the live version untouched until published (working copy + published snapshot)
-- [x] Revisions with field comparison and restore
-- [x] Scheduled publishing and unpublishing (Cron Trigger / Node timer)
-- [x] Preview links for unpublished content, opened on the site
-- [x] Trash / soft delete, restore, purge after 30 days
-- [x] Search across collections (indexed plain text; public search on published text)
+- [x] Draft / published status (`draft: true` in the file; future `publishedAt` stays hidden)
+- [ ] Draft edits that leave the live version untouched until published (working copy + published file)
+- [ ] Revisions with field comparison and restore (git history plus saves between publishes)
+- [ ] Scheduled publishing and unpublishing (Nitro scheduled tasks)
+- [ ] Preview links for unpublished content, opened on the site
+- [ ] Trash / soft delete, restore, purge after 30 days
+- [ ] Search across collections
 - [ ] Bylines / multiple authors per entry (built on relations, step 5)
 - [ ] Comments with moderation
 
@@ -68,7 +68,7 @@ Status: `[ ]` not started · `[~]` partial · `[x]` done.
 - [ ] Dark-mode and theming hooks for frontends
 
 ### 5. Media library
-- [~] Uploads to object storage with size limits
+- [ ] Uploads to object storage with size limits
 - [ ] Media library screen with search, folders and bulk actions
 - [ ] Direct uploads via signed URLs; replace file in place
 - [ ] Image transformations (resize, format, quality) and responsive renderers
@@ -77,13 +77,13 @@ Status: `[ ]` not started · `[~]` partial · `[x]` done.
 - [ ] External media providers
 
 ### 6. Users and authentication
-- [x] Server-side sessions, revoked on password, role or status changes
-- [x] Multiple users and invitations
-- [x] Roles: Administrator, Editor, Author, Contributor, enforced as capabilities
+- [ ] Server-side sessions, revoked on password, role or status changes
+- [ ] Multiple users and invitations
+- [ ] Roles: Administrator, Editor, Author, Contributor, enforced as capabilities
 - [ ] Passkeys (WebAuthn) as the primary login
 - [ ] OAuth sign-in (Google first, then GitHub and others)
 - [ ] Magic-link email sign-in and pluggable email providers
-- [x] API tokens with scopes for scripts and CI
+- [ ] API tokens with scopes for scripts and CI
 - [ ] Audit log
 
 ### 7. Agents and automation
@@ -108,7 +108,7 @@ Status: `[ ]` not started · `[~]` partial · `[x]` done.
 - [ ] Seed files and starter themes/templates
 
 ### 10. Admin experience
-- [x] Ghost-style writing canvas, schema-driven forms
+- [~] Ghost-style writing canvas (Focus prototype; promoted with the plugin shell), schema-driven forms
 - [ ] Screens for every feature above
 - [ ] Inline visual editing from the live site
 - [ ] Admin UI translations
@@ -120,17 +120,16 @@ Status: `[ ]` not started · `[~]` partial · `[x]` done.
 
 ## Release requirements
 
-- `@venda/richtext` and `@venda/schema` export TypeScript source for workspace use; they must ship compiled JavaScript before `@venda/nuxt` (which imports `@venda/richtext` at runtime) is published to npm.
+- `@venda/richtext` and `@venda/contract` export TypeScript source for workspace use; they must ship compiled JavaScript before `@venda/nuxt` (which imports both) is published to npm.
 
 ## Build order
 
 Everything ships together, but work proceeds in dependency order:
 
-1. Core extraction and runtime interfaces (D1/R2/KV first, then Node/SQLite/S3). **D1/R2/KV and SQLite/filesystem/memory done.**
-2. Users, roles, sessions, API tokens, because every later feature records who did what. **Done.**
-3. Structured rich text and HTML migration. **Done.**
-4. Content lifecycle: drafts vs live, revisions, scheduling, preview, trash, search. **Done.**
-   - **Architecture rebuild** (slices 0 to 7 in architecture.md) happens here, before step 5, and re-delivers steps 1 to 4 on the new base.
+1. Server, file format and read path (architecture slices 0 and 1). **Done.**
+2. Users, roles, sessions, API tokens, because every later feature records who did what (slice 2).
+3. Structured rich text editing and the write path (slice 3).
+4. GitHub content store, then the content lifecycle: drafts vs live, revisions, scheduling, preview, trash, search (slices 4 and 5); then the admin shell and CLI (slices 6 and 7).
 5. Content model: new field types, relations, singletons, i18n, typegen.
 6. Media library.
 7. Site structure: taxonomies, menus, widgets, sections, settings, redirects, SEO.

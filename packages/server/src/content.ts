@@ -1,29 +1,7 @@
-// The core's content services over db0 and unstorage, and the sync runner.
-import { ContentStore, ContentStoreError, gitBlobSha, IndexDb, IndexDbError, syncAll, type SyncReport } from '@venda/core/content';
-import type { Database as Db0 } from 'db0';
+// The content store over a Nitro storage mount, and the sync runner.
+import { ContentStore, ContentStoreError, gitBlobSha, type IndexDb, syncAll, type SyncReport } from '@venda/core/content';
 import { Effect, Layer, Predicate } from 'effect';
-import type { Storage } from 'unstorage';
-
-/** The parts of an unstorage mount the content store reads (Nitro's `useStorage` has its own copy of the types). */
-export type ContentFiles = Pick<Storage, 'getKeys' | 'getItemRaw'>;
-
-/** Where content files come from, and how to hear that they changed. */
-export interface ContentSource {
-  readonly storage: ContentFiles;
-  /** Calls `onChange` after files change; returns a function that stops watching. */
-  readonly watch?: (onChange: () => void) => () => void;
-}
-
-export const indexDbLayer = (db: Db0) => Layer.succeed(IndexDb, {
-  all: (sql, params = []) => Effect.tryPromise({
-    try: () => db.prepare(sql).all(...params),
-    catch: cause => new IndexDbError({ message: `Index query failed: ${sql}`, cause })
-  }),
-  run: (sql, params = []) => Effect.tryPromise({
-    try: async () => void await db.prepare(sql).run(...params),
-    catch: cause => new IndexDbError({ message: `Index write failed: ${sql}`, cause })
-  })
-});
+import type { ContentFiles, RawFile } from './target';
 
 // Only these are read and hashed; images and other files beside them are skipped.
 const CONTENT_FILE = /(?:^|\/)(?:config\.ts|[^/]+\.mdx?)$/;
@@ -31,9 +9,6 @@ const CONTENT_FILE = /(?:^|\/)(?:config\.ts|[^/]+\.mdx?)$/;
 const decoder = new TextDecoder();
 
 const encoder = new TextEncoder();
-
-// The filesystem driver returns bytes; bundled assets may come back as text.
-type RawFile = Uint8Array | ArrayBuffer | string | null;
 
 function bytesOf(raw: RawFile): Uint8Array {
   if (raw instanceof Uint8Array) return raw;
@@ -45,13 +20,13 @@ function bytesOf(raw: RawFile): Uint8Array {
 
 const storeError = (message: string) => (cause: unknown) => new ContentStoreError({ message, cause });
 
-/** Content files over an unstorage mount; unstorage writes `blog/hello.md` as the key `blog:hello.md`. */
-const contentStoreLayer = (storage: ContentFiles) => {
-  const bytes = (path: string) => Effect.tryPromise({ try: async () => bytesOf(await storage.getItemRaw<RawFile>(path.replaceAll('/', ':'))), catch: storeError(`Could not read ${path}`) });
+/** Content files over a storage mount; unstorage names `blog/hello.md` with the key `blog:hello.md`. */
+export const contentStoreLayer = (files: ContentFiles) => {
+  const bytes = (path: string) => Effect.tryPromise({ try: async () => bytesOf(await files.getItemRaw(path.replaceAll('/', ':'))), catch: storeError(`Could not read ${path}`) });
 
   return Layer.succeed(ContentStore, {
     list: Effect.gen(function*() {
-      const keys = yield* Effect.tryPromise({ try: () => storage.getKeys(), catch: storeError('Could not list content files') });
+      const keys = yield* Effect.tryPromise({ try: () => files.getKeys(), catch: storeError('Could not list content files') });
       const paths = keys.map(key => key.replaceAll(':', '/')).filter(path => CONTENT_FILE.test(path));
 
       return yield* Effect.forEach(paths, path => Effect.flatMap(bytes(path), content => Effect.promise(async () => ({ path, sha: await gitBlobSha(content) }))), { concurrency: 16 });
@@ -60,18 +35,20 @@ const contentStoreLayer = (storage: ContentFiles) => {
   });
 };
 
+/** Runs an effect against the app's content store and index. */
+export type RunContent = <A, E>(effect: Effect.Effect<A, E, ContentStore | IndexDb>) => Promise<A>;
+
 const describe = (report: SyncReport) => `indexed ${report.indexed}, removed ${report.removed}, ${report.problems} with problems`;
 
 /**
- * Syncs `source` into the index on demand. Runs never overlap: a request
+ * Syncs the files into the index on demand. Runs never overlap: a request
  * during a run queues one more run after it, so no change is missed.
  */
-export function contentSync(source: ContentSource, db: Db0): () => Promise<void> {
-  const layer = Layer.mergeAll(contentStoreLayer(source.storage), indexDbLayer(db));
+export function contentSync(run: RunContent): () => Promise<void> {
   let running: Promise<void> | undefined;
   let again = false;
 
-  const once = () => Effect.runPromise(Effect.provide(syncAll(), layer)).then(
+  const once = () => run(syncAll()).then(
     (report) => {
       if (report.indexed || report.removed) console.info(`[venda] content sync: ${describe(report)}`);
     },

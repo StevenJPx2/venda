@@ -2,30 +2,31 @@
   "name": "@venda/core",
   "version": "0.1.0",
   "private": true,
-  "description": "Framework-neutral Venda CMS: one Web-standard request handler over pluggable database, storage and cache services.",
+  "description": "Venda's domain in Effect: content sync into the index and the public reads, over services the host provides.",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./content": "./src/content/index.ts",
-    "./cloudflare": "./src/adapters/cloudflare.ts",
-    "./node": "./src/adapters/node.ts"
+    "./content": "./src/content/index.ts"
   },
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc --noEmit && effect-language-service diagnostics --project tsconfig.json",
     "lint": "eslint .",
-    "lint:fix": "eslint . --fix"
+    "lint:fix": "eslint . --fix",
+    "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
     "@venda/content": "workspace:*",
     "@venda/contract": "workspace:*",
-    "@venda/schema": "workspace:*",
-    "@venda/richtext": "workspace:*",
+    "drizzle-orm": "1.0.0-rc.5-5935859",
     "effect": "4.0.1"
   },
   "devDependencies": {
-    "@types/node": "latest",
+    "@cloudflare/workers-types": "5.20261005.1",
+    "@effect/sql-sqlite-node": "4.0.1",
+    "@types/node": "26.6.3",
+    "drizzle-kit": "1.0.0-rc.5-5935859",
     "typescript": "5.9.3",
-    "vitest": "latest"
+    "typescript-eslint": "8.70.1",
+    "vitest": "5.0.2"
   }
 }

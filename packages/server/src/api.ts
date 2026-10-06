@@ -1,10 +1,9 @@
-// The Effect HttpApi side of the server: endpoints that have moved to
-// @venda/contract. Every other path still goes to the legacy core.
+// The HTTP API: @venda/contract's endpoints, implemented by the core.
 import { HealthStatus, VendaApi } from '@venda/contract';
 import { getPublished, IndexDb, listPublished } from '@venda/core/content';
 import { Context, Effect, Layer } from 'effect';
 import { HttpRouter, HttpServer } from 'effect/http';
-import { HttpApiBuilder, OpenApi } from 'effect/http-api';
+import { HttpApiBuilder } from 'effect/http-api';
 
 export class BuildInfo extends Context.Service<BuildInfo, { readonly version: string }>()('venda/server/BuildInfo') {}
 
@@ -26,21 +25,13 @@ const ContentHandlers = HttpApiBuilder.group(
   Effect.fn(function*(handlers) {
     const db = yield* IndexDb;
 
-    // An unreachable index is a server error, not a missing entry.
+    // A failing index query is a server error, not a missing entry.
     return handlers.handleAll({
-      list: ({ params }) => listPublished(params.collection).pipe(Effect.catchTag('IndexDbError', Effect.die), Effect.provideService(IndexDb, db)),
-      get: ({ params }) => getPublished(params.collection, params.slug).pipe(Effect.catchTag('IndexDbError', Effect.die), Effect.provideService(IndexDb, db))
+      list: ({ params }) => listPublished(params.collection).pipe(Effect.catchTag('EffectDrizzleQueryError', Effect.die), Effect.provideService(IndexDb, db)),
+      get: ({ params }) => getPublished(params.collection, params.slug).pipe(Effect.catchTag('EffectDrizzleQueryError', Effect.die), Effect.provideService(IndexDb, db))
     });
   })
 );
-
-// `/api/content/{collection}` matches `/api/content/blog`, one path segment per parameter.
-const pattern = (path: string) => new RegExp(`^${path.replaceAll(/\{[^}]+\}/g, '[^/]+')}$`);
-
-const patterns = Object.keys(OpenApi.fromApi(VendaApi).paths).map(pattern);
-
-/** Whether the contract defines this path, so the server knows which requests are Effect's. */
-export const isContractPath = (path: string): boolean => patterns.some(each => each.test(path));
 
 /** The contract's routes; the composition root provides `BuildInfo` and `IndexDb`. */
 const ApiRoutes = HttpApiBuilder.layer(VendaApi).pipe(

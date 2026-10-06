@@ -1,17 +1,14 @@
 import { Schema } from 'effect';
 import { HttpApiEndpoint, HttpApiGroup } from 'effect/http-api';
 
-/** A published entry as sites read it. The shape the legacy API served, kept for `@venda/nuxt`. */
+/** A published entry as sites read it: `<collection>/<slug>.md`, its date and its fields. */
 export class PublicEntry extends Schema.Class<PublicEntry>('venda/contract/PublicEntry')({
-  id: Schema.String,
-  collectionId: Schema.String,
+  collection: Schema.String,
   slug: Schema.String,
-  // Field values by key; rich-text fields hold their document.
-  data: Schema.Record(Schema.String, Schema.Json),
-  status: Schema.Literal('published'),
+  // The file's `publishedAt`, in UTC; null when the file has none.
   publishedAt: Schema.NullOr(Schema.String),
-  createdAt: Schema.String,
-  updatedAt: Schema.String
+  // Field values by key; the rich-text field holds its document.
+  data: Schema.Record(Schema.String, Schema.Json)
 }) {}
 
 export class CollectionNotFound extends Schema.TaggedError<CollectionNotFound>()('CollectionNotFound', {

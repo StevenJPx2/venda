@@ -1,4 +1,4 @@
-import { isEmptyDoc, renderHtml, toDoc, type RichTextDoc } from '@venda/richtext';
+import { isEmptyDoc, isRichTextDoc, renderHtml, type RichTextDoc } from '@venda/richtext';
 import { computed, defineComponent, h, type PropType } from 'vue';
 
 /**
@@ -12,15 +12,12 @@ import { computed, defineComponent, h, type PropType } from 'vue';
 export default defineComponent({
   name: 'VendaContent',
   props: {
-    /** The field value: a rich-text document, or HTML stored by older installs. */
-    content: { type: [Object, String] as PropType<RichTextDoc | string | null>, default: null },
+    /** The field value: a rich-text document. */
+    content: { type: Object as PropType<RichTextDoc | null>, default: null },
     as: { type: String, default: 'div' }
   },
   setup(props) {
-    const html = computed(() => {
-      const doc = toDoc(props.content);
-      return isEmptyDoc(doc) ? '' : renderHtml(doc);
-    });
+    const html = computed(() => (isRichTextDoc(props.content) && !isEmptyDoc(props.content) ? renderHtml(props.content) : ''));
     return () => (html.value ? h(props.as, { class: 'venda-content', innerHTML: html.value }) : null);
   }
 });

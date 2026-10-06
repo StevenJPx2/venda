@@ -1,150 +1,36 @@
 # Venda
 
-Venda is a small, Cloudflare-native headless CMS. The admin and landing site are Nuxt 4/Nitro apps built with Nuxt UI; the content API is a separate Cloudflare Worker backed by D1, R2, and KV.
+Venda is a file-first, Cloudflare-native CMS. Content and data models live as files in your site's git repository: a folder per collection, a `config.ts` describing its fields, and a Markdown file per entry. A Venda server keeps a live index of those files and serves them through a typed content API. The design is in [docs/architecture.md](docs/architecture.md); it is being built slice by slice on the `platform` branch.
 
 ## Repository
 
-- `apps/admin`: Nuxt UI admin dashboard, deployed with Nitro's `cloudflare_module` preset.
-- `apps/landing`: Nuxt UI marketing site, same preset.
-- `apps/api`: Worker API with cookie sessions, D1 repositories, R2 uploads, and KV cache invalidation.
-- `packages/core`: framework-neutral CMS core (`createVenda().fetch`) with Cloudflare and Node adapters; `packages/core/migrations` holds the numbered SQL migrations. `packages/core/src/content` (`@venda/core/content`) is the new Effect code: sync from the content files into the index, and the public reads.
-- `packages/contract`: **`@venda/contract`**, the API contract in Effect Schema (`HttpApi`), shared by the server and every client. Endpoints move here from the core slice by slice ([docs/architecture.md](docs/architecture.md)).
 - `packages/content`: **`@venda/content`**, the file format: `config.ts` collection models read as data (never run), frontmatter, and Markdown with block tags to and from rich-text documents.
-- `packages/server`: **`@venda/server`**, the Nitro 3 host. `pnpm --filter @venda/server build` targets Cloudflare Workers (D1, R2, KV and a one-minute Cron Trigger); `NITRO_PRESET=node` builds a Node server with SQLite and files under `VENDA_DATA_DIR`. `VENDA_CONTENT_DIR` names the content folder (one folder per collection): Node watches it, and a Workers build bundles it. It replaces `apps/api` once the cut-over slice lands.
-- `apps/api/scripts/seed.mjs`: idempotent sample-data seeder (`VENDA_ADMIN_PASSWORD=… pnpm --filter @venda/api db:seed`; add `-- --update` to overwrite existing seed entries).
-
-- `packages/richtext`: **`@venda/richtext`**, the rich-text document format: validation, a safe HTML renderer, HTML conversion and plain-text helpers. Framework- and runtime-neutral.
-- `packages/schema`: **`@venda/schema`**, the content model: field definitions, schema parsing and entry validation, shared by the API and the admin so both enforce the same rules.
+- `packages/contract`: **`@venda/contract`**, the HTTP API in Effect Schema (`HttpApi`), shared by the server and every client.
+- `packages/core`: **`@venda/core`**, the domain in Effect: content sync into the index (a Drizzle schema, migrations in `packages/core/drizzle` from `pnpm --filter @venda/core db:generate`) and the public reads.
+- `packages/server`: **`@venda/server`**, the Nitro 3 host. `pnpm --filter @venda/server build` targets Cloudflare Workers (D1, content bundled from `VENDA_CONTENT_DIR`, default `./content`); `NITRO_PRESET=node` builds a Node server that keeps `content/` and `.data/venda.sqlite` in its working directory and watches the content folder. Migrations apply at startup.
+- `packages/richtext`: **`@venda/richtext`**, the rich-text document format: validation, a safe HTML renderer and plain-text helpers.
 - `packages/nuxt`: **`@venda/nuxt`**, a Nuxt module any Nuxt 4 site can install to read Venda content (`useVendaCollection`, `useVendaEntry`, `<VendaContent>`). See [its README](packages/nuxt/README.md).
-- `packages/cli`: **`venda`**, a self-hosting CLI that provisions D1, KV, R2 and deploys an admin/API single-Worker install into your Cloudflare account.
+- `apps/admin`: the admin, rebuilt as a plugin-built shell in slice 6; today it holds the Focus editor prototype (`/prototypes/editor`).
+- `apps/landing`: the Venda website, a Nuxt UI site built on `@venda/nuxt`.
 
-## Content model (Directus-style)
+## Content on disk
 
-Each collection defines typed **fields**. A field has a `key`, an **interface** that decides how it is edited and what it stores, and optional `label`, `note`, `placeholder`, `required`, `width: 'half'` and (for dropdowns) `choices`.
-
-| Interface | Stores | Edited with |
-| --- | --- | --- |
-| `input`, `textarea` | text | text input / textarea |
-| `wysiwyg` | rich-text document | rich-text editor |
-| `number` | number | number input |
-| `toggle` | boolean | switch |
-| `datetime` | ISO 8601 string | date & time picker |
-| `dropdown` | one of `choices` | select |
-| `tags` | string[] | tag input |
-| `image` | http(s) URL | upload to R2 |
-| `code` | any JSON | JSON editor |
-
-Rich text is stored as a ProseMirror/TipTap JSON document (`{ "type": "doc", "content": [...] }`) so any framework can render it. The API always returns documents: HTML written by older clients, or stored before documents became the format, is converted on read and stored as a document on the next save. Render it with `renderHtml` from `@venda/richtext` or `<VendaContent :content>`; both emit only known tags, escaped text and safe URLs.
-
-A collection's `titleField` names its entries. Edit the model from **Data model** in the admin, or `PATCH /api/collections/:id` with `{ schema }`. Entries are validated against it on every write: **types are always checked, `required` only on publish**, so drafts can be saved while incomplete. Keys the schema doesn't define are preserved, never dropped. Collections created before field definitions existed (a loose `{ key: type }` map) are upgraded automatically on read.
-
-## Editor (Ghost-style)
-
-Entries open in a full-screen editor. The title field is the big title, and the collection's first `wysiwyg` field is the writing canvas:
-
-- formatting appears in a bubble toolbar when you select text; **Cmd+K** adds a link
-- `+` beside an empty line, or typing `/`, inserts cards: headings, lists, image (uploaded to R2), quote, code, divider
-- Markdown shortcuts work as you type (`## `, `- `, `> `, ``` ``` ```, `---`, `**bold**`)
-- **every edit autosaves** to the entry's working copy; readers keep seeing the published version until you press **Publish changes**
-- **Preview** opens the entry on your site (set the collection's preview URL in its data model), **History** lists revisions with a field-by-field comparison and restore, and entry settings schedule publishing and unpublishing
-- the URL slug follows the title until you edit it or first publish
-- every other field is in the Fields section below the canvas as a generated form
-- deleted entries go to the collection's **Trash**, where they can be restored for 30 days
-
-Collections without a rich-text field (e.g. Products) get the title plus the generated form instead.
-
-The landing site is itself a Venda consumer, built on `@venda/nuxt`: its hero (`pages/home`), feature cards (`features`), workflow steps (`steps`) and `/blog` pages are fetched from the public content API at request time, so editing those entries in the admin changes the live site.
-
-The frontends use Nuxt UI 4 (Tailwind CSS v4 + Reka UI). The admin is a `UDashboardGroup` layout with `UAuthForm` login, `UForm`/`UFormField` editors, `UFileUpload` for R2 media, and toasts via `UApp`.
-
-## Quick start
-
-```sh
-pnpm install
-cp apps/api/.dev.vars.example apps/api/.dev.vars
-pnpm db:migrate:local
-pnpm dev
+```
+content/
+  blog/
+    config.ts        export default defineCollection({ name: 'Blog', kind: 'posts', fields: { … } })
+    hello-world.md   YAML frontmatter for the fields, Markdown for the body
 ```
 
-The API runs on `http://localhost:8787` and the admin on `http://localhost:3000`. The local default credentials are `admin@example.com` / `change-me`.
-
-## Cloudflare setup
-
-Create a D1 database, KV namespace, and R2 bucket, then put their IDs/names in `apps/api/wrangler.jsonc`. Set the production secret with `wrangler secret put ADMIN_PASSWORD` and deploy:
-
-```sh
-pnpm db:migrate:remote
-pnpm --filter @venda/api run deploy
-pnpm --filter @venda/admin run deploy
-pnpm --filter @venda/landing run deploy
-```
-
-The live deployment runs at `venda.stevenjohn.co` (landing), `app.venda.stevenjohn.co` (admin), and `api.venda.stevenjohn.co` (API), each a Worker custom domain.
-
-For production, put the admin behind Cloudflare Access (recommended) and set `NUXT_PUBLIC_API_BASE` to the API Worker URL. The Worker still enforces its own signed, KV-backed admin session.
-
-## Self-host Venda
-
-Venda can be installed into your own Cloudflare account with the CLI. It creates a D1 database, KV namespace and R2 bucket, then deploys the admin SPA and API together on one Worker. The CLI bundles its Worker, admin assets and database migrations; your project directory only needs its install config and generated Wrangler config.
-
-Requirements: Node.js 20.12 or newer and a Cloudflare account. Sign in with Wrangler, then run:
-
-```sh
-npx venda@latest init my-venda
-```
-
-The `venda` npm package is prepared in `packages/cli` but has not been published yet. Until its first npm release, build and run it from this checkout:
-
-```sh
-pnpm install
-pnpm --filter venda build
-node packages/cli/dist/cli.js init my-venda
-```
-
-The interactive setup selects your account and asks for the install name, admin email, optional custom domain, and whether to add a welcome post. For CI or scripted installs, provide every required option and disable prompts:
-
-```sh
-npx venda@latest init my-venda \
-  --no-prompt --account <account-id> --name my-venda \
-  --email you@example.com --no-sample
-```
-
-The generated password is displayed once. Store it securely. From the install directory, maintain the Worker with:
-
-```sh
-npx venda status
-npx venda doctor
-npx venda update
-npx venda admin password --sign-out-everyone
-npx venda backup
-npx venda logs
-```
-
-`venda backup` exports D1 content and metadata to SQL; R2 media files are stored separately. `venda uninstall --yes` removes the Worker and Cloudflare resources. Use `--keep-data` to remove only the Worker and preserve D1, KV and R2. The generated `venda.json` and versioned `.venda/` files remain locally for recovery or redeployment.
-
-The self-hosted install serves the admin and API from the same origin, uses a relative `/api` base, and routes API requests through the Worker while static assets serve the Nuxt SPA. The existing hosted admin/API/landing deployment remains a separate topology.
+Entries are Markdown with GFM and block tags such as `<Callout tone="info">`, whose attributes must be plain data. A file that does not fit its model is recorded as a problem, with its line, and never served; drafts (`draft: true`) and entries dated in the future are not served either.
 
 ## API
 
-- `POST /api/auth/login`, `POST /api/auth/logout`, `GET/PATCH /api/auth/me` (profile and password)
-- `GET/PATCH/DELETE /api/users/:id`, `GET /api/users` (administrators)
-- `GET/POST /api/invitations`, `DELETE /api/invitations/:id`; `GET/POST /api/auth/invitations/:token` to view and accept
-- `GET/POST /api/tokens`, `DELETE /api/tokens/:id` (your API tokens)
-- `GET/POST /api/collections`, `PATCH /api/collections/:id` (name and data model)
-- `GET/POST /api/collections/:id/entries` (`?trash=1` for the trash), `GET/PATCH /api/entries/:id` (the working copy)
-- `POST /api/entries/:id/publish`, `POST /api/entries/:id/unpublish`, `PUT /api/entries/:id/schedule` (`{ publishAt, unpublishAt }`)
-- `DELETE /api/entries/:id` moves to the trash; `DELETE /api/entries/:id?permanent=true` removes a trashed entry; `POST /api/entries/:id/restore`
-- `GET /api/entries/:id/revisions`, `GET /api/revisions/:id`, `POST /api/revisions/:id/restore`
-- `POST /api/entries/:id/preview` returns a 7-day preview token; `GET /api/preview/:token` (public) returns the working copy
-- `GET /api/search?q=` searches working copies (`&collection=<id>` to narrow)
-- `POST /api/media`, `GET /api/media/:key`
-- `GET /api/content/:collection` (`?q=` to search) and `GET /api/content/:collection/:slug` are public delivery endpoints serving published snapshots only.
+- `GET /api/health`
+- `GET /api/content/:collection`: published entries, newest first.
+- `GET /api/content/:collection/:slug`: one published entry.
 
-Each entry has a **working copy**, which saves never publish, and a **published snapshot**, which is what the public API serves. Publishing copies the working copy into the snapshot and records a revision; saves record at most one revision every 10 minutes, and the newest 50 are kept per entry. Background work (scheduled publishing and unpublishing, purging trash older than 30 days, and search indexing) runs from `venda.scheduled()`: a one-minute Cron Trigger on Cloudflare, or `startScheduler(venda)` from `@venda/core/node` in a Node process.
-
-Admin endpoints accept a session cookie or an API token (`Authorization: Bearer venda_…`). Every request is checked against the caller's role (administrator, editor, author or contributor), and a token is further limited to its scopes. Authors and contributors act only on entries they created; contributors cannot publish. The configured `ADMIN_EMAIL`/`ADMIN_PASSWORD` always signs in as an administrator, so access can be recovered by rotating that secret.
-
-Invalid schemas are rejected with `400`; entries that break their collection's schema get `422` with a `fields` array naming each problem. Entry `data` is stored as JSON, so changing the data model never needs a database migration.
+Entries come back as `{ collection, slug, publishedAt, data }`, with the rich-text field as a document. Unknown collections and entries are typed 404s (`CollectionNotFound`, `EntryNotFound`).
 
 ## Checks
 
@@ -153,14 +39,10 @@ pnpm lint       # ESLint in every package, then Oxlint (warnings denied)
 pnpm typecheck  # tsc, plus Effect diagnostics in the Effect packages
 pnpm test
 pnpm build
-pnpm fallow     # dead code, complexity and duplication in the new-architecture packages
+pnpm fallow     # dead code, complexity and duplication in the gated packages
 pnpm check      # lint + typecheck + test + fallow in one go
-pnpm e2e        # live suites: the Nitro server on workerd (and Node), admin and landing, driven by Playwright (system Chrome)
-pnpm try        # start the server on Workers and Node and open http://localhost:8794 to try each rebuilt slice by hand
+pnpm e2e        # live suites: the server built and run on Workers (local workerd) and Node
+pnpm try        # start both and open http://localhost:8794 to try each slice by hand
 ```
 
-Linting uses ESLint flat config. Shared rules live in `eslint.config.shared.mjs`; the Nuxt apps extend their project-aware config via `@nuxt/eslint`'s `withNuxt()`, and the other packages use `typescript-eslint`. Packages on the new architecture (`tools/new-architecture.json`) also get Oxlint's vendored anti-slop and Effect rules. Run `pnpm lint:fix` to auto-fix.
-
-## Current platform notes
-
-The scaffold follows current Nuxt 4/Nitro deployment guidance (`cloudflare_module`) and Wrangler JSONC resource bindings. Workers AI is intentionally optional and can be added behind a future binding without changing the content model.
+Linting uses ESLint flat config. Shared rules live in `eslint.config.shared.mjs`; the Nuxt apps extend `@nuxt/eslint`'s `withNuxt()`, and the other packages use `typescript-eslint`. Packages listed in `tools/new-architecture.json` also get Oxlint's vendored anti-slop and Effect rules and the Fallow gate. Run `pnpm lint:fix` to auto-fix.

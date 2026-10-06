@@ -157,9 +157,9 @@ retries and then reports the outage.
 | --- | --- | --- |
 | `@venda/contract` | Effect Schema entities and the `HttpApi` definition; typed client and OpenAPI. Browser-safe. | `effect` |
 | `@venda/richtext` | Rich-text document types, validation, HTML rendering with block renderers. | none |
-| `@venda/content` | The file format: `config.ts` reader and printer, field definitions (absorbs `@venda/schema`), frontmatter, Markdown/MDX to and from documents, block specs. | `@venda/richtext` |
-| `@venda/core` | Domain logic in Effect: auth, collections, entries, lifecycle, media, search, sync. Exposes `makeHandler(layer)` (a Web `fetch` handler) and `tick()`. | contract, content, `effect` |
-| `@venda/server` | Nitro host: adapters, one `/api/**` route to the core, the admin as static assets, the minute tick, presets for Cloudflare and Node. Replaces `apps/api`. | core, `nitro`, `db0`, `unstorage` |
+| `@venda/content` | The file format: `config.ts` reader and printer, field definitions, frontmatter, Markdown/MDX to and from documents, block specs. | `@venda/richtext` |
+| `@venda/core` | Domain logic in Effect: content sync and reads today; auth, collections, entries, lifecycle, media and search as their slices land. The index schema is Drizzle (`src/content/schema.ts`), migrations come from `drizzle-kit generate`. | contract, content, `effect`, `drizzle-orm` |
+| `@venda/server` | Nitro host: the contract's routes, the admin as static assets, any Nitro preset (Cloudflare Workers by default). | core, `nitro`, `@effect/sql-*` |
 | `@venda/admin` | The admin shell and plugin host (Nuxt UI SPA). | contract |
 | `@venda/preset-default` | The default plugins below, as one install. | the plugins |
 | `@venda/editor-writer` | The Ghost-style writing editor (today's Focus prototype). | admin plugin API |
@@ -181,9 +181,9 @@ Vue or a Cloudflare type; Fallow boundary rules enforce it.
 | Service | Production | Local and tests |
 | --- | --- | --- |
 | `ContentStore`: read, list, commit with base SHA, changes since a cursor | GitHub App | working tree (with watcher); in-memory |
-| `IndexDb`: SQL with `?` parameters | D1 through db0 | SQLite, libSQL or Postgres through db0 |
-| `ObjectStore` | R2 through unstorage | filesystem; memory |
-| `KeyValue` | KV through unstorage | memory |
+| `IndexDb`: a Drizzle SQLite database with Effect queries | D1 (`drizzle-orm/effect-d1` over `@effect/sql-d1`) | node:sqlite (`@effect/sql-sqlite-node`); libSQL or Durable Object SQLite through their Drizzle drivers |
+| `ObjectStore` | R2 through a Nitro storage mount | filesystem; memory |
+| `KeyValue` | KV through a Nitro storage mount | memory |
 | `Mailer` | provider adapter | captured in memory |
 | Clock, Random, Logger | Effect defaults | test services |
 
@@ -210,14 +210,25 @@ its per-run batch limits; request bodies are capped at 1 MB for entries and
 
 ## Server (Nitro)
 
-`@venda/server` is a Nitro app used only for hosting: routing one catch-all
-`/api/**` route to the core handler, serving the built admin, deployment
-presets (`cloudflare_module` by default, `node`), and runtime hooks for the
-minute tick (`cloudflare:scheduled` on Workers, a timer on Node). It creates
-db0 and unstorage instances itself instead of using Nitro's experimental
-database and tasks features. Because the core is a plain `fetch` handler, the
-same core still mounts in Astro, Next.js or SvelteKit without Nitro, and the
-Nuxt module can mount it inside a Nuxt site's own Nitro (embedded mode).
+`@venda/server` is a Nitro app used only for hosting, and Nitro supplies the
+platform: presets choose the runtime (`cloudflare_module` by default; `node` is
+built and tested too), storage mounts and server assets give file access, and
+the `close` hook releases resources. There is no per-platform server code
+beyond one module per preset family behind the `#venda/target` alias, which
+names the SQL client for the Drizzle index (D1 or node:sqlite) and where
+content comes from:
+
+- **Workers:** the content folder is bundled as server assets at build time
+  (until the GitHub store), so it is read-only.
+- **Node:** `content/` and `.data/venda.sqlite` live in the working
+  directory, Nitro's convention; the folder is watched through its storage
+  mount (Nitro's fs driver uses chokidar).
+
+On first use the app applies pending drizzle-kit migrations (each one atomic:
+a transaction on SQLite, a batch on D1, which has no transactions), syncs the
+content into the index, then serves the contract. Recurring work will use
+Nitro's `scheduledTasks` (a Cron Trigger on Workers, croner elsewhere) when a
+slice needs it.
 
 ## Admin and plugins
 
@@ -300,15 +311,16 @@ site component. An unknown block renders its text content, never raw markup.
 5. Vitest, including contract tests for each adapter.
 6. Fallow audit, including package boundaries.
 
-`pnpm e2e` drives the real server, admin and site in Chrome, and is required
-before every commit that changes behaviour.
+`pnpm e2e` builds and runs the real server on two presets (Workers on local
+workerd, and Node), and drives the admin and site once they talk to it; it is
+required before every commit that changes behaviour.
 
 Oxlint with anti-slop (vendored in `tools/oxlint/anti-slop`, provenance in its
 `UPSTREAM.md`) and the Fallow gate (`scripts/fallow-gate.mjs`) cover the
 packages listed in `tools/new-architecture.json`. A package joins that list
-when its slice rewrites it; legacy packages stay on ESLint until then, and
-Oxlint's default rules apply everywhere with warnings denied. The gate never
-loosens for a listed package.
+when its slice rewrites it; until then it stays on ESLint, and Oxlint's
+default rules apply everywhere with warnings denied. The gate never loosens
+for a listed package.
 
 Code follows the code-breathing-room convention: blank lines group the
 statements of one phase; every braced block and every `if` (one-line guards
@@ -321,37 +333,36 @@ checked in review.
 
 ## Delivery
 
-The rebuild happens in place on `platform`, one vertical slice at a time,
-each through its real boundary with every live suite green before the next.
+Venda is greenfield: the build happens on `platform`, one vertical slice at a
+time, each through its real boundary with every live suite green before the
+next. Nothing is kept for compatibility. The first-generation backend
+(`apps/api`, the promise-based core, `@venda/schema`, the deploy CLI and their
+suites) and every admin screen except the Focus editor prototype were deleted
+when slice 1 landed; each feature returns when its slice builds it on this
+architecture.
 
 **Every slice ships a way to try it.** A slice is not done until `pnpm try`
-starts what it delivers with throwaway local credentials, and `try/slice-N.html`
+starts what it delivers, and `try/slice-N.html`
 (listed on `try/index.html`) lets a person exercise it: plain HTML with one
 button per behaviour, showing a clear pass or fail and the raw requests and
 responses, on every runtime the slice touches. The page complements the live
 suites; it does not replace them.
 
 0. **Gate and skeleton.** Oxlint, Fallow and Effect diagnostics in the gate;
-   `@venda/contract`; `@venda/server` serving the current core unchanged on
-   wrangler dev and Node, with D1 through db0 and the cron tick. Measures the
-   Worker bundle (budget: 1 MB gzipped). **Done:** `/api/health` is served by
-   the Effect `HttpApi` from the contract and every other path by the legacy
-   core; D1, R2 and KV run through db0 and unstorage on Workers, SQLite, files
-   and memory on Node; the Worker is 254 kB gzipped (Effect is 215 kB of it);
-   the live suites run against this server.
+   `@venda/contract`; `@venda/server` on Nitro presets. Measures the Worker
+   bundle (budget: 1 MB gzipped). **Done:** `/api/health` from the contract.
 1. **Read path.** `@venda/content` (config reader, Markdown/MDX conversion,
    round-trip tests), the local content store, sync into the index, and the
    public content API served from files. **Done:** configs are read as data and
    entries as frontmatter plus Markdown with block tags (every SAFT document
-   round-trips); sync diffs git blob SHAs, reads at most 200 files per run and
-   records unreadable files in `content_problems`; `/api/content/...` serves
-   file collections through the contract in the legacy shape, and any other
-   collection falls through to the legacy core until the cut-over. Node watches
-   `VENDA_CONTENT_DIR`; Workers serves the folder bundled at build time until
-   slice 4. The Worker is 466 kB gzipped (Markdown and YAML parsing added
-   about 210 kB).
-2. **Auth and users on Effect.** A port with no behaviour change; today's
-   tests are the contract.
+   round-trips); the index is a Drizzle schema migrated at startup; sync diffs
+   git blob SHAs, reads at most 200 files per run and records unreadable files
+   in `content_problems`; `/api/content/<collection>[/<slug>]` serves
+   `PublicEntry` (`collection`, `slug`, `publishedAt`, `data`) with typed 404s.
+   Node watches its `content/` folder; Workers serves the folder bundled at
+   build time until slice 4. The Worker is 510 kB gzipped.
+2. **Auth and users.** Sign-in, sessions, roles and capabilities, invitations
+   and API tokens, built on Effect with their own suites.
 3. **Write path.** Working copies, publish to files, conflicts.
 4. **GitHub content store.** App authentication, commits, webhook sync; a
    contract test against a real throwaway repository.
@@ -362,21 +373,17 @@ suites; it does not replace them.
    the Focus prototype and deleting `app/prototypes`), the form editor, views,
    pages, settings, core blocks and fields, and the model editor writing
    `config.ts`; one external test plugin.
-7. **CLI and cut-over.** `init` against a repository, `sync`, `export` from an
-   existing database, `types` from `config.ts`; the hosted deployment moves to
-   `@venda/server`; `apps/api` and the old core paths are deleted.
+7. **CLI and deployment.** `init` against a repository, `sync`, `types` from
+   `config.ts`, `deploy`; the hosted deployment moves to `@venda/server`.
 
 Roadmap steps 5 to 12 then continue on this base.
 
-## Migration
+## Content from elsewhere
 
-- The hosted instance's D1 content is exported to files with `venda export`,
-  committed, then indexed.
+- The hosted instance's blog posts are written as files once and committed.
 - SAFT's Sanity migration script writes files directly.
-- Migrations `0001` to `0003` are replaced by a fresh index schema. Nothing on
-  `platform` has shipped, so no compatibility path is kept.
 
-## New dependencies (need approval)
+## Dependencies (approved)
 
 Production:
 
@@ -389,20 +396,23 @@ Production:
 | `yaml` | 2.9.1 | content | Frontmatter |
 | `acorn` | 8.18.0 | content | Reading `config.ts` as data without executing it |
 | `nitro` | 3.0.260903-beta | server | Hosting and presets (see risks) |
-| `db0` | 0.4.1 | server | D1, SQLite, libSQL and Postgres connectors |
-| `unstorage` | 1.17.5 | server | R2, KV, filesystem and memory drivers |
+| `drizzle-orm` | 1.0.0-rc.5-5935859 | core, server | Index schema and typed Effect queries (rc.4 calls an Effect beta API renamed in 4.0.0) |
+| `@effect/sql-d1`, `@effect/sql-sqlite-node` | 4.0.1 | server | The SQL clients behind Drizzle's Effect drivers |
+| `chokidar` | 5.0.0 | server | Required by Nitro's fs storage driver to watch the content folder |
 
 Development: `oxlint` and `@oxlint/plugins` 1.86.0, `fallow` 3.31.0,
-`@effect/language-service` 0.87.3.
+`@effect/language-service` 0.87.3, `drizzle-kit` 1.0.0-rc.5-5935859.
 
 ## Risks
 
-- **Nitro 3 is in beta** (chosen over the stable `nitropack` 2.13.4 line), and
-  its database and tasks features are experimental. Venda pins the exact beta,
-  uses neither experimental feature, and only `@venda/server` depends on
-  Nitro, so a regression stays in one package.
-- **db0 is pre-1.0.** It sits behind the `IndexDb` service, with a contract
-  test per connector.
+- **Nitro 3 is in beta** (chosen over the stable `nitropack` 2.13.4 line).
+  Venda pins the exact beta and only `@venda/server` depends on Nitro, so a
+  regression stays in one package.
+- **Drizzle's Effect drivers are pre-1.0**, pinned to a commit snapshot.
+  They sit behind the `IndexDb` service; the core's tests run on the real
+  node:sqlite driver and the live suites on D1. Its type declarations still
+  import a beta Effect path (`effect/unstable/sql`) that resolves to nothing,
+  which weakens the `SqlError` types it exposes until the next release.
 - **GitHub availability and limits.** An outage blocks publishing, not saving.
   Installation tokens allow 5,000 requests an hour; sync batches its reads.
 - **Markdown fidelity.** Some editor states have no Markdown form (for example

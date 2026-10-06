@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { VendaEntry } from '../src/runtime/types';
-import { collectionKey, contentUrl, isNotFound, previewUrl, shapeEntries } from '../src/runtime/utils';
+import { collectionKey, contentUrl, isNotFound, shapeEntries } from '../src/runtime/utils';
 
 function entry(slug: string, data: Record<string, unknown>): VendaEntry {
-  return { id: slug, collectionId: 'c', slug, data, status: 'published', createdAt: '', updatedAt: '' };
+  return { collection: 'c', slug, publishedAt: null, data };
 }
 
 describe('contentUrl', () => {
@@ -14,12 +14,6 @@ describe('contentUrl', () => {
 
   it('encodes path segments', () => {
     expect(contentUrl('https://api.test/api', 'blog', 'a b/c')).toBe('https://api.test/api/content/blog/a%20b%2Fc');
-  });
-});
-
-describe('previewUrl', () => {
-  it('addresses the preview endpoint with an encoded token', () => {
-    expect(previewUrl('https://api.test/api/', 'id.123.sig/+')).toBe('https://api.test/api/preview/id.123.sig%2F%2B');
   });
 });
 

@@ -1,6 +1,6 @@
-// `pnpm try`: builds the server for both runtimes, starts them with throwaway
-// local credentials, and serves the slice try pages (try/*.html) on one origin.
-// Ctrl-C stops everything. State lives in .try/ and is wiped on every start.
+// `pnpm try`: builds the server for two Nitro presets, starts them, and serves
+// the slice try pages (try/*.html) on one origin. Ctrl-C stops everything.
+// State lives in .try/ and is wiped on every start.
 import { spawn } from 'node:child_process';
 import { createWriteStream } from 'node:fs';
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
@@ -12,13 +12,13 @@ import { fileURLToPath } from 'node:url';
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const SERVER = join(ROOT, 'packages/server');
 const STATE = join(ROOT, '.try');
-// Bundled into the Workers build; Node serves (and watches) an editable copy.
+// Bundled into the Workers build; Node runs in .try/node and serves (and
+// watches) an editable copy in its working directory, with its data beside it.
 const CONTENT = join(ROOT, 'try/content');
-const LIVE_CONTENT = join(STATE, 'content');
+const NODE_DIR = join(STATE, 'node');
+const LIVE_CONTENT = join(NODE_DIR, 'content');
 const CONTENT_FILE = /^\/files\/([a-z0-9-]+\/[a-z0-9-]+\.mdx?)$/;
 const PORTS = { page: 8794, workers: 8805, node: 8807 };
-const CREDENTIALS = { email: 'owner@venda.local', password: 'try-venda' };
-const SECRETS = { SESSION_SECRET: 'try-session-secret', ADMIN_EMAIL: CREDENTIALS.email, ADMIN_PASSWORD: CREDENTIALS.password };
 const children = [];
 
 function spawnLogged(name, command, args, options = {}) {
@@ -48,8 +48,8 @@ function step(label, command, args, env) {
   });
 }
 
-function serve(name, command, args, env) {
-  children.push(spawnLogged(name, command, args, { env }));
+function serve(name, command, args, options = {}) {
+  children.push(spawnLogged(name, command, args, options));
 }
 
 async function healthy(port) {
@@ -60,12 +60,6 @@ async function healthy(port) {
   }
 
   throw new Error(`Nothing answered on port ${port}; see .try/*.log`);
-}
-
-// Each runtime's session cookie is scoped to its own prefix, and `Secure` is
-// dropped because Safari refuses Secure cookies on http://localhost.
-function scopeCookie(cookie, prefix) {
-  return cookie.replace(/;\s*Secure/i, '').replace(/Path=\/(;|$)/i, `Path=${prefix}/$1`);
 }
 
 async function proxy(request, response, prefix, port) {
@@ -79,10 +73,9 @@ async function proxy(request, response, prefix, port) {
   const out = {};
 
   upstream.headers.forEach((value, key) => {
-    if (key !== 'set-cookie' && key !== 'content-encoding' && key !== 'content-length') out[key] = value;
+    if (key !== 'content-encoding' && key !== 'content-length') out[key] = value;
   });
 
-  out['set-cookie'] = upstream.headers.getSetCookie().map(cookie => scopeCookie(cookie, prefix));
   response.writeHead(upstream.status, out);
   response.end(Buffer.from(await upstream.arrayBuffer()));
 }
@@ -114,7 +107,7 @@ async function readBody(request) {
 // files, and list the problems its sync recorded (straight from its SQLite).
 async function files(request, response, path) {
   if (path === '/files/problems') {
-    const db = new DatabaseSync(join(STATE, 'node/venda.sqlite'), { readOnly: true });
+    const db = new DatabaseSync(join(NODE_DIR, '.data/venda.sqlite'), { readOnly: true });
     const problems = db.prepare('SELECT path, message, line FROM content_problems ORDER BY path').all();
 
     db.close();
@@ -165,13 +158,10 @@ await cp(CONTENT, LIVE_CONTENT, { recursive: true });
 console.log('Venda try: building and starting both runtimes');
 
 await step('build for Workers', 'pnpm', ['exec', 'nitro', 'build'], { VENDA_CONTENT_DIR: CONTENT });
-await step('migrate local D1', 'npx', ['wrangler', 'd1', 'migrations', 'apply', 'VENDA_DB', '--local', '--persist-to', join(STATE, 'workers'), '--config', '.output/server/wrangler.json']);
 await step('build for Node', 'pnpm', ['exec', 'nitro', 'build'], { NITRO_PRESET: 'node' });
 
-const vars = Object.entries(SECRETS).flatMap(([key, value]) => ['--var', `${key}:${value}`]);
-
-serve('workers', 'npx', ['wrangler', 'dev', '--local', '--persist-to', join(STATE, 'workers'), '--config', '.output/server/wrangler.json', '--port', String(PORTS.workers), ...vars]);
-serve('node', 'node', ['.output-node/server/index.mjs'], { ...SECRETS, PORT: String(PORTS.node), VENDA_DATA_DIR: join(STATE, 'node'), VENDA_CONTENT_DIR: LIVE_CONTENT });
+serve('workers', 'npx', ['wrangler', 'dev', '--local', '--persist-to', join(STATE, 'workers'), '--config', '.output/server/wrangler.json', '--port', String(PORTS.workers)]);
+serve('node', 'node', [join(SERVER, '.output-node/server/index.mjs')], { cwd: NODE_DIR, env: { PORT: String(PORTS.node) } });
 process.on('SIGINT', stopAll);
 process.on('SIGTERM', stopAll);
 
@@ -181,9 +171,7 @@ startPageServer();
 console.log(`
   Open http://localhost:${PORTS.page}
 
-  Sign in as ${CREDENTIALS.email} / ${CREDENTIALS.password} (local only; wiped on every start)
-  Workers (workerd + local D1/R2/KV): http://localhost:${PORTS.workers}
-  Node (SQLite + files):              http://localhost:${PORTS.node}
-  Content: try/content (bundled into Workers) · .try/content (Node, edit freely)
+  Workers (workerd + local D1): http://localhost:${PORTS.workers}, content from try/content, bundled
+  Node (node:sqlite + files):   http://localhost:${PORTS.node}, content from .try/node/content (edit freely)
   Logs: .try/*.log · Ctrl-C to stop
 `);

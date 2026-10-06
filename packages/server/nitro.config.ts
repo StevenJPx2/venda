@@ -6,52 +6,48 @@ import { defineConfig } from 'nitro';
 // NITRO_PRESET picks the target (Nitro reads it too); Cloudflare Workers by default.
 const preset = process.env.NITRO_PRESET ?? 'cloudflare_module';
 
-const onNode = preset === 'node' || preset === 'node_server';
+const onCloudflare = preset.startsWith('cloudflare');
 
 const here = (path: string) => fileURLToPath(new URL(path, import.meta.url));
 
 // Dependencies of @venda/content, resolved as it sees them.
 const fromContent = createRequire(here('../content/package.json'));
 
-// Placeholder IDs: local `wrangler dev` creates resources by binding name. Real
-// installs get their IDs from the CLI, which writes its own wrangler config.
-const LOCAL = 'local';
+// The content folder: bundled into Workers at build time (until the GitHub
+// store), read and watched from the working directory everywhere else.
+const CONTENT_DIR = resolve(process.env.VENDA_CONTENT_DIR ?? 'content');
 
 function aliases() {
-  if (onNode) return { '#venda/platform': here('./src/platforms/node.ts') };
+  if (!onCloudflare) return { '#venda/target': here('./src/targets/node.ts') };
 
   return {
-    '#venda/platform': here('./src/platforms/cloudflare.ts'),
+    '#venda/target': here('./src/targets/cloudflare.ts'),
     // yaml's Node build loads `process` with require(), which workerd cannot do; its ESM browser build has no Node imports.
     yaml: join(dirname(fromContent.resolve('yaml/package.json')), 'browser/index.js')
   };
 }
-
-const bundledContent = () => {
-  const dir = process.env.VENDA_CONTENT_DIR;
-
-  return dir === undefined ? [] : [{ baseName: 'content', dir: resolve(dir) }];
-};
 
 export default defineConfig({
   preset,
   compatibilityDate: '2026-09-22',
   serverDir: './server',
   // Separate outputs, so building for Node never replaces a Workers build in use.
-  output: { dir: onNode ? '.output-node' : '.output' },
+  output: { dir: onCloudflare ? '.output' : '.output-node' },
   alias: aliases(),
-  // Node reads migrations at startup; Workers bundle the content folder, if one is given.
-  serverAssets: onNode ? [{ baseName: 'migrations', dir: here('../core/migrations') }] : bundledContent(),
+  // drizzle-kit's migrations, applied at startup on every runtime.
+  serverAssets: [
+    { baseName: 'migrations', dir: here('../core/drizzle') },
+    ...(onCloudflare ? [{ baseName: 'content', dir: CONTENT_DIR }] : [])
+  ],
+  storage: onCloudflare ? {} : { content: { driver: 'fs', base: './content' } },
   cloudflare: {
     deployConfig: true,
     nodeCompat: true,
     wrangler: {
       name: 'venda',
       compatibility_flags: ['nodejs_compat'],
-      triggers: { crons: ['* * * * *'] },
-      d1_databases: [{ binding: 'VENDA_DB', database_name: 'venda', database_id: LOCAL, migrations_dir: here('../core/migrations') }],
-      r2_buckets: [{ binding: 'VENDA_MEDIA', bucket_name: 'venda-media' }],
-      kv_namespaces: [{ binding: 'VENDA_CACHE', id: LOCAL }]
+      // Local `wrangler dev` creates the database by binding name; installs write their own ID.
+      d1_databases: [{ binding: 'VENDA_DB', database_name: 'venda', database_id: 'local' }]
     }
   }
 });

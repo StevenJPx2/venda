@@ -2,7 +2,7 @@
   "name": "@venda/richtext",
   "version": "0.1.0",
   "private": true,
-  "description": "Venda rich-text documents: validation, safe HTML rendering, HTML conversion and text helpers. Framework- and runtime-neutral.",
+  "description": "Venda rich-text documents: validation, safe HTML rendering and text helpers. Framework- and runtime-neutral.",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"

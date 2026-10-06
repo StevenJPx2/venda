@@ -25,7 +25,7 @@ useSeoMeta({ title: 'Blog · Venda', description: 'Posts written and published w
     <UPageGrid v-else>
       <UPageCard
         v-for="post in posts"
-        :key="post.id"
+        :key="post.slug"
         :to="`/blog/${post.slug}`"
         :title="post.data.title ?? post.slug"
         :description="post.data.excerpt ?? ''"
@@ -33,7 +33,7 @@ useSeoMeta({ title: 'Blog · Venda', description: 'Posts written and published w
       >
         <template #footer>
           <div class="flex flex-wrap items-center gap-2 text-xs text-muted">
-            <span>{{ formatDate(post.updatedAt) }}</span>
+            <span v-if="post.publishedAt">{{ formatDate(post.publishedAt) }}</span>
             <UBadge v-for="tag in post.data.tags ?? []" :key="tag" color="neutral" variant="subtle" size="sm">{{ tag }}</UBadge>
           </div>
         </template>

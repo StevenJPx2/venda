@@ -9,13 +9,11 @@
     "test": "vitest run",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "postinstall": "nuxt prepare",
-    "deploy": "NUXT_PUBLIC_API_BASE=https://api.venda.stevenjohn.co/api nuxt build && wrangler deploy"
+    "postinstall": "nuxt prepare"
   },
   "dependencies": {
     "@internationalized/date": "3.12.4",
     "@nuxt/ui": "4.11.2",
-    "@venda/schema": "workspace:*",
     "@vue/shared": "3.5.43",
     "nuxt": "latest",
     "tailwindcss": "4.3.3",
@@ -28,7 +26,6 @@
     "@types/node": "latest",
     "typescript": "5.9.3",
     "vitest": "latest",
-    "vue-tsc": "latest",
-    "wrangler": "latest"
+    "vue-tsc": "latest"
   }
 }

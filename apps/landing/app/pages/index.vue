@@ -63,7 +63,7 @@ useSeoMeta({ title: 'Venda: a Cloudflare-native headless CMS', description: () =
       <UPageGrid>
         <UPageCard
           v-for="feature in features"
-          :key="feature.id"
+          :key="feature.slug"
           :icon="feature.data.icon ?? 'i-lucide-box'"
           :title="feature.data.title ?? feature.slug"
           :description="feature.data.description ?? ''"
@@ -82,7 +82,7 @@ useSeoMeta({ title: 'Venda: a Cloudflare-native headless CMS', description: () =
       <UPageGrid :class="steps.length % 4 === 0 ? 'lg:grid-cols-4' : ''">
         <UPageCard
           v-for="(step, index) in steps"
-          :key="step.id"
+          :key="step.slug"
           variant="soft"
           :title="stepTitle(index, step.data.title)"
           :description="step.data.description ?? ''"
@@ -100,7 +100,7 @@ useSeoMeta({ title: 'Venda: a Cloudflare-native headless CMS', description: () =
       <UPageGrid>
         <UPageCard
           v-for="post in posts"
-          :key="post.id"
+          :key="post.slug"
           :to="`/blog/${post.slug}`"
           icon="i-lucide-newspaper"
           :title="post.data.title ?? post.slug"

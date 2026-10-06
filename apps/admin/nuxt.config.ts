@@ -1,29 +1,11 @@
-// Two build targets:
-// - default: SSR admin on its own Worker, talking to the API on another origin
-//   (the hosted venda.stevenjohn.co deployment).
-// - VENDA_ADMIN_TARGET=static: a client-only SPA bundled into the API Worker by
-//   the `venda` CLI, so a self-hosted install is one Worker on one origin and
-//   calls the API relatively at /api.
-const selfHosted = process.env.VENDA_ADMIN_TARGET === 'static';
-
+// The admin, rebuilt as a plugin-built shell in slice 6 (docs/architecture.md).
+// Until then it holds only the Focus editor prototype that slice promotes.
 export default defineNuxtConfig({
   compatibilityDate: '2026-09-22',
   devtools: { enabled: true },
   modules: ['@nuxt/ui', '@nuxt/eslint'],
   css: ['~/assets/main.css'],
-  ssr: !selfHosted,
-  runtimeConfig: {
-    public: { apiBase: process.env.NUXT_PUBLIC_API_BASE || (selfHosted ? '/api' : 'http://localhost:8787/api') }
-  },
-  nitro: { preset: selfHosted ? 'static' : 'cloudflare_module' },
-  // The session cookie belongs to the API origin, so authenticated screens can
-  // only be rendered in the browser.
-  routeRules: {
-    '/editor/**': { ssr: false },
-    '/collections/**': { ssr: false },
-    '/settings/**': { ssr: false },
-    '/invite/**': { ssr: false }
-  },
+  routeRules: { '/': { redirect: '/prototypes/editor' } },
   // Pre-bundle ProseMirror so UEditor never loads two copies of a keyed plugin
   // (recommended by the Nuxt UI Editor docs).
   vite: {

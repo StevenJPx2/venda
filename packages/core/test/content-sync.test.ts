@@ -1,10 +1,15 @@
-import { readFileSync } from 'node:fs';
-import { DatabaseSync } from 'node:sqlite';
-import { Effect, Layer, Result } from 'effect';
-import { beforeEach, describe, expect, it } from 'vitest';
-import { ContentStore, ContentStoreError, getPublished, gitBlobSha, IndexDb, listPublished, syncContent } from '../src/content';
+import { readdirSync, readFileSync } from 'node:fs';
+import { SqliteClient } from '@effect/sql-sqlite-node';
+import { asc } from 'drizzle-orm';
+import * as SqliteDrizzle from 'drizzle-orm/effect-sqlite-node';
+import { Effect, Layer, ManagedRuntime, Result } from 'effect';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { ContentStore, ContentStoreError, contentSchema, getPublished, gitBlobSha, IndexDb, listPublished, syncContent } from '../src/content';
 
-const MIGRATION = readFileSync(new URL('../migrations/0004_content_index.sql', import.meta.url), 'utf8');
+const DRIZZLE = new URL('../drizzle/', import.meta.url);
+
+// drizzle-kit's migrations, in order, one statement at a time.
+const MIGRATIONS = readdirSync(DRIZZLE).toSorted().flatMap(name => readFileSync(new URL(`${name}/migration.sql`, DRIZZLE), 'utf8').split('--> statement-breakpoint'));
 
 const encoder = new TextEncoder();
 
@@ -17,7 +22,8 @@ const BLOG = `export default defineCollection({
 const post = (title: string, extra = '') => `---\ntitle: ${title}\n${extra}---\n\nHello **${title}**.\n`;
 
 let files: Map<string, string>;
-let db: DatabaseSync;
+
+let runtime: ManagedRuntime.ManagedRuntime<ContentStore | IndexDb, unknown>;
 
 const store = Layer.succeed(ContentStore, {
   list: Effect.promise(() => Promise.all([...files].map(async ([path, text]) => ({ path, sha: await gitBlobSha(encoder.encode(text)) })))),
@@ -28,18 +34,24 @@ const store = Layer.succeed(ContentStore, {
   }
 });
 
-const index = Layer.sync(IndexDb, () => ({
-  all: (sql, params = []) => Effect.sync(() => db.prepare(sql).all(...params)),
-  run: (sql, params = []) => Effect.sync(() => void db.prepare(sql).run(...params))
-}));
+// The real driver on an in-memory SQLite, migrated like a server would be.
+const index = Layer.effect(IndexDb, Effect.gen(function*() {
+  const db = yield* SqliteDrizzle.makeWithDefaults({});
 
-const run = <A, E>(effect: Effect.Effect<A, E, ContentStore | IndexDb>) => Effect.runPromise(Effect.provide(effect, Layer.mergeAll(store, index)));
+  yield* Effect.forEach(MIGRATIONS, statement => db.run(statement), { discard: true });
 
-const problems = () => db.prepare('SELECT path, message, line FROM content_problems ORDER BY path').all();
+  return db;
+})).pipe(Layer.provide(SqliteClient.layer({ filename: ':memory:' })));
+
+const run = <A, E>(effect: Effect.Effect<A, E, ContentStore | IndexDb>) => runtime.runPromise(effect);
+
+const problems = () => run(Effect.flatMap(IndexDb, db => db.select({ path: contentSchema.contentProblems.path, message: contentSchema.contentProblems.message, line: contentSchema.contentProblems.line })
+  .from(contentSchema.contentProblems).orderBy(asc(contentSchema.contentProblems.path))));
+
+afterEach(() => runtime.dispose());
 
 beforeEach(() => {
-  db = new DatabaseSync(':memory:');
-  db.exec(MIGRATION);
+  runtime = ManagedRuntime.make(Layer.mergeAll(store, index));
   files = new Map([
     ['blog/config.ts', BLOG],
     ['blog/hello.md', post('Hello', 'publishedAt: 2026-01-02T03:04:05+01:00\n')],
@@ -54,12 +66,12 @@ beforeEach(() => {
 describe('syncContent', () => {
   it('indexes valid files and records the rest as problems', async () => {
     expect(await run(syncContent())).toEqual({ indexed: 6, removed: 0, remaining: 0, problems: 1 });
-    expect(problems()).toEqual([{ path: 'blog/broken.md', message: expect.stringMatching(/title is required/), line: null }]);
+    expect(await problems()).toEqual([{ path: 'blog/broken.md', message: expect.stringMatching(/title is required/), line: null }]);
 
     const entries = await run(listPublished('blog'));
 
     expect(entries.map(entry => entry.slug)).toEqual(['hello', 'older']);
-    expect(entries[0]).toMatchObject({ id: 'blog/hello', collectionId: 'blog', status: 'published', publishedAt: '2026-01-02T02:04:05.000Z', data: { title: 'Hello', body: { type: 'doc' } } });
+    expect(entries[0]).toMatchObject({ collection: 'blog', slug: 'hello', publishedAt: '2026-01-02T02:04:05.000Z', data: { title: 'Hello', body: { type: 'doc' } } });
   });
 
   it('does nothing when nothing changed, and re-reads only what did', async () => {
@@ -92,7 +104,7 @@ describe('syncContent', () => {
     files.set('blog/broken.md', post('Fixed'));
     await run(syncContent());
 
-    expect(problems()).toEqual([]);
+    expect(await problems()).toEqual([]);
   });
 
   it('drops a collection whose config breaks or goes away', async () => {
@@ -100,20 +112,20 @@ describe('syncContent', () => {
     files.set('blog/config.ts', 'export default defineCollection({ name: load() });');
     await run(syncContent());
 
-    expect(problems()).toContainEqual({ path: 'blog/config.ts', message: expect.stringMatching(/not plain data/), line: 1 });
+    expect(await problems()).toContainEqual({ path: 'blog/config.ts', message: expect.stringMatching(/not plain data/), line: 1 });
     expect(Result.isFailure(await run(Effect.result(listPublished('blog'))))).toBe(true);
 
     files.delete('blog/config.ts');
 
     expect(await run(syncContent())).toMatchObject({ removed: 1 });
-    expect(problems().map(each => each.path)).toContain('blog/hello.md');
+    expect((await problems()).map(each => each.path)).toContain('blog/hello.md');
   });
 
   it('refuses two files with one slug', async () => {
     files.set('blog/hello.mdx', post('Again'));
     await run(syncContent());
 
-    expect(problems().map(each => each.message)).toContainEqual(expect.stringMatching(/already uses the slug "hello"/));
+    expect((await problems()).map(each => each.message)).toContainEqual(expect.stringMatching(/already uses the slug "hello"/));
   });
 });
 

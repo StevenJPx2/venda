@@ -17,14 +17,13 @@ describe('VendaContent (server-side rendering)', () => {
     expect(await render({ content: doc })).toBe('<div class="venda-content"><p>Hello <strong>edge</strong></p></div>');
   });
 
-  it('renders HTML stored by older installs through the same safe renderer', async () => {
-    const html = await render({ content: '<h2>Title</h2><p onclick="steal()">text<script>alert(1)</script></p>', as: 'article' }, { class: 'prose' });
-    expect(html).toBe('<article class="venda-content prose"><h2>Title</h2><p>text</p></article>');
+  it('takes the wrapper tag and attributes', async () => {
+    expect(await render({ content: doc, as: 'article' }, { class: 'prose' })).toBe('<article class="venda-content prose"><p>Hello <strong>edge</strong></p></article>');
   });
 
-  it('renders nothing for empty content', async () => {
+  it('renders nothing for empty or invalid content', async () => {
     expect(await render({ content: null })).toBe('<!---->');
     expect(await render({ content: { type: 'doc', content: [{ type: 'paragraph' }] } })).toBe('<!---->');
-    expect(await render({ content: '' })).toBe('<!---->');
+    expect(await render({ content: { type: 'doc', content: [{ type: 'text' }] } })).toBe('<!---->');
   });
 });

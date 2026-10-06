@@ -1,7 +1,7 @@
-import { loadApp } from './app';
+import { venda } from './app';
 
 export default {
   async fetch(request: Request): Promise<Response> {
-    return (await loadApp()).fetch(request);
+    return (await venda.load()).fetch(request);
   }
 };
