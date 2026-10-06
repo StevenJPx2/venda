@@ -3,7 +3,7 @@ import { CollectionNotFound, EntryNotFound, PublicEntry } from '@venda/contract'
 import { and, asc, desc, eq, isNull, lte, or, sql } from 'drizzle-orm';
 import { DateTime, Effect, Schema } from 'effect';
 import { contentEntries } from './schema';
-import { IndexDb } from './services';
+import { Database } from '../database';
 import { hasCollection } from './tables';
 
 const decodeData = Schema.decodeUnknownEffect(Schema.fromJsonString(Schema.Record(Schema.String, Schema.Json)));
@@ -30,7 +30,7 @@ const requireCollection = Effect.fnUntraced(function*(collection: string) {
 export const listPublished = Effect.fnUntraced(function*(collection: string) {
   yield* requireCollection(collection);
 
-  const db = yield* IndexDb;
+  const db = yield* Database;
   const now = DateTime.formatIso(yield* DateTime.now);
   const newestFirst = [sql`${contentEntries.publishedAt} IS NULL`, desc(contentEntries.publishedAt), asc(contentEntries.slug)];
   const rows = yield* db.select().from(contentEntries).where(published(collection, now)).orderBy(...newestFirst);
@@ -41,7 +41,7 @@ export const listPublished = Effect.fnUntraced(function*(collection: string) {
 export const getPublished = Effect.fnUntraced(function*(collection: string, slug: string) {
   yield* requireCollection(collection);
 
-  const db = yield* IndexDb;
+  const db = yield* Database;
   const now = DateTime.formatIso(yield* DateTime.now);
   const [row] = yield* db.select().from(contentEntries).where(and(published(collection, now), eq(contentEntries.slug, slug)));
 

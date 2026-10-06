@@ -3,8 +3,9 @@ node_modules
 .output-node
 .nuxt
 .data
-# `pnpm try` state and logs
+# `pnpm try` state and logs, and its temporary copy of the core's mistakes file
 .try
+mistakes-unchecked.ts
 # Fallow's analysis cache
 .fallow
 .wrangler
@@ -19,7 +20,6 @@ node_modules
 
 dist
 coverage
-packages/cli/server/
 
 # OS / editor cruft
 .DS_Store

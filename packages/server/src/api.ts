@@ -1,9 +1,11 @@
 // The HTTP API: @venda/contract's endpoints, implemented by the core.
 import { HealthStatus, VendaApi } from '@venda/contract';
-import { getPublished, IndexDb, listPublished } from '@venda/core/content';
+import { getPublished, listPublished } from '@venda/core/content';
 import { Context, Effect, Layer } from 'effect';
 import { HttpRouter, HttpServer } from 'effect/http';
 import { HttpApiBuilder } from 'effect/http-api';
+import { AuthenticationLive, AuthHandlers, InvitationsHandlers, TokensHandlers, UsersHandlers } from './api/accounts';
+import { domainRunner, type DomainServices } from './infrastructure';
 
 export class BuildInfo extends Context.Service<BuildInfo, { readonly version: string }>()('venda/server/BuildInfo') {}
 
@@ -23,21 +25,21 @@ const ContentHandlers = HttpApiBuilder.group(
   VendaApi,
   'content',
   Effect.fn(function*(handlers) {
-    const db = yield* IndexDb;
+    const run = yield* domainRunner;
 
-    // A failing index query is a server error, not a missing entry.
     return handlers.handleAll({
-      list: ({ params }) => listPublished(params.collection).pipe(Effect.catchTag('EffectDrizzleQueryError', Effect.die), Effect.provideService(IndexDb, db)),
-      get: ({ params }) => getPublished(params.collection, params.slug).pipe(Effect.catchTag('EffectDrizzleQueryError', Effect.die), Effect.provideService(IndexDb, db))
+      list: ({ params }) => run(listPublished(params.collection)),
+      get: ({ params }) => run(getPublished(params.collection, params.slug))
     });
   })
 );
 
-/** The contract's routes; the composition root provides `BuildInfo` and `IndexDb`. */
+/** The contract's routes; the composition root provides `BuildInfo` and the domain services. */
 const ApiRoutes = HttpApiBuilder.layer(VendaApi).pipe(
-  Layer.provide([SystemHandlers, ContentHandlers]),
+  Layer.provide([SystemHandlers, ContentHandlers, AuthHandlers, UsersHandlers, InvitationsHandlers, TokensHandlers]),
+  Layer.provide(AuthenticationLive),
   Layer.provide(HttpServer.layerServices)
 );
 
 /** A Web `fetch` handler for the routes, for hosts that are not Effect programs. */
-export const toApiHandler = (services: Layer.Layer<BuildInfo | IndexDb>) => HttpRouter.toWebHandler(ApiRoutes.pipe(Layer.provide(services)));
+export const toApiHandler = (services: Layer.Layer<BuildInfo | DomainServices>) => HttpRouter.toWebHandler(ApiRoutes.pipe(Layer.provide(services)));

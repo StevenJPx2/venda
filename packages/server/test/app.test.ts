@@ -1,50 +1,13 @@
-import { readdir, readFile } from 'node:fs/promises';
-import { SqliteClient } from '@effect/sql-sqlite-node';
 import { CollectionNotFound, HealthStatus, PublicEntry } from '@venda/contract';
-import { IndexDb } from '@venda/core/content';
-import * as SqliteDrizzle from 'drizzle-orm/effect-sqlite-node';
-import { Effect, Layer, Result, Schema } from 'effect';
+import { Effect, Result, Schema } from 'effect';
 import { SqlClient } from 'effect/sql';
-import { createStorage, type Storage } from 'unstorage';
+import { createStorage } from 'unstorage';
 import memoryDriver from 'unstorage/drivers/memory';
-import { describe, expect, it, onTestFinished } from 'vitest';
-import { appLoader } from '../src/app';
-import { migrate, type MigrationFiles, readMigrations } from '../src/migrations';
-import type { Target } from '../src/target';
-
-const DRIZZLE = new URL('../../core/drizzle/', import.meta.url);
-
-// drizzle-kit's folders as the `assets:migrations` mount presents them.
-const migrations: MigrationFiles = {
-  getKeys: async () => (await readdir(DRIZZLE)).map(name => `${name}:migration.sql`),
-  getItem: key => readFile(new URL(key.replace(':', '/'), DRIZZLE), 'utf8')
-};
+import { describe, expect, it } from 'vitest';
+import { migrate, readMigrations } from '../src/migrations';
+import { memoryTarget, migrations, startApp } from './support';
 
 const BLOG = "export default defineCollection({ name: 'Blog', kind: 'posts', fields: { title: { type: 'text', required: true }, body: { type: 'richtext' } } });";
-
-/** A target in memory; `changed()` plays the file watcher. */
-function memoryTarget(files: Storage) {
-  let onChange = () => {};
-
-  const target: Target = {
-    database: {
-      layer: Layer.provideMerge(Layer.effect(IndexDb, SqliteDrizzle.makeWithDefaults({})), SqliteClient.layer({ filename: ':memory:' })),
-      atomically: statements => Effect.flatMap(SqlClient.SqlClient, sql => sql.withTransaction(Effect.forEach(statements, each => each, { discard: true })))
-    },
-    content: () => ({
-      files,
-      watch: async (listener) => {
-        onChange = listener;
-
-        return async () => {
-          onChange = () => {};
-        };
-      }
-    })
-  };
-
-  return { target, changed: () => onChange() };
-}
 
 const request = (path: string) => new Request(`http://venda.test${path}`);
 
@@ -55,13 +18,9 @@ async function setup() {
   await files.setItemRaw('blog/hello.md', '---\ntitle: Hello\npublishedAt: 2026-01-01T00:00:00Z\n---\n\nHi <sup>1</sup>.\n');
   await files.setItemRaw('blog/draft.md', '---\ndraft: true\n---\n');
 
-  const { target, changed } = memoryTarget(files);
+  const { app, changed } = await startApp(files);
 
-  const loader = appLoader(target, () => migrations, () => ({ VENDA_VERSION: '9.9.9' }));
-
-  onTestFinished(loader.close);
-
-  return { app: await loader.load(), files, changed };
+  return { app, files, changed };
 }
 
 describe('the server app', () => {

@@ -77,13 +77,13 @@ Status: `[ ]` not started · `[~]` partial · `[x]` done.
 - [ ] External media providers
 
 ### 6. Users and authentication
-- [ ] Server-side sessions, revoked on password, role or status changes
-- [ ] Multiple users and invitations
-- [ ] Roles: Administrator, Editor, Author, Contributor, enforced as capabilities
+- [x] Server-side sessions, revoked on password, role or status changes
+- [x] Multiple users and invitations
+- [~] Roles: Administrator, Editor, Author, Contributor, enforced as capability proofs (people and invitations done; content capabilities with the write path)
 - [ ] Passkeys (WebAuthn) as the primary login
 - [ ] OAuth sign-in (Google first, then GitHub and others)
 - [ ] Magic-link email sign-in and pluggable email providers
-- [ ] API tokens with scopes for scripts and CI
+- [~] API tokens for scripts and CI (acting as their person; scopes to do)
 - [ ] Audit log
 
 ### 7. Agents and automation
@@ -127,7 +127,7 @@ Status: `[ ]` not started · `[~]` partial · `[x]` done.
 Everything ships together, but work proceeds in dependency order:
 
 1. Server, file format and read path (architecture slices 0 and 1). **Done.**
-2. Users, roles, sessions, API tokens, because every later feature records who did what (slice 2).
+2. Users, roles, sessions, API tokens, because every later feature records who did what (slice 2). **Done.**
 3. Structured rich text editing and the write path (slice 3).
 4. GitHub content store, then the content lifecycle: drafts vs live, revisions, scheduling, preview, trash, search (slices 4 and 5); then the admin shell and CLI (slices 6 and 7).
 5. Content model: new field types, relations, singletons, i18n, typegen.

@@ -1,5 +1,6 @@
 // The content store over a Nitro storage mount, and the sync runner.
-import { ContentStore, ContentStoreError, gitBlobSha, type IndexDb, syncAll, type SyncReport } from '@venda/core/content';
+import { ContentStore, ContentStoreError, gitBlobSha, syncAll, type SyncReport } from '@venda/core/content';
+import type { Database } from '@venda/core/database';
 import { Effect, Layer, Predicate } from 'effect';
 import type { ContentFiles, RawFile } from './target';
 
@@ -36,7 +37,7 @@ export const contentStoreLayer = (files: ContentFiles) => {
 };
 
 /** Runs an effect against the app's content store and index. */
-export type RunContent = <A, E>(effect: Effect.Effect<A, E, ContentStore | IndexDb>) => Promise<A>;
+export type RunContent = <A, E>(effect: Effect.Effect<A, E, ContentStore | Database>) => Promise<A>;
 
 const describe = (report: SyncReport) => `indexed ${report.indexed}, removed ${report.removed}, ${report.problems} with problems`;
 

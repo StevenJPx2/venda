@@ -11,6 +11,9 @@ importers:
       '@effect/language-service':
         specifier: 0.87.3
         version: 0.87.3
+      '@gdp-ts/core':
+        specifier: 0.1.0
+        version: 0.1.0(eslint@10.11.0(jiti@2.7.0))(oxlint@1.86.0)(typescript@5.9.3)
       '@oxlint/plugins':
         specifier: 1.86.0
         version: 1.86.0
@@ -183,6 +186,9 @@ importers:
 
   packages/core:
     dependencies:
+      '@gdp-ts/core':
+        specifier: 0.1.0
+        version: 0.1.0(eslint@10.11.0(jiti@2.7.0))(oxlint@1.86.0)(typescript@5.9.3)
       '@venda/content':
         specifier: workspace:*
         version: link:../content
@@ -269,6 +275,9 @@ importers:
       '@effect/sql-sqlite-node':
         specifier: 4.0.1
         version: 4.0.1(effect@4.0.1)
+      '@gdp-ts/core':
+        specifier: 0.1.0
+        version: 0.1.0(eslint@10.11.0(jiti@2.7.0))(oxlint@1.86.0)(typescript@5.9.3)
       '@venda/contract':
         specifier: workspace:*
         version: link:../contract
@@ -1326,6 +1335,20 @@ packages:
 
   '@floating-ui/vue@1.1.11':
     resolution: {integrity: sha512-HzHKCNVxnGS35r9fCHBc3+uCnjw9IWIlCPL683cGgM9Kgj2BiAl8x1mS7vtvP6F9S/e/q4O6MApwSHj8hNLGfw==}
+
+  '@gdp-ts/core@0.1.0':
+    resolution: {integrity: sha512-eH3PdZALOGZNv4m1L3Zz+cbMK6/g4AaRJbL7VXWFhZ9g8ukykjXRgMPPYoXvv/2cVcxBcl36d+7c3Z81BLqyLQ==}
+    peerDependencies:
+      eslint: '>=9'
+      oxlint: '>=1.86'
+      typescript: '>=5.4'
+    peerDependenciesMeta:
+      eslint:
+        optional: true
+      oxlint:
+        optional: true
+      typescript:
+        optional: true
 
   '@humanfs/core@0.19.2':
     resolution: {integrity: sha512-UhXNm+CFMWcbChXywFwkmhqjs3PRCmcSa/hfBgLIb7oQ5HNb1wS0icWsGtSAUNgefHeI+eBrA8I1fxmbHsGdvA==}
@@ -7912,6 +7935,12 @@ snapshots:
     transitivePeerDependencies:
       - '@vue/composition-api'
       - vue
+
+  '@gdp-ts/core@0.1.0(eslint@10.11.0(jiti@2.7.0))(oxlint@1.86.0)(typescript@5.9.3)':
+    optionalDependencies:
+      eslint: 10.11.0(jiti@2.7.0)
+      oxlint: 1.86.0
+      typescript: 5.9.3
 
   '@humanfs/core@0.19.2':
     dependencies:

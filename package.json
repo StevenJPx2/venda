@@ -16,6 +16,7 @@
   },
   "devDependencies": {
     "@effect/language-service": "0.87.3",
+    "@gdp-ts/core": "0.1.0",
     "@oxlint/plugins": "1.86.0",
     "@stylistic/eslint-plugin": "5.10.0",
     "eslint": "^10.11.0",

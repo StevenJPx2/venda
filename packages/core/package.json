@@ -5,7 +5,9 @@
   "description": "Venda's domain in Effect: content sync into the index and the public reads, over services the host provides.",
   "type": "module",
   "exports": {
-    "./content": "./src/content/index.ts"
+    "./auth": "./src/auth/index.ts",
+    "./content": "./src/content/index.ts",
+    "./database": "./src/database.ts"
   },
   "scripts": {
     "test": "vitest run",
@@ -15,6 +17,7 @@
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
+    "@gdp-ts/core": "0.1.0",
     "@venda/content": "workspace:*",
     "@venda/contract": "workspace:*",
     "drizzle-orm": "1.0.0-rc.5-5935859",

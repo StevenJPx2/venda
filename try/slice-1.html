@@ -4,41 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Slice 1 · Try Venda</title>
-  <style>
-    :root { color-scheme: light dark; --ink: #18181b; --muted: #71717a; --line: #e4e4e7; --bg: #fff; --soft: #fafafa; --pass: #15803d; --fail: #b91c1c; --wait: #b45309; }
-    @media (prefers-color-scheme: dark) { :root { --ink: #f4f4f5; --muted: #a1a1aa; --line: #27272a; --bg: #09090b; --soft: #111113; --pass: #4ade80; --fail: #f87171; --wait: #fbbf24; } }
-    * { box-sizing: border-box; }
-    body { margin: 0; font: 14px/1.55 system-ui, sans-serif; color: var(--ink); background: var(--bg); }
-    main { max-width: 1040px; margin: 0 auto; padding: 48px 24px 96px; }
-    a { color: inherit; }
-    header { display: flex; justify-content: space-between; align-items: end; gap: 16px; margin-bottom: 28px; flex-wrap: wrap; }
-    h1 { font-size: 26px; letter-spacing: -0.02em; margin: 4px 0 6px; }
-    .lede { color: var(--muted); max-width: 620px; margin: 0; }
-    .crumb { font-size: 13px; color: var(--muted); text-decoration: none; }
-    button, select { font: inherit; font-size: 13px; font-weight: 500; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 6px; padding: 6px 12px; cursor: pointer; transition: transform 120ms cubic-bezier(0.23, 1, 0.32, 1); }
-    button:active { transform: scale(0.97); }
-    button.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); }
-    button:disabled { opacity: 0.5; cursor: default; }
-    .check { border: 1px solid var(--line); border-radius: 12px; margin-bottom: 16px; overflow: hidden; }
-    .check-head { display: flex; justify-content: space-between; gap: 16px; padding: 16px 18px; align-items: start; flex-wrap: wrap; }
-    .check h2 { font-size: 15px; margin: 0 0 2px; }
-    .check p { margin: 0; color: var(--muted); max-width: 560px; }
-    .actions { display: flex; gap: 6px; flex-wrap: wrap; }
-    .extra { padding: 0 18px 16px; display: grid; gap: 8px; }
-    .extra[hidden] { display: none; }
-    textarea { width: 100%; min-height: 180px; font: 12px/1.5 ui-monospace, SFMono-Regular, monospace; color: var(--ink); background: var(--soft); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; resize: vertical; }
-    .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-    .runs { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--line); }
-    .run { padding: 12px 18px; min-height: 64px; background: var(--soft); min-width: 0; }
-    .run + .run { border-left: 1px solid var(--line); }
-    .run-label { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); display: flex; gap: 8px; align-items: center; }
-    .verdict { font-size: 12px; font-weight: 600; text-transform: none; letter-spacing: 0; }
-    .verdict.pass { color: var(--pass); } .verdict.fail { color: var(--fail); } .verdict.wait, .verdict.skip { color: var(--wait); }
-    .note { margin: 6px 0 0; color: var(--ink); }
-    pre { margin: 8px 0 0; font: 12px/1.5 ui-monospace, SFMono-Regular, monospace; white-space: pre-wrap; word-break: break-all; max-height: 240px; overflow: auto; color: var(--muted); }
-    code { font: 12px ui-monospace, SFMono-Regular, monospace; }
-    @media (max-width: 720px) { .runs { grid-template-columns: 1fr; } .run + .run { border-left: 0; border-top: 1px solid var(--line); } }
-  </style>
+  <link rel="stylesheet" href="/try.css">
 </head>
 <body>
   <main>
@@ -56,39 +22,10 @@
   </main>
 
   <script type="module">
-    const RUNTIMES = { workers: 'Workers', node: 'Node' };
-    const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-
-    async function call(runtime, method, path, body) {
-      // Content reads are cacheable for a minute; the page wants every change at once.
-      const init = { method, headers: {}, cache: 'no-store' };
-
-      if (body !== undefined) init.body = body;
-
-      const response = await fetch(runtime ? `/${runtime}${path}` : path, init);
-      const text = await response.text();
-      let data = text;
-
-      try { data = JSON.parse(text); } catch { /* not JSON */ }
-
-      return { status: response.status, ok: response.ok, headers: response.headers, data, line: `${method} ${path} → ${response.status}` };
-    }
+    import { call, mount, until } from '/harness.js';
 
     const readFile = name => call(null, 'GET', `/files/journal/${name}`);
-    const writeFile = (name, text) => call(null, 'PUT', `/files/journal/${name}`, text);
-
-    /** Polls until `test` passes on a read, for Node's watcher to catch up. */
-    async function until(read, test, seconds = 6) {
-      let last;
-
-      for (const deadline = Date.now() + seconds * 1000; Date.now() < deadline; await sleep(250)) {
-        last = await read();
-
-        if (test(last)) return last;
-      }
-
-      return last;
-    }
+    const writeFile = (name, text) => call(null, 'PUT', `/files/journal/${name}`, { body: text });
 
     function collect(node, found = []) {
       found.push(node.type, ...(node.marks ?? []).map(mark => mark.type));
@@ -102,9 +39,8 @@
 
     const SCRATCH = 'try-scratch.md';
 
-    const CHECKS = [
+    mount([
       {
-        id: 'health',
         title: 'The server answers on both presets',
         description: 'GET /api/health from the Effect contract. On first use each server applied drizzle-kit’s migrations (D1 on Workers, node:sqlite on Node) and synced the content folder.',
         async run(runtime, { log }) {
@@ -116,7 +52,6 @@
         }
       },
       {
-        id: 'list',
         title: 'List a file collection',
         description: 'GET /api/content/journal: published entries only, newest first. The draft (next-week.md) and the file without a title (missing-title.md) are left out.',
         async run(runtime, { log }) {
@@ -129,7 +64,6 @@
         }
       },
       {
-        id: 'document',
         title: 'From Markdown to the editor document',
         description: 'files-are-the-truth.md as written, then as the API serves it. Marks (bold, sub, sup, strike), the <Callout> block tag with data attributes, the table, task list and footnote all come through as document nodes.',
         async run(runtime, { log }) {
@@ -150,7 +84,6 @@
         }
       },
       {
-        id: 'private',
         title: 'Drafts and broken files stay private',
         description: 'The draft and the file missing its required title answer 404. On Node, the problems the sync recorded are listed with their file and reason.',
         async run(runtime, { log }) {
@@ -173,7 +106,6 @@
         }
       },
       {
-        id: 'edit',
         title: 'Edit a file and see it live',
         only: 'node',
         description: 'Change a-quiet-start.md below (try the title) and save it to disk. Node’s watcher re-syncs and the API serves the change. Workers serves the folder bundled at build time, so there it needs a rebuild until the GitHub store arrives (slice 4).',
@@ -211,7 +143,6 @@
         }
       },
       {
-        id: 'problems',
         title: 'Break a file, then fix it',
         only: 'node',
         description: `Writes ${SCRATCH} with a mood that is not one of the model’s options. Sync records the problem (with its line) and the entry is not served; then the file is fixed and the entry appears.`,
@@ -229,9 +160,7 @@
           log('Recorded problem', problem ?? 'none');
           log(hidden.line);
 
-          const fixed = broken.replace('furious', 'calm');
-
-          await writeFile(SCRATCH, fixed);
+          await writeFile(SCRATCH, broken.replace('furious', 'calm'));
           log(`PUT ${SCRATCH} (mood: calm)`);
           note('Waiting for the fixed entry…');
 
@@ -244,7 +173,6 @@
         }
       },
       {
-        id: 'unknown',
         title: 'Unknown collections are a typed 404',
         description: 'A collection with no folder is not found, with the contract’s CollectionNotFound error naming it.',
         async run(runtime, { log }) {
@@ -255,91 +183,7 @@
           return { pass: missing.status === 404 && missing.data?._tag === 'CollectionNotFound' && missing.data?.collection === 'no-such-collection', note: `${missing.status} ${missing.data?._tag}` };
         }
       }
-    ];
-
-    function render(check) {
-      const card = document.createElement('section');
-      const runtimes = check.only ? [check.only] : Object.keys(RUNTIMES);
-
-      card.className = 'check';
-      card.innerHTML = `
-        <div class="check-head">
-          <div><h2>${check.title}</h2><p>${check.description}</p></div>
-          <div class="actions">${runtimes.map(key => `<button data-on="${key}">Run on ${RUNTIMES[key]}</button>`).join('')}${runtimes.length > 1 ? '<button data-on="both">Both</button>' : ''}</div>
-        </div>
-        <div class="extra" ${check.extra ? '' : 'hidden'}>${check.extra ?? ''}</div>
-        <div class="runs">${Object.entries(RUNTIMES).map(([key, label]) => `
-          <div class="run" data-runtime="${key}">
-            <div class="run-label">${label} <span class="verdict ${runtimes.includes(key) ? '' : 'skip'}">${runtimes.includes(key) ? '' : 'Not on this runtime'}</span></div>
-            <div class="note">${runtimes.includes(key) ? 'Not run yet.' : 'See the description.'}</div>
-            <pre hidden></pre>
-          </div>`).join('')}
-        </div>`;
-      document.getElementById('checks').append(card);
-
-      for (const button of card.querySelectorAll('[data-on]')) {
-        button.addEventListener('click', () => {
-          const targets = button.dataset.on === 'both' ? runtimes : [button.dataset.on];
-
-          targets.forEach(runtime => execute(check, card, runtime));
-        });
-      }
-
-      check.setup?.(card);
-
-      return card;
-    }
-
-    async function execute(check, card, runtime) {
-      if (check.only && check.only !== runtime) return true;
-
-      const pane = card.querySelector(`[data-runtime="${runtime}"]`);
-      const verdict = pane.querySelector('.verdict');
-      const noteEl = pane.querySelector('.note');
-      const pre = pane.querySelector('pre');
-      const lines = [];
-
-      pre.hidden = false;
-      pre.textContent = '';
-      verdict.className = 'verdict wait';
-      verdict.textContent = 'Running…';
-      noteEl.textContent = '';
-
-      const tools = {
-        card,
-        log(line, data) {
-          lines.push(data === undefined ? line : `${line}\n${typeof data === 'string' ? data : JSON.stringify(data, null, 2)}`);
-          pre.textContent = lines.join('\n\n');
-        },
-        note(text) { noteEl.textContent = text; }
-      };
-
-      try {
-        const result = await check.run(runtime, tools);
-
-        verdict.className = `verdict ${result.pass ? 'pass' : 'fail'}`;
-        verdict.textContent = result.pass ? '✓ Pass' : '✕ Fail';
-        noteEl.textContent = result.note ?? '';
-      } catch (error) {
-        verdict.className = 'verdict fail';
-        verdict.textContent = '✕ Error';
-        noteEl.textContent = String(error.message ?? error);
-      }
-
-      return verdict.classList.contains('pass');
-    }
-
-    const cards = CHECKS.map(check => [check, render(check)]);
-
-    const runAll = document.getElementById('run-all');
-
-    runAll.addEventListener('click', async () => {
-      runAll.disabled = true;
-
-      for (const [check, card] of cards) await Promise.all(Object.keys(RUNTIMES).map(runtime => execute(check, card, runtime)));
-
-      runAll.disabled = false;
-    });
+    ]);
   </script>
 </body>
 </html>

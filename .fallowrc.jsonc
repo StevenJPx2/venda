@@ -8,6 +8,8 @@
     "packages/server/nitro.config.ts",
     "packages/server/src/targets/*.ts",
     "packages/core/drizzle.config.ts",
+    // Type-level tests: type-checked mistakes that must not compile, never imported.
+    "packages/*/test/mistakes.ts",
     "packages/*/eslint.config.mjs"
   ],
   // Nitro's generated storage code imports chokidar for the fs driver's watcher,

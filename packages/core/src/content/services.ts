@@ -1,7 +1,4 @@
-// What the content domain needs from its host: the files, and the SQL index.
-import type { EffectDrizzleQueryError } from 'drizzle-orm/effect-core/errors';
-import type { QueryEffectHKTBase } from 'drizzle-orm/effect-core/query-effect';
-import type { SQLiteEffectDatabase } from 'drizzle-orm/sqlite-core/effect';
+// What the content domain needs from its host besides the database: the files.
 import { Context, type Effect, Schema } from 'effect';
 
 /** A file in the content store and its git blob SHA. */
@@ -21,17 +18,6 @@ export class ContentStore extends Context.Service<ContentStore, {
   readonly list: Effect.Effect<ReadonlyArray<StoredFile>, ContentStoreError>;
   readonly read: (path: string) => Effect.Effect<string, ContentStoreError>;
 }>()('venda/core/content/ContentStore') {}
-
-// What every Drizzle Effect SQLite driver (D1, node:sqlite, libSQL, Durable Objects) shares.
-interface IndexQueries extends QueryEffectHKTBase {
-  readonly error: EffectDrizzleQueryError;
-  readonly context: never;
-}
-
-export type IndexDatabase = SQLiteEffectDatabase<IndexQueries, unknown>;
-
-/** The index, as a Drizzle database over whichever SQLite the host provides. */
-export class IndexDb extends Context.Service<IndexDb, IndexDatabase>()('venda/core/content/IndexDb') {}
 
 const encoder = new TextEncoder();
 

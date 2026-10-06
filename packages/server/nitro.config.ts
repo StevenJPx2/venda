@@ -39,7 +39,10 @@ export default defineConfig({
     { baseName: 'migrations', dir: here('../core/drizzle') },
     ...(onCloudflare ? [{ baseName: 'content', dir: CONTENT_DIR }] : [])
   ],
-  storage: onCloudflare ? {} : { content: { driver: 'fs', base: './content' } },
+  // `kv` holds sessions and sign-in attempts: Workers KV, or files beside the database.
+  storage: onCloudflare
+    ? { kv: { driver: 'cloudflare-kv-binding', binding: 'VENDA_KV' } }
+    : { content: { driver: 'fs', base: './content' }, kv: { driver: 'fs', base: './.data/kv' } },
   cloudflare: {
     deployConfig: true,
     nodeCompat: true,
@@ -47,7 +50,8 @@ export default defineConfig({
       name: 'venda',
       compatibility_flags: ['nodejs_compat'],
       // Local `wrangler dev` creates the database by binding name; installs write their own ID.
-      d1_databases: [{ binding: 'VENDA_DB', database_name: 'venda', database_id: 'local' }]
+      d1_databases: [{ binding: 'VENDA_DB', database_name: 'venda', database_id: 'local' }],
+      kv_namespaces: [{ binding: 'VENDA_KV', id: 'local' }]
     }
   }
 });

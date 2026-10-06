@@ -187,10 +187,14 @@ Vue or a Cloudflare type; Fallow boundary rules enforce it.
 | `Mailer` | provider adapter | captured in memory |
 | Clock, Random, Logger | Effect defaults | test services |
 
-**Errors** are tagged: `Unauthenticated`, `Forbidden`, `NotFound`, `Invalid`
-(with field errors), `Conflict` (stale SHA, slug taken), `Upstream` (GitHub
-or storage unavailable). The `HttpApi` maps each to one status code; nothing
-throws `HttpError`.
+**Errors** are tagged and specific, each declared in the contract with one
+status code: `Unauthenticated` and `InvalidCredentials` (401), `Forbidden`
+with a reason (403), `CollectionNotFound`, `EntryNotFound`, `UserNotFound`,
+`InvitationNotFound` and `TokenNotFound` (404), `EmailTaken` and
+`LastAdministrator` (409), `TooManyAttempts` (429); invalid input is a 400
+from the payload's schema. Infrastructure failures (a failing query, an
+unreachable store) are defects, so they surface as 500s and never as a domain
+answer such as "not found". Nothing throws `HttpError`.
 
 **Entry state** is one union instead of `status`, `publishAt`, `deletedAt` and
 `hasUnpublishedChanges` flags:
@@ -362,7 +366,25 @@ suites; it does not replace them.
    Node watches its `content/` folder; Workers serves the folder bundled at
    build time until slice 4. The Worker is 510 kB gzipped.
 2. **Auth and users.** Sign-in, sessions, roles and capabilities, invitations
-   and API tokens, built on Effect with their own suites.
+   and API tokens, built on Effect with their own suites. **Done:** the
+   `auth`, `users`, `invitations` and `tokens` groups, with an
+   `Authentication` middleware that accepts a bearer API token or the
+   `venda_session` cookie (HttpOnly, Secure, SameSite=Lax; refused on
+   changing requests from another Origin). Sessions live in the `kv` storage
+   mount (Workers KV, files on Node) under the SHA-256 of their secret; every
+   request re-reads the person, and a per-user session epoch ends all their
+   sessions when their password, role or status changes. Passwords are
+   PBKDF2-SHA256 (100,000 iterations, the Workers cap); ten failed sign-ins
+   lock an email for fifteen minutes. The recovery owner
+   (`VENDA_OWNER_EMAIL`, `VENDA_OWNER_PASSWORD`) always signs in as an active
+   administrator. Capability checks are compile-time proofs (gdp-ts): the
+   core's sensitive functions demand `IsAdministrator`, `InvitationIsOpen`,
+   `OwnsToken`, `SignedInInPerson` or `PasswordConfirmed`, minted only in
+   `packages/core/src/auth/proofs/`; Oxlint's gdp-ts preset (strict in the
+   core and server) forbids forging them, and `test/mistakes.ts` holds code
+   that must not compile. "An administrator remains" is a guarded update
+   instead, since a proof would be stale under concurrent demotions. The
+   Worker is 524 kB gzipped.
 3. **Write path.** Working copies, publish to files, conflicts.
 4. **GitHub content store.** App authentication, commits, webhook sync; a
    contract test against a real throwaway repository.
@@ -399,6 +421,7 @@ Production:
 | `drizzle-orm` | 1.0.0-rc.5-5935859 | core, server | Index schema and typed Effect queries (rc.4 calls an Effect beta API renamed in 4.0.0) |
 | `@effect/sql-d1`, `@effect/sql-sqlite-node` | 4.0.1 | server | The SQL clients behind Drizzle's Effect drivers |
 | `chokidar` | 5.0.0 | server | Required by Nitro's fs storage driver to watch the content folder |
+| `@gdp-ts/core` | 0.1.0 | core, server | Capability checks as compile-time proofs, and its Oxlint preset |
 
 Development: `oxlint` and `@oxlint/plugins` 1.86.0, `fallow` 3.31.0,
 `@effect/language-service` 0.87.3, `drizzle-kit` 1.0.0-rc.5-5935859.
@@ -413,6 +436,9 @@ Development: `oxlint` and `@oxlint/plugins` 1.86.0, `fallow` 3.31.0,
   node:sqlite driver and the live suites on D1. Its type declarations still
   import a beta Effect path (`effect/unstable/sql`) that resolves to nothing,
   which weakens the `SqlError` types it exposes until the next release.
+- **gdp-ts is a 0.1.0.** It is small (no dependencies; names, proofs and lint
+  rules), pinned exactly, and only its types reach the core's signatures; if
+  it stalls, it can be vendored like anti-slop.
 - **GitHub availability and limits.** An outage blocks publishing, not saving.
   Installation tokens allow 5,000 requests an hour; sync batches its reads.
 - **Markdown fidelity.** Some editor states have no Markdown form (for example

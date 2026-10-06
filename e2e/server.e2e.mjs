@@ -1,13 +1,9 @@
 // The server on two Nitro presets: Cloudflare Workers (local workerd and D1,
 // content bundled at build time) and Node (node:sqlite, the content folder
 // watched in its working directory). Same checks on both.
-import { cp, mkdtemp, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { CONTENT_FIXTURES, ROOT, check, run, start, stop, suite, waitFor } from './support.mjs';
-
-const WORKERS = 'http://localhost:8795';
-const NODE = 'http://localhost:8797';
+import { buildNode, check, NODE, nodeDirectory, startNode, startWorkers, stop, suite, WORKERS } from './support.mjs';
 
 /** The read path: published entries only, drafts and broken files never served. */
 async function contentChecks(label, base) {
@@ -35,34 +31,22 @@ async function poll(url, test, seconds = 5) {
   return false;
 }
 
-const startNode = dir => start('node', 'node', [join(ROOT, 'packages/server/.output-node/server/index.mjs')], { cwd: dir, env: { PORT: '8797' } });
-
 await suite('server', async () => {
-  await run('pnpm', ['exec', 'nitro', 'build'], { VENDA_CONTENT_DIR: CONTENT_FIXTURES });
-
-  const state = await mkdtemp(join(tmpdir(), 'venda-e2e-'));
-
-  start('workers', 'npx', ['wrangler', 'dev', '--local', '--persist-to', state, '--config', '.output/server/wrangler.json', '--port', '8795']);
-  await waitFor(`${WORKERS}/api/health`, 'Workers');
+  await startWorkers();
   await contentChecks('Workers', WORKERS);
 
-  await run('pnpm', ['exec', 'nitro', 'build'], { NITRO_PRESET: 'node' });
+  await buildNode();
 
-  const dir = await mkdtemp(join(tmpdir(), 'venda-node-'));
+  const dir = await nodeDirectory();
+  let node = await startNode(dir);
 
-  await cp(CONTENT_FIXTURES, join(dir, 'content'), { recursive: true });
-
-  let node = startNode(dir);
-
-  await waitFor(`${NODE}/api/health`, 'Node');
   await contentChecks('Node', NODE);
 
   await writeFile(join(dir, 'content/field-notes/unfinished.md'), '---\ntitle: Finished after all\n---\n\nDone.\n');
   check('Node: an edited file is live within seconds', await poll(`${NODE}/api/content/field-notes/unfinished`, response => response.ok));
 
   check('Node: shuts down cleanly on SIGTERM', await stop(node));
-  node = startNode(dir);
-  await waitFor(`${NODE}/api/health`, 'Node');
+  node = await startNode(dir);
   check('Node: the index survives a restart and migrations are not re-applied', (await fetch(`${NODE}/api/content/field-notes/unfinished`)).ok);
   await stop(node);
 });

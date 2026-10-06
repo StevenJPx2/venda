@@ -1,15 +1,9 @@
-import { readdirSync, readFileSync } from 'node:fs';
-import { SqliteClient } from '@effect/sql-sqlite-node';
 import { asc } from 'drizzle-orm';
-import * as SqliteDrizzle from 'drizzle-orm/effect-sqlite-node';
 import { Effect, Layer, ManagedRuntime, Result } from 'effect';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { ContentStore, ContentStoreError, contentSchema, getPublished, gitBlobSha, IndexDb, listPublished, syncContent } from '../src/content';
-
-const DRIZZLE = new URL('../drizzle/', import.meta.url);
-
-// drizzle-kit's migrations, in order, one statement at a time.
-const MIGRATIONS = readdirSync(DRIZZLE).toSorted().flatMap(name => readFileSync(new URL(`${name}/migration.sql`, DRIZZLE), 'utf8').split('--> statement-breakpoint'));
+import { ContentStore, ContentStoreError, contentSchema, getPublished, gitBlobSha, listPublished, syncContent } from '../src/content';
+import { Database } from '../src/database';
+import { testDatabase } from './support';
 
 const encoder = new TextEncoder();
 
@@ -23,7 +17,7 @@ const post = (title: string, extra = '') => `---\ntitle: ${title}\n${extra}---\n
 
 let files: Map<string, string>;
 
-let runtime: ManagedRuntime.ManagedRuntime<ContentStore | IndexDb, unknown>;
+let runtime: ManagedRuntime.ManagedRuntime<ContentStore | Database, unknown>;
 
 const store = Layer.succeed(ContentStore, {
   list: Effect.promise(() => Promise.all([...files].map(async ([path, text]) => ({ path, sha: await gitBlobSha(encoder.encode(text)) })))),
@@ -34,24 +28,15 @@ const store = Layer.succeed(ContentStore, {
   }
 });
 
-// The real driver on an in-memory SQLite, migrated like a server would be.
-const index = Layer.effect(IndexDb, Effect.gen(function*() {
-  const db = yield* SqliteDrizzle.makeWithDefaults({});
+const run = <A, E>(effect: Effect.Effect<A, E, ContentStore | Database>) => runtime.runPromise(effect);
 
-  yield* Effect.forEach(MIGRATIONS, statement => db.run(statement), { discard: true });
-
-  return db;
-})).pipe(Layer.provide(SqliteClient.layer({ filename: ':memory:' })));
-
-const run = <A, E>(effect: Effect.Effect<A, E, ContentStore | IndexDb>) => runtime.runPromise(effect);
-
-const problems = () => run(Effect.flatMap(IndexDb, db => db.select({ path: contentSchema.contentProblems.path, message: contentSchema.contentProblems.message, line: contentSchema.contentProblems.line })
+const problems = () => run(Effect.flatMap(Database, db => db.select({ path: contentSchema.contentProblems.path, message: contentSchema.contentProblems.message, line: contentSchema.contentProblems.line })
   .from(contentSchema.contentProblems).orderBy(asc(contentSchema.contentProblems.path))));
 
 afterEach(() => runtime.dispose());
 
 beforeEach(() => {
-  runtime = ManagedRuntime.make(Layer.mergeAll(store, index));
+  runtime = ManagedRuntime.make(Layer.mergeAll(store, testDatabase));
   files = new Map([
     ['blog/config.ts', BLOG],
     ['blog/hello.md', post('Hello', 'publishedAt: 2026-01-02T03:04:05+01:00\n')],
@@ -133,7 +118,7 @@ describe('public reads', () => {
   it('hides drafts, future entries and unknown collections', async () => {
     await run(syncContent());
 
-    const missing = async (effect: Effect.Effect<unknown, { _tag: string }, ContentStore | IndexDb>) => {
+    const missing = async (effect: Effect.Effect<unknown, { _tag: string }, ContentStore | Database>) => {
       const result = await run(Effect.result(effect));
 
       return Result.isFailure(result) ? result.failure._tag : 'found';

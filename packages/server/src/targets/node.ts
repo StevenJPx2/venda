@@ -3,7 +3,7 @@
 // local data). The folder is watched through its storage mount.
 import { mkdirSync } from 'node:fs';
 import { SqliteClient } from '@effect/sql-sqlite-node';
-import { IndexDb } from '@venda/core/content';
+import { Database } from '@venda/core/database';
 import * as SqliteDrizzle from 'drizzle-orm/effect-sqlite-node';
 import { Effect, Layer } from 'effect';
 import { SqlClient } from 'effect/sql';
@@ -23,7 +23,7 @@ const client = Layer.unwrap(Effect.sync(() => {
 
 export const target: Target = {
   database: {
-    layer: Layer.provideMerge(Layer.effect(IndexDb, SqliteDrizzle.makeWithDefaults({})), client),
+    layer: Layer.provideMerge(Layer.effect(Database, SqliteDrizzle.makeWithDefaults({})), client),
     atomically: statements => Effect.flatMap(SqlClient.SqlClient, sql => sql.withTransaction(Effect.forEach(statements, each => each, { discard: true })))
   },
   content: () => {

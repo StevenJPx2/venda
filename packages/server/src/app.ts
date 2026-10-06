@@ -1,13 +1,21 @@
 // Composition root: one Venda app per isolate or process. On first use it
 // migrates the database, syncs the content files into the index and starts
 // watching them where they can change; every request goes to the Effect API.
-import { IndexDb } from '@venda/core/content';
-import { Layer, ManagedRuntime } from 'effect';
+import { Owner } from '@venda/core/auth';
+import { Effect, Layer, ManagedRuntime, Redacted } from 'effect';
 import { BuildInfo, toApiHandler } from './api';
 import { contentStoreLayer, contentSync } from './content';
 import { decodeServerEnv, type RawEnv } from './env';
+import type { DomainServices } from './infrastructure';
+import { keyValueLayer, type KeyValueMount } from './key-value';
 import { migrate, type MigrationFiles, readMigrations } from './migrations';
 import type { Target } from './target';
+
+/** The Nitro storage mounts the app reads, the same on every preset. */
+export interface Mounts {
+  readonly migrations: MigrationFiles;
+  readonly keyValue: KeyValueMount;
+}
 
 export interface VendaApp {
   fetch(request: Request): Promise<Response>;
@@ -18,12 +26,13 @@ export interface VendaApp {
 // Content is public; sites and CDNs may keep a read for a minute.
 const PUBLIC_CACHE = 'public, max-age=60';
 
-async function build(target: Target, migrations: MigrationFiles, env: RawEnv): Promise<VendaApp> {
-  const { VENDA_VERSION } = decodeServerEnv(env);
+async function build(target: Target, mounts: Mounts, env: RawEnv): Promise<VendaApp> {
+  const { VENDA_VERSION, VENDA_OWNER_EMAIL, VENDA_OWNER_PASSWORD } = decodeServerEnv(env);
   const content = target.content();
-  const runtime = ManagedRuntime.make(Layer.mergeAll(target.database.layer, contentStoreLayer(content.files)));
+  const owner = Layer.succeed(Owner, { email: VENDA_OWNER_EMAIL, password: Redacted.make(VENDA_OWNER_PASSWORD) });
+  const runtime = ManagedRuntime.make(Layer.mergeAll(target.database.layer, contentStoreLayer(content.files), keyValueLayer(mounts.keyValue), owner));
 
-  await runtime.runPromise(migrate(target.database, await readMigrations(migrations)));
+  await runtime.runPromise(migrate(target.database, await readMigrations(mounts.migrations)));
 
   const sync = contentSync(effect => runtime.runPromise(effect));
 
@@ -31,7 +40,8 @@ async function build(target: Target, migrations: MigrationFiles, env: RawEnv): P
 
   const unwatch = await content.watch?.(() => void sync());
 
-  const services = Layer.mergeAll(Layer.succeed(BuildInfo, { version: VENDA_VERSION ?? 'dev' }), Layer.succeed(IndexDb, await runtime.runPromise(IndexDb)));
+  const domain = await runtime.runPromise(Effect.context<DomainServices>());
+  const services = Layer.mergeAll(Layer.succeed(BuildInfo, { version: VENDA_VERSION ?? 'dev' }), Layer.succeedContext(domain));
   const api = toApiHandler(services);
 
   return {
@@ -61,11 +71,11 @@ export interface AppLoader {
  * bindings inside an event. A failed build is not cached, so the next request
  * retries it.
  */
-export function appLoader(target: Target, migrations: () => MigrationFiles, readEnv: () => RawEnv): AppLoader {
+export function appLoader(target: Target, mounts: () => Mounts, readEnv: () => RawEnv): AppLoader {
   let pending: Promise<VendaApp> | undefined;
 
   const load = () => {
-    pending ??= Promise.resolve().then(() => build(target, migrations(), readEnv())).catch((error: Error) => {
+    pending ??= Promise.resolve().then(() => build(target, mounts(), readEnv())).catch((error: Error) => {
       pending = undefined;
       throw error;
     });

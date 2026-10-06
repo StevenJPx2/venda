@@ -1,8 +1,19 @@
+import gdp from '@gdp-ts/core/lint/oxlint';
 import { defineConfig } from 'oxlint';
 import newArchitecture from './tools/new-architecture.json' with { type: 'json' };
 
 // The other packages stay on ESLint only until their slice rewrites them.
 const NEW_ARCHITECTURE = newArchitecture.packages.map(dir => `${dir}/**`);
+
+// Capability proofs (gdp-ts): minted only in the core's proofs/ modules, never
+// forged. Strict in the core and the server, where proofs are made and used:
+// no `as` or `any` outside proofs/, so nothing can stand in for a proof.
+const proofs = gdp({
+  files: ['packages/core/**/*.ts', 'packages/server/**/*.ts'],
+  proofs: ['packages/core/src/**/proofs/**'],
+  strict: true,
+  allowAssertions: []
+});
 
 export default defineConfig({
   ignorePatterns: [
@@ -20,9 +31,11 @@ export default defineConfig({
   ],
   jsPlugins: [
     { name: 'anti-slop', specifier: './tools/oxlint/anti-slop/index.ts' },
-    { name: 'anti-slop-effect', specifier: './tools/oxlint/anti-slop/effect/index.ts' }
+    { name: 'anti-slop-effect', specifier: './tools/oxlint/anti-slop/effect/index.ts' },
+    ...proofs.jsPlugins
   ],
   overrides: [
+    ...proofs.overrides,
     {
       files: NEW_ARCHITECTURE,
       rules: {
