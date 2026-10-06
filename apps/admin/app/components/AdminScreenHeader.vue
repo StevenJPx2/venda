@@ -1,19 +1,33 @@
 <script setup lang="ts">
 // `pending` holds the title's space blank until the real one arrives, instead of swapping a placeholder for it.
-defineProps<{
+const props = defineProps<{
   title: string;
   description?: string;
   back?: { to: string; label: string } | undefined;
   pending?: boolean;
 }>();
+const route = useRoute();
+
+// Every settings section leads back to Settings, unless the screen names
+// another way back. The static build serves pages with a trailing slash, so
+// Settings itself can be `/settings/`; it has no way back to itself.
+const inSettingsSection = (path: string) => /^\/settings\/[^/]+/.test(path);
+
+const way = computed(
+  () =>
+    props.back ??
+    (inSettingsSection(route.path)
+      ? { to: '/settings', label: 'Settings' }
+      : undefined)
+);
 </script>
 
 <template>
   <header class="screen-heading">
     <div class="min-w-0">
-      <NuxtLink v-if="back" :to="back.to" class="back-link">
+      <NuxtLink v-if="way" :to="way.to" class="back-link">
         <UIcon name="i-lucide-arrow-left" class="size-4 shrink-0" />{{
-          back.label
+          way.label
         }}
       </NuxtLink>
 

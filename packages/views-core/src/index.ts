@@ -35,7 +35,11 @@ export default {
       section: 'settings',
       access: 'administrator',
       load: () => import('./ProblemsView.vue'),
-      nav: { label: 'Content problems', icon: 'i-lucide-file-warning' }
+      nav: {
+        label: 'Content problems',
+        icon: 'i-lucide-file-warning',
+        description: 'Files that do not fit their collection, with the reason.'
+      }
     }
   ]
 } satisfies AdminPlugin;

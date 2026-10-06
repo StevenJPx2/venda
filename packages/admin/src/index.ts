@@ -1,5 +1,6 @@
 export {
   canOpen,
+  listed,
   registerPlugins,
   resolvePage,
   type AdminPage,

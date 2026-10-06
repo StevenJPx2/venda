@@ -21,6 +21,21 @@ export default defineNuxtConfig({
       ]
     }
   },
+  // The admin is static files on the Worker: there is no icon endpoint, and it
+  // must not call Iconify's public API at runtime. Every icon named in the
+  // shell, the plugin screens and Nuxt UI's own components is bundled instead.
+  icon: {
+    provider: 'none',
+    clientBundle: {
+      scan: {
+        globInclude: [
+          'app/**',
+          '../../packages/*/src/**',
+          'node_modules/@nuxt/ui/dist/**'
+        ]
+      }
+    }
+  },
   ui: {
     theme: {
       colors: [

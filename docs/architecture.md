@@ -293,6 +293,11 @@ Rules for plugins:
   registries, so any block works in any editor that renders rich text.
 - Each plugin's screens are loaded when first opened, so installing plugins
   does not slow the admin's start.
+- The admin requests nothing outside its own origin. Icons are bundled at
+  build time from the names written in the shell, the plugin packages and
+  Nuxt UI (`icon.provider: 'none'`), never fetched from Iconify's API, so a
+  plugin names its icons literally. The browser suite fails on any request
+  to another origin.
 - The plugin API stays marked unstable until the default preset has been built
   entirely through it. Venda's live suites run against the default preset plus
   one test plugin installed from outside the repository.
@@ -302,8 +307,16 @@ In detail:
 - **Page (today's whole surface):** each plugin has an id and pages, each with
   an id, a path of named segments, a title, access (`public`, `signed-in`,
   `administrator`), a section (`content`, `settings`, `account`, `public`), an
-  optional navigation label and icon, and a lazy `load()`.
-  `apps/admin/app/utils/plugins.ts` selects `@venda/preset-default`, which
+  optional navigation entry (label, icon, description) and a lazy `load()`.
+  The section decides where the shell lists a page:
+  - Content pages: the sidebar.
+  - Settings pages: the Settings page, a single link at the foot of the
+    sidebar, with their descriptions. Each section page leads back to it.
+  - Account pages: the account menu, which collapses your name and role into
+    one button with Sign out.
+
+  A role sees only the pages it may open, and Settings is hidden when there
+  are none. `apps/admin/app/utils/plugins.ts` selects `@venda/preset-default`, which
   composes `@venda/views-core` and `@venda/pages-core`. Duplicate ids and
   equivalent route patterns are rejected at registration. The SDK is
   provisional: the editor, block and field slots arrive only with the slices

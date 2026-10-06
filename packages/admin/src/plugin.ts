@@ -10,13 +10,32 @@ export interface AdminPage {
   readonly section: 'content' | 'settings' | 'account' | 'public';
   readonly access: 'public' | 'signed-in' | 'administrator';
   readonly load: () => Promise<{ default: Component }>;
-  readonly nav?: { readonly label: string; readonly icon: string };
+  /**
+   * Where the page is listed: content pages in the sidebar, settings pages on
+   * the Settings page (with their description), account pages in the account
+   * menu.
+   */
+  readonly nav?: {
+    readonly label: string;
+    readonly icon: string;
+    readonly description?: string;
+  };
 }
 
 export interface AdminPlugin {
   readonly id: string;
   readonly pages: ReadonlyArray<AdminPage>;
 }
+
+/** The listed pages of one section that this role may open, in registration order. */
+export const listed = (
+  pages: ReadonlyArray<AdminPage>,
+  section: AdminPage['section'],
+  role: Role | undefined
+) =>
+  pages.filter(
+    page => page.section === section && page.nav && canOpen(page, role)
+  );
 
 export function canOpen(page: AdminPage, role: Role | undefined): boolean {
   return (

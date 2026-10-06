@@ -51,6 +51,16 @@ async function signIn(page, base, label) {
   );
 }
 
+// Settings live on their own page, reached from the foot of the navigation.
+async function openSettings(page, section) {
+  await page
+    .getByRole('navigation', { name: 'Main navigation' })
+    .getByRole('link', { name: 'Settings', exact: true })
+    .click();
+  await page.getByRole('heading', { name: 'Settings', exact: true }).waitFor();
+  await page.getByRole('link', { name: new RegExp(`^${section}`) }).click();
+}
+
 async function contentChecks(page, label, base, screenshots) {
   await signIn(page, base, label);
   await page.getByRole('link').filter({ hasText: 'Field notes' }).click();
@@ -137,15 +147,20 @@ async function contentChecks(page, label, base, screenshots) {
     `${label}: the back link is named for, and returns to, the collection`,
     page.url().endsWith('/admin/content/field-notes')
   );
-  await page
-    .getByRole('link', { name: 'Content problems', exact: true })
-    .click();
+  await openSettings(page, 'Content problems');
   await page.getByText('field-notes/no-title.md', { exact: true }).waitFor();
   check(
     `${label}: invalid file problems are visible`,
     (await page.locator('#main-content').innerText()).includes(
       'title is required'
     )
+  );
+  check(
+    `${label}: a settings section leads back to Settings`,
+    (await page
+      .locator('#main-content')
+      .getByRole('link', { name: 'Settings', exact: true })
+      .count()) === 1
   );
   await page.reload();
   await page
@@ -161,7 +176,7 @@ async function contentChecks(page, label, base, screenshots) {
 }
 
 async function inviteAndJoin(owner, ann, label, base) {
-  await owner.getByRole('link', { name: 'Invitations', exact: true }).click();
+  await openSettings(owner, 'Invitations');
   await owner
     .getByRole('button', { name: 'Invite someone', exact: true })
     .click();
@@ -182,16 +197,28 @@ async function inviteAndJoin(owner, ann, label, base) {
   await ann.getByRole('button', { name: 'Join the team', exact: true }).click();
   await ann.getByRole('link', { name: 'Open content', exact: true }).click();
   await ann.getByRole('heading', { name: 'Content', exact: true }).waitFor();
+  // Who you are is one collapsed button; your account opens from it.
+  await ann.getByRole('button', { name: /^Ann/ }).click();
   check(
     `${label}: invitation joins a real person and signs them in`,
     (await ann
-      .getByRole('link', { name: 'Your account', exact: true })
+      .getByRole('menuitem', { name: 'Your account', exact: true })
       .count()) === 1
   );
+  await ann.keyboard.press('Escape');
+  await openSettings(ann, 'API tokens');
+  await ann.getByRole('heading', { name: 'API tokens', exact: true }).waitFor();
+  await ann
+    .locator('#main-content')
+    .getByRole('link', { name: 'Settings', exact: true })
+    .click();
+  await ann.getByRole('heading', { name: 'Settings', exact: true }).waitFor();
   check(
-    `${label}: authors do not see administrator navigation`,
-    (await ann.getByRole('link', { name: 'People', exact: true }).count()) === 0
+    `${label}: authors see only the settings they may use`,
+    (await ann.getByRole('link', { name: /^People/ }).count()) === 0 &&
+      (await ann.getByRole('link', { name: /^API tokens/ }).count()) === 1
   );
+  await ann.getByRole('link', { name: 'Content', exact: true }).click();
   await ann.getByRole('link').filter({ hasText: 'Field notes' }).click();
   await ann.getByRole('link').filter({ hasText: 'First light' }).waitFor();
   check(
@@ -209,7 +236,7 @@ async function inviteAndJoin(owner, ann, label, base) {
 }
 
 async function tokenChecks(page, label, base) {
-  await page.getByRole('link', { name: 'API tokens', exact: true }).click();
+  await openSettings(page, 'API tokens');
   await page.getByRole('button', { name: 'Create token', exact: true }).click();
   await page
     .getByRole('dialog')
@@ -246,7 +273,7 @@ async function tokenChecks(page, label, base) {
 }
 
 async function peopleChecks(owner, ann, label) {
-  await owner.getByRole('link', { name: 'People', exact: true }).click();
+  await openSettings(owner, 'People');
   await owner
     .getByRole('button', {
       name: `Actions for ann-${label.toLowerCase()}@venda.test`,
@@ -262,7 +289,8 @@ async function peopleChecks(owner, ann, label) {
     .getByRole('button', { name: 'Save changes', exact: true })
     .click();
   await owner.getByRole('dialog').waitFor({ state: 'hidden' });
-  await ann.getByRole('link', { name: 'API tokens', exact: true }).click();
+  // Her next request is the tokens list, which sends her back to sign-in.
+  await openSettings(ann, 'API tokens');
   await ann
     .getByRole('heading', { name: 'Welcome back', exact: true })
     .waitFor();
@@ -334,9 +362,19 @@ async function uiChecks(browser, label, base, screenshots) {
   const owner = await context.newPage();
   const ann = await guest.newPage();
   const errors = [];
+  // Requests leaving the server's origin: icons, fonts or anything else fetched from a third party.
+  const elsewhere = new Set();
+  const watchRequests = request => {
+    const url = request.url();
+
+    if (!url.startsWith(base) && !/^(data|blob):/.test(url))
+      elsewhere.add(new URL(url).origin);
+  };
 
   owner.on('pageerror', error => errors.push(error.message));
   ann.on('pageerror', error => errors.push(error.message));
+  context.on('request', watchRequests);
+  guest.on('request', watchRequests);
 
   try {
     await contentChecks(owner, label, base, screenshots);
@@ -349,6 +387,11 @@ async function uiChecks(browser, label, base, screenshots) {
       `${label}: no uncaught browser errors`,
       errors.length === 0,
       errors.join('\n')
+    );
+    check(
+      `${label}: the admin requests nothing outside its own origin`,
+      elsewhere.size === 0,
+      [...elsewhere].join(', ')
     );
   } catch (error) {
     console.error(`${label} browser errors: ${errors.join('\n')}`);

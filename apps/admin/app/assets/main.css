@@ -71,24 +71,19 @@ body {
   max-width: 1120px;
   margin-inline: auto;
 }
-.admin-sidebar .admin-nav {
+/* Writing at the top; Settings and who you are at the foot. */
+.admin-nav {
   display: flex;
   flex-direction: column;
 }
-.admin-sidebar .nav-section:last-child {
-  margin-top: auto;
-}
 .nav-section {
-  margin: 24px 0;
-}
-.nav-section:first-child {
   margin-top: 8px;
 }
-.nav-label {
-  color: var(--ui-text-muted);
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  padding: 0 12px 8px;
+.admin-sidebar .nav-settings {
+  margin-top: auto;
+}
+.nav-settings {
+  margin-top: 16px;
 }
 .nav-link {
   min-height: 40px;
@@ -112,9 +107,23 @@ body {
   color: var(--ui-text-highlighted);
   background: var(--ui-bg-accented);
 }
-.sidebar-account {
-  padding: 16px 12px 0;
+.admin-identity {
+  margin-top: 8px;
+  padding-top: 8px;
   border-top: 1px solid var(--ui-border);
+}
+.account-button {
+  width: 100%;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 8px;
+  border-radius: 6px;
+  -webkit-tap-highlight-color: transparent;
+}
+.account-button:active,
+.account-button[data-state='open'] {
+  background: var(--ui-bg-elevated);
 }
 .mobile-bar {
   display: none;
@@ -359,6 +368,9 @@ a:focus-visible {
   .nav-link:hover,
   .back-link:hover {
     color: var(--ui-text-highlighted);
+  }
+  .account-button:hover {
+    background: var(--ui-bg-elevated);
   }
 }
 

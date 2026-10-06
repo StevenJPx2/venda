@@ -10,7 +10,11 @@ export default {
       section: 'settings',
       access: 'administrator',
       load: () => import('./PeopleView.vue'),
-      nav: { label: 'People', icon: 'i-lucide-users' }
+      nav: {
+        label: 'People',
+        icon: 'i-lucide-users',
+        description: 'Who can sign in, their roles, and who is disabled.'
+      }
     },
     {
       id: 'accounts.invitations',
@@ -19,7 +23,11 @@ export default {
       section: 'settings',
       access: 'administrator',
       load: () => import('./InvitationsView.vue'),
-      nav: { label: 'Invitations', icon: 'i-lucide-mail' }
+      nav: {
+        label: 'Invitations',
+        icon: 'i-lucide-mail',
+        description: 'Invite someone with a private link, and revoke open ones.'
+      }
     },
     {
       id: 'accounts.tokens',
@@ -28,7 +36,11 @@ export default {
       section: 'settings',
       access: 'signed-in',
       load: () => import('./TokensView.vue'),
-      nav: { label: 'API tokens', icon: 'i-lucide-key-round' }
+      nav: {
+        label: 'API tokens',
+        icon: 'i-lucide-key-round',
+        description: 'Keys for scripts and sites that read or write as you.'
+      }
     },
     {
       id: 'accounts.profile',

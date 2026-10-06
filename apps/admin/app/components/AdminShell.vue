@@ -47,7 +47,7 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
       >
 
       <AdminNav :pages="pages" label="Main navigation" class="flex-1" />
-      <AdminIdentity class="sidebar-account" />
+      <AdminIdentity :pages="pages" />
     </aside>
 
     <USlideover
@@ -59,7 +59,7 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
     >
       <template #body>
         <AdminNav :pages="pages" label="Mobile navigation" />
-        <AdminIdentity class="sidebar-account mt-6" />
+        <AdminIdentity :pages="pages" />
       </template>
     </USlideover>
 
