@@ -63,7 +63,8 @@
         if (ann.id) {
           const me = await call('GET', '/api/auth/me', { as: 'ann' });
 
-          if (me.ok) return ann;
+          // The jar may still hold an Ann from an earlier run; only this one counts.
+          if (me.ok && me.data?.id === ann.id) return ann;
         } else {
           await ownerSignedIn(log);
 

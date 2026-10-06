@@ -1,10 +1,13 @@
 // `pnpm try`: builds the server, runs it on local workerd with an editable
 // copy of the content served live, and serves the slice try pages (try/*.html)
-// on one origin. Ctrl-C stops everything. State lives in .try/ and is wiped on
-// every start.
+// on one origin. Ctrl-C stops everything.
+//
+// The local database and sessions (.try/data) are kept between runs, so you
+// stay signed in; the build and the content copy start fresh every time.
+// `pnpm try --fresh` wipes everything first.
 import { spawn } from 'node:child_process';
 import { createWriteStream } from 'node:fs';
-import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,6 +16,9 @@ import { serveContent } from './content-server.mjs';
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const SERVER = join(ROOT, 'packages/server');
 const STATE = join(ROOT, '.try');
+// D1 and KV under wrangler: people, tokens and sessions.
+const DATA = join(STATE, 'data');
+const FRESH = process.argv.includes('--fresh');
 // Built into the Worker as its fallback; the Worker reads the editable copy in
 // .try/content through the content server, so an edit shows on the next request.
 const CONTENT = join(ROOT, 'try/content');
@@ -21,7 +27,7 @@ const CONTENT_FILE = /^\/files\/([a-z0-9-]+\/[a-z0-9-]+\.mdx?)$/;
 const PORTS = { page: 8794, server: 8805, content: 8806 };
 // Its own build output, so `pnpm e2e` or a manual build cannot replace files this server is serving.
 const BUILD = join(STATE, 'build');
-// Throwaway local credentials for the recovery owner; wiped with .try/ on every start.
+// Throwaway local credentials for the recovery owner, for this machine only.
 const OWNER_ENV = {
   VENDA_OWNER_EMAIL: 'owner@venda.local',
   VENDA_OWNER_PASSWORD: 'try-venda-owner'
@@ -285,8 +291,12 @@ process.on('uncaughtException', error => {
   stopAll(1);
 });
 
-await rm(STATE, { recursive: true, force: true });
-await mkdir(join(STATE, 'data'), { recursive: true });
+// Everything in .try/ except the data is rebuilt each run; --fresh drops the data too.
+for (const entry of await readdir(STATE).catch(() => []))
+  if (FRESH || join(STATE, entry) !== DATA)
+    await rm(join(STATE, entry), { recursive: true, force: true });
+
+await mkdir(DATA, { recursive: true });
 await cp(CONTENT, LIVE_CONTENT, { recursive: true });
 console.log('Venda try: building and starting the server');
 
@@ -307,7 +317,7 @@ serve('server', 'npx', [
   'dev',
   '--local',
   '--persist-to',
-  join(STATE, 'data'),
+  DATA,
   '--config',
   join(BUILD, 'server/wrangler.json'),
   '--port',
@@ -327,5 +337,6 @@ console.log(`
   Admin: http://localhost:${PORTS.server}/admin/
   Server: Cloudflare Workers on local workerd, with local D1 and KV
   Content: .try/content, live. Edit any file; the next request serves it.
+  Data: .try/data, kept between runs, so you stay signed in. \`pnpm try --fresh\` starts clean.
   Logs: .try/*.log · Ctrl-C to stop
 `);

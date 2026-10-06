@@ -59,6 +59,15 @@ a lazy plugin, and permissions stay enforced on the API.
 The Worker reads `.try/content`, a live copy of `try/content`: edit any file
 there and the next request serves the change, with no rebuild or restart.
 
+Between runs, `pnpm try` keeps:
+- The local database and sessions (`.try/data`), so you stay signed in and
+  the people and tokens you made are still there.
+
+It starts these fresh every time:
+- The build, the logs and the content copy.
+
+`pnpm try --fresh` wipes the data too.
+
 `pnpm e2e admin` drives that same UI in a browser, including an invited author
 in a private context, 390px screens and a thousand-entry collection.
 
@@ -80,7 +89,7 @@ pnpm build
 pnpm fallow     # dead code, complexity and duplication in the gated packages
 pnpm check      # lint + typecheck + test + fallow in one go
 pnpm e2e        # live suites: the Worker built and run on local workerd, deployed shape and live folder
-pnpm try        # start it with live content and open http://localhost:8794 to try each slice by hand
+pnpm try        # start it with live content and open http://localhost:8794 to try each slice by hand (--fresh: wipe its data)
 ```
 
 Prettier formats everything (`.prettierrc.json`, 80 columns); Markdown, content fixtures and generated files keep their authored shape (`.prettierignore`). Linting uses ESLint flat config for the blank-line rhythm and code rules, with `eslint-config-prettier` so the two never disagree. Shared rules live in `eslint.config.shared.mjs`; the Nuxt apps extend `@nuxt/eslint`'s `withNuxt()`, and the other packages use `typescript-eslint`. Packages listed in `tools/new-architecture.json` also get Oxlint's vendored anti-slop and Effect rules and the Fallow gate. Run `pnpm lint:fix` to format and auto-fix in one pass.
