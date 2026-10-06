@@ -27,14 +27,26 @@ async function contentChecks(page, label, base, screenshots) {
     check(`${label}: a thousand-entry collection is loaded in pages`, await more.count() === 1);
   }
 
-  await page.getByRole('textbox', { name: 'Search entries', exact: true }).fill('First light');
-  await page.getByRole('button', { name: 'Search', exact: true }).click();
+  // Typing alone searches; a quick correction must win over the query it replaced.
+  const searchBox = page.getByRole('searchbox', { name: 'Search entries', exact: true });
+
+  await searchBox.pressSequentially('Unfin');
+  await searchBox.fill('First light');
   await page.getByRole('link').filter({ hasText: 'Unfinished' }).waitFor({ state: 'hidden' });
-  check(`${label}: the content search narrows the list`, await page.getByRole('link').filter({ hasText: 'First light' }).count() === 1);
+  await page.waitForFunction(() => document.querySelector('.list-surface')?.getAttribute('aria-busy') === 'false');
+  check(`${label}: typing searches, and the latest query wins`, await page.getByRole('link').filter({ hasText: 'First light' }).count() === 1 && await page.locator('a.content-row').count() === 1);
+  await page.getByRole('button', { name: 'Clear search', exact: true }).click();
+  await page.getByRole('link').filter({ hasText: 'Unfinished' }).waitFor();
+  check(`${label}: clearing the search brings every entry back`, await searchBox.inputValue() === '');
+  await searchBox.fill('First light');
+  await page.getByRole('link').filter({ hasText: 'Unfinished' }).waitFor({ state: 'hidden' });
   await page.screenshot({ path: join(screenshots, `${label}-content.png`) });
   await page.getByRole('link').filter({ hasText: 'First light' }).click();
   await page.getByRole('heading', { name: 'First light', exact: true }).waitFor();
   check(`${label}: entry preview renders safe rich text`, await page.locator('.preview-prose strong').innerText() === '6:12');
+  await page.getByRole('link', { name: 'Field notes', exact: true }).click();
+  await page.getByRole('heading', { name: 'Field notes', exact: true }).waitFor();
+  check(`${label}: the back link is named for, and returns to, the collection`, page.url().endsWith('/admin/content/field-notes'));
   await page.getByRole('link', { name: 'Content problems', exact: true }).click();
   await page.getByText('field-notes/no-title.md', { exact: true }).waitFor();
   check(`${label}: invalid file problems are visible`, (await page.locator('#main-content').innerText()).includes('title is required'));

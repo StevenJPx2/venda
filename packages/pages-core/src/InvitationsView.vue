@@ -52,7 +52,7 @@ async function remove() {
     <div v-for="invitation in invitations.data.value" :key="invitation.id" class="content-row">
       <div class="min-w-0 flex-1">
         <p class="font-medium break-all">{{ invitation.email }}</p>
-        <p class="mt-1 text-xs text-muted">Expires {{ new Date(invitation.expiresAt).toLocaleDateString() }}</p>
+        <p class="mt-1 text-xs text-muted tabular-nums">Expires {{ new Date(invitation.expiresAt).toLocaleDateString() }}</p>
       </div>
 
       <span class="text-xs text-muted capitalize">{{ invitation.role }}</span>

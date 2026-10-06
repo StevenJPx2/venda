@@ -1,64 +1,42 @@
 <script setup lang="ts">
-import { canOpen, useAdmin, useAdminAction, type AdminPage } from '@venda/admin';
+import type { AdminPage } from '@venda/admin';
 
-const props = defineProps<{ pages: ReadonlyArray<AdminPage> }>();
-const admin = useAdmin();
-const { error, perform } = useAdminAction();
+defineProps<{ pages: ReadonlyArray<AdminPage> }>();
 const route = useRoute();
 const open = ref(false);
-const links = computed(() => props.pages.filter(page => page.nav && canOpen(page, admin.user.value?.role) && page.section !== 'public'));
-const sections = ['content', 'settings', 'account'] as const;
+const scrolled = ref(false);
 
-const isCurrent = (path: string) => route.path === `/${path}` || route.path.startsWith(`/${path}/`);
+// The bar's hairline appears only once content scrolls beneath it.
+const onScroll = () => { scrolled.value = window.scrollY > 0; };
 
 watch(() => route.fullPath, () => { open.value = false; });
 
-async function signOut() {
-  await perform(async () => {
-    await admin.request(admin.api.auth.signOut());
-    admin.user.value = null;
-    await navigateTo('/');
-  });
-}
+onMounted(() => {
+  onScroll();
+  window.addEventListener('scroll', onScroll, { passive: true });
+});
+
+onUnmounted(() => window.removeEventListener('scroll', onScroll));
 </script>
 
 <template>
   <div class="admin-shell">
-    <header class="mobile-bar">
-      <span class="brand-mark">venda<span>.</span></span>
+    <!-- The trigger sits on the edge the navigation sheet slides in from. -->
+    <header class="mobile-bar" :data-scrolled="scrolled">
       <UButton icon="i-lucide-menu" aria-label="Open navigation" color="neutral" variant="ghost" @click="open = true" />
+      <NuxtLink to="/content" class="brand-mark">venda<span>.</span></NuxtLink>
     </header>
 
     <aside class="admin-sidebar">
       <NuxtLink to="/content" class="brand-mark px-3 py-5">venda<span>.</span></NuxtLink>
-
-      <nav aria-label="Main navigation" class="flex-1">
-        <div v-for="section in sections" :key="section" class="nav-section">
-          <p v-if="section === 'settings'" class="nav-label">Settings</p>
-
-          <NuxtLink v-for="page in links.filter(item => item.section === section)" :key="page.id" :to="`/${page.path}`" class="nav-link" :class="{ 'nav-current': isCurrent(page.path) }" :aria-current="isCurrent(page.path) ? 'page' : undefined">
-            <UIcon :name="page.nav?.icon" class="size-4 shrink-0" />{{ page.nav?.label }}
-          </NuxtLink>
-        </div>
-      </nav>
-
-      <div class="sidebar-account">
-        <p class="truncate text-sm font-medium">{{ admin.user.value?.name || admin.user.value?.email }}</p>
-        <p class="truncate text-xs text-muted mt-1">{{ admin.user.value?.role }}</p>
-        <p v-if="error" role="alert" class="text-xs text-error mt-2">{{ error }}</p>
-        <UButton label="Sign out" icon="i-lucide-log-out" variant="ghost" color="neutral" size="sm" class="mt-3 -ml-2" @click="signOut" />
-      </div>
+      <AdminNav :pages="pages" label="Main navigation" class="flex-1" />
+      <AdminIdentity class="sidebar-account" />
     </aside>
 
     <USlideover v-model:open="open" side="left" title="Navigation" description="Your content and settings" :ui="{ content: 'max-w-xs' }">
       <template #body>
-        <nav aria-label="Mobile navigation">
-          <NuxtLink v-for="page in links" :key="page.id" :to="`/${page.path}`" class="nav-link">
-            <UIcon :name="page.nav?.icon" class="size-4" />{{ page.nav?.label }}
-          </NuxtLink>
-        </nav>
-
-        <UButton label="Sign out" variant="ghost" color="neutral" class="mt-6" @click="signOut" />
+        <AdminNav :pages="pages" label="Mobile navigation" />
+        <AdminIdentity class="sidebar-account mt-6" />
       </template>
     </USlideover>
 

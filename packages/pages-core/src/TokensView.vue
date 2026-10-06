@@ -52,7 +52,7 @@ async function remove() {
     <div v-for="token in tokens.data.value" :key="token.id" class="content-row">
       <div class="min-w-0 flex-1">
         <p class="font-medium break-words">{{ token.name }}</p>
-        <p class="mt-1 text-xs text-muted">{{ token.lastUsedAt ? `Last used ${new Date(token.lastUsedAt).toLocaleDateString()}` : 'Not used yet' }}</p>
+        <p class="mt-1 text-xs text-muted tabular-nums">{{ token.lastUsedAt ? `Last used ${new Date(token.lastUsedAt).toLocaleDateString()}` : 'Not used yet' }}</p>
       </div>
 
       <UDropdownMenu :items="[{ label: 'Revoke token', color: 'error', onSelect: () => { selected = token; revoke.error.value = ''; confirm = true; } }]">

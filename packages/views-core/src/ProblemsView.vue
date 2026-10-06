@@ -17,7 +17,7 @@ onMounted(problems.reload);
   <AdminFeedback :busy="problems.busy.value" :error="problems.error.value" :empty="problems.data.value?.length === 0" title="All files look good" description="Every content file fits its collection model." @retry="problems.reload" />
 
   <div class="list-surface">
-    <div v-for="problem in problems.data.value" :key="problem.path" class="py-5 border-b border-default">
+    <div v-for="problem in problems.data.value" :key="problem.path" class="py-5 px-3 border-b border-default">
       <p class="text-sm font-medium break-all">{{ problem.path }}<span v-if="problem.line" class="text-muted"> · line {{ problem.line }}</span></p>
       <p class="text-sm text-muted mt-2 break-words">{{ problem.message }}</p>
     </div>

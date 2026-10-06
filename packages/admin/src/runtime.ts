@@ -76,6 +76,8 @@ export function useAdmin(): AdminRuntime {
   return runtime;
 }
 
+const failure = (cause: unknown) => cause instanceof Error ? cause.message : 'The request failed. Please try again.';
+
 /** A user-triggered mutation: one at a time, a visible error, always settled. */
 export function useAdminAction() {
   const busy = ref(false);
@@ -90,7 +92,7 @@ export function useAdminAction() {
     try {
       await work();
     } catch (cause) {
-      error.value = cause instanceof Error ? cause.message : 'The request failed. Please try again.';
+      error.value = failure(cause);
     } finally {
       busy.value = false;
     }
@@ -99,11 +101,32 @@ export function useAdminAction() {
   return { busy, error, perform };
 }
 
-/** An async screen read, owned by its component. The component triggers reload after mutations. */
+/**
+ * An async screen read, owned by its component. The component triggers reload after mutations.
+ * The latest reload wins: a new query starts at once, and an older answer arriving late is dropped.
+ */
 export function useAdminResource<A>(read: () => Promise<A>) {
   const data: Ref<A | undefined> = ref();
-  const action = useAdminAction();
-  const reload = () => action.perform(async () => { data.value = await read(); });
+  const busy = ref(false);
+  const error = ref('');
+  let latest = 0;
 
-  return { data, reload, ...action };
+  async function reload() {
+    const request = ++latest;
+
+    busy.value = true;
+    error.value = '';
+
+    try {
+      const value = await read();
+
+      if (request === latest) data.value = value;
+    } catch (cause) {
+      if (request === latest) error.value = failure(cause);
+    } finally {
+      if (request === latest) busy.value = false;
+    }
+  }
+
+  return { data, busy, error, reload };
 }

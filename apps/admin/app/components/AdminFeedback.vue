@@ -9,7 +9,7 @@ defineEmits<{ retry: [] }>();
     <UButton class="mt-3" label="Try again" variant="outline" color="neutral" @click="$emit('retry')" />
   </div>
 
-  <p v-else-if="busy" role="status" class="py-8 text-sm text-muted">Loading…</p>
+  <p v-else-if="busy" role="status" class="admin-loading py-8 text-sm text-muted">Loading…</p>
 
   <div v-else-if="empty" class="py-16 text-center">
     <p class="text-highlighted font-medium">{{ title ?? 'Nothing here yet' }}</p>

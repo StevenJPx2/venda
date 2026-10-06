@@ -7,3 +7,17 @@ export function entryTitle(entry: Pick<IndexedEntry, 'data' | 'slug'>, field: st
 
   return Predicate.isString(value) && value.trim() ? value : entry.slug;
 }
+
+/** A frontmatter value as it reads in the preview: text as written, a list of text as a list, anything else as JSON. */
+export function fieldText(value: IndexedEntry['data'][string]): string {
+  if (Predicate.isString(value)) return value;
+
+  if (Array.isArray(value) && value.every(Predicate.isString)) return value.join(', ');
+
+  return JSON.stringify(value);
+}
+
+const STATE_LABELS: Record<IndexedEntry['state'], string> = { published: 'Published', draft: 'Draft', future: 'Future dated' };
+
+/** The status text beside an entry's dot. */
+export const stateLabel = (state: IndexedEntry['state']): string => STATE_LABELS[state];
