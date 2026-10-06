@@ -69,8 +69,10 @@ const open = shallowRef(false);
         class="px-0"
         @click="model = null"
       />
+
       <UPopover v-model:open="open" :content="{ align: 'end', sideOffset: 8 }">
         <UButton color="neutral" variant="link" size="sm" icon="i-lucide-calendar" aria-label="Pick a day" class="px-0" />
+
         <template #content>
           <UCalendar :model-value="day" v-bind="calendarLimits" class="p-2" @update:model-value="(next: unknown) => { onPickDay(next); open = false; }" />
         </template>

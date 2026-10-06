@@ -95,13 +95,16 @@ onBeforeUnmount(() => {
       <button type="button" class="pv-btn pv-btn--ghost pv-press -ml-2">
         <UIcon name="i-lucide-arrow-left" class="size-4" />Posts
       </button>
+
       <p class="flex min-w-0 items-center gap-2 text-[13px]" aria-live="polite">
         <span class="pv-dot" :data-tone="status.tone" />
         <span class="truncate text-highlighted">{{ status.label }}</span>
         <span class="hidden shrink-0 text-dimmed sm:inline">{{ post.saveState.value === 'saving' ? 'Saving…' : 'Saved' }}</span>
       </p>
+
       <div class="ml-auto flex shrink-0 items-center gap-1">
         <button type="button" class="pv-btn pv-btn--ghost pv-press pv-wide">Preview</button>
+
         <div ref="publishRef" class="relative">
           <button
             type="button"
@@ -112,18 +115,22 @@ onBeforeUnmount(() => {
           >
             {{ post.publishing.value ? 'Publishing…' : publishLabel }}
           </button>
+
           <div class="f-pop" :data-open="confirmOpen || undefined" :inert="!confirmOpen" role="dialog" aria-label="Publish">
             <p class="text-[13px] font-semibold text-highlighted">Ready to publish?</p>
             <p class="mt-1 line-clamp-2 text-xs text-muted">“{{ post.title.value || 'Untitled' }}” will be visible on your site.</p>
+
             <div class="mt-4 space-y-1">
               <label class="f-option">
                 <input v-model="when" type="radio" value="now" class="accent-current">
                 <span>Right now</span>
               </label>
+
               <label class="f-option">
                 <input v-model="when" type="radio" value="later" class="accent-current">
                 <span>Schedule for later</span>
               </label>
+
               <VendaDateTimeInput
                 v-if="when === 'later'"
                 :model-value="laterAt || null"
@@ -133,14 +140,17 @@ onBeforeUnmount(() => {
                 @update:model-value="value => (laterAt = value ?? '')"
               />
             </div>
+
             <div class="mt-4 flex justify-end gap-1">
               <button type="button" class="pv-btn pv-btn--ghost pv-press" @click="confirmOpen = false">Cancel</button>
+
               <button type="button" class="pv-btn pv-btn--ink pv-press" :disabled="when === 'later' && !laterAt" @click="confirm">
                 {{ when === 'later' ? 'Schedule' : publishLabel }}
               </button>
             </div>
           </div>
         </div>
+
         <button
           type="button"
           class="pv-btn pv-btn--ghost pv-btn--icon pv-press"
@@ -160,6 +170,7 @@ onBeforeUnmount(() => {
           <img :src="post.featureImage.value" alt="" class="aspect-[16/9] w-full object-cover">
           <button type="button" class="f-chrome pv-btn pv-press absolute right-3 top-3 bg-black/60 text-white backdrop-blur" @click="post.featureImage.value = null">Remove</button>
         </figure>
+
         <button v-else type="button" class="f-chrome pv-btn pv-btn--ghost pv-press -ml-3 mb-4" @click="post.pickFeatureImage">
           <UIcon name="i-lucide-image-plus" class="size-4" />Add feature image
         </button>
@@ -172,6 +183,7 @@ onBeforeUnmount(() => {
           <span class="text-dimmed" aria-hidden="true">·</span>
           <span class="pv-num text-dimmed">{{ post.readingMinutes.value }} min read</span>
         </p>
+
         <div class="h-8" />
         <ProtoBody ref="bodyRef" v-model="post.body.value" serif @typing="startTyping" />
       </div>
@@ -180,13 +192,16 @@ onBeforeUnmount(() => {
     <aside class="f-panel" :data-open="panelOpen || undefined" :data-instant="instant || undefined" :inert="!panelOpen" aria-label="Post settings">
       <div class="flex h-12 shrink-0 items-center justify-between px-5">
         <h2 class="text-[13px] font-semibold text-highlighted">Post settings</h2>
+
         <button type="button" class="pv-btn pv-btn--ghost pv-btn--icon pv-press -mr-2" aria-label="Close settings" @click="togglePanel()">
           <UIcon name="i-lucide-x" class="size-4" />
         </button>
       </div>
+
       <div class="min-h-0 flex-1 overflow-y-auto px-5 pb-6 pt-2">
         <ProtoSettingsFields :post="post" />
       </div>
+
       <div class="flex shrink-0 items-center gap-1 border-t border-default px-3 py-2.5">
         <button type="button" class="pv-btn pv-btn--ghost pv-press"><UIcon name="i-lucide-history" class="size-4" />History</button>
         <button v-if="post.status.value !== 'draft'" type="button" class="pv-btn pv-btn--ghost pv-press" @click="post.unpublish">Unpublish</button>

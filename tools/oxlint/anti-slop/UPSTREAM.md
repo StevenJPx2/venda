@@ -17,6 +17,8 @@ Every generic and Effect rule is enabled at `error`. One rule is changed:
 - `rules/require-readable-spacing.ts` allows an `if` straight after an `if`,
   so consecutive guards stay grouped as one paragraph. This matches the
   breathing-room rule in `eslint.config.shared.mjs`.
+- The same rule allows consecutive variable declarations to stay grouped,
+  including module-level declarations, as the code-breathing-room skill requires.
 
 Scope is a Venda policy, not a change to the rules: Oxlint covers the packages
 listed in `oxlint.config.ts`, which grows as each package moves onto the new

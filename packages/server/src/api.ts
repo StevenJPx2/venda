@@ -5,6 +5,7 @@ import { Context, Effect, Layer } from 'effect';
 import { HttpRouter, HttpServer } from 'effect/http';
 import { HttpApiBuilder } from 'effect/http-api';
 import { AuthenticationLive, AuthHandlers, InvitationsHandlers, TokensHandlers, UsersHandlers } from './api/accounts';
+import { AdminContentHandlers } from './api/content-admin';
 import { domainRunner, type DomainServices } from './infrastructure';
 
 export class BuildInfo extends Context.Service<BuildInfo, { readonly version: string }>()('venda/server/BuildInfo') {}
@@ -36,7 +37,7 @@ const ContentHandlers = HttpApiBuilder.group(
 
 /** The contract's routes; the composition root provides `BuildInfo` and the domain services. */
 const ApiRoutes = HttpApiBuilder.layer(VendaApi).pipe(
-  Layer.provide([SystemHandlers, ContentHandlers, AuthHandlers, UsersHandlers, InvitationsHandlers, TokensHandlers]),
+  Layer.provide([SystemHandlers, ContentHandlers, AdminContentHandlers, AuthHandlers, UsersHandlers, InvitationsHandlers, TokensHandlers]),
   Layer.provide(AuthenticationLive),
   Layer.provide(HttpServer.layerServices)
 );

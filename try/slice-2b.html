@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Slice 2b · Try Venda</title>
+  <link rel="stylesheet" href="/try.css">
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <a class="crumb" href="/">← Try Venda</a>
+        <h1>Slice 2b · The admin</h1>
+        <p class="lede">A working admin, built from lazy plugins and served on the same origin as the API. Browse content and file problems, invite someone, manage people, change your password and create API tokens. Content is read-only until slice 3 adds saving and publishing.</p>
+      </div>
+      <button class="primary" id="run-all">Run the checks</button>
+    </header>
+
+    <section class="check">
+      <div class="check-head">
+        <div>
+          <h2>Open the real admin</h2>
+          <p>Sign in with <code>owner@venda.local</code> / <code>try-venda-owner</code>. These are throwaway credentials, reset when you restart <code>pnpm try</code>.</p>
+        </div>
+        <div class="actions">
+          <a href="http://localhost:8805/admin/content" target="_blank" rel="noopener">Open on Workers ↗</a>
+          <a href="http://localhost:8807/admin/content" target="_blank" rel="noopener">Open on Node ↗</a>
+        </div>
+      </div>
+      <div class="extra">
+        <ol>
+          <li>Open Journal, then an entry. Check the writing preview and the draft state.</li>
+          <li>Open Content problems. The missing-title file is recorded here.</li>
+          <li>Invite an author, copy the join link, and open it in a private window. Join, then browse content: the author cannot see drafts or administrator settings.</li>
+          <li>Create an API token. Copy its secret, then revoke it through the confirmation.</li>
+          <li>In People, disable the invited person. Their next request returns them to sign-in.</li>
+          <li>Resize to 390px. Open navigation, choose a page, and check that it closes.</li>
+        </ol>
+        <p class="note">The automated browser suite exercises these actions on both runtimes: <code>pnpm e2e admin</code>. The checks below verify the serving and API boundaries; they do not pretend to test the UI.</p>
+      </div>
+    </section>
+
+    <div id="checks"></div>
+  </main>
+
+  <script type="module">
+    import { call, mount } from '/harness.js';
+
+    const OWNER = { email: 'owner@venda.local', password: 'try-venda-owner' };
+
+    async function signIn(runtime) {
+      const result = await call(runtime, 'POST', '/api/auth/sign-in', { as: 'admin-catchup', body: OWNER });
+
+      if (!result.ok) throw new Error('Sign-in failed');
+    }
+
+    mount([
+      {
+        title: 'The shell and deep links are served',
+        description: 'GET /admin/settings/people returns the static Nuxt shell. A missing JavaScript file stays a 404 rather than being replaced with HTML.',
+        async run(runtime, { log }) {
+          const shell = await call(runtime, 'GET', '/admin/settings/people');
+          const missing = await call(runtime, 'GET', '/admin/_nuxt/no-such-file.js');
+
+          log(shell.line);
+          log(missing.line);
+
+          return { pass: shell.ok && shell.headers.get('content-type')?.includes('text/html') && missing.status === 404, note: 'HTML deep link served; missing asset is 404' };
+        }
+      },
+      {
+        title: 'Authenticated reads power the content plugin',
+        description: 'The administrator can read models, indexed entries (including drafts) and file problems. These are protected contract endpoints, not the try server reading the database.',
+        async run(runtime, { log }) {
+          await signIn(runtime);
+
+          const options = { as: 'admin-catchup' };
+          const models = await call(runtime, 'GET', '/api/admin/collections', options);
+          const entries = await call(runtime, 'GET', '/api/admin/collections/journal/entries', options);
+          const problems = await call(runtime, 'GET', '/api/admin/content-problems', options);
+
+          for (const result of [models, entries, problems]) log(result.line, result.data);
+
+          return { pass: models.data?.some?.(item => item.slug === 'journal') && entries.data?.items?.some(item => item.state === 'draft') && problems.data?.some?.(item => item.path === 'journal/missing-title.md'), note: 'Models, drafts and problems available to the admin' };
+        }
+      }
+    ]);
+  </script>
+</body>
+</html>

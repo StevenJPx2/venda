@@ -26,8 +26,12 @@ useSeoMeta({ title: () => `${title.value} · Venda`, description: () => post.val
     <header class="mb-10 space-y-4">
       <div class="flex flex-wrap items-center gap-2 text-sm text-muted">
         <span>{{ published }}</span>
-        <UBadge v-for="tag in post.data.tags ?? []" :key="tag" color="primary" variant="subtle" size="sm">{{ tag }}</UBadge>
+
+        <UBadge v-for="tag in post.data.tags ?? []" :key="tag" color="primary" variant="subtle" size="sm">
+          {{ tag }}
+        </UBadge>
       </div>
+
       <h1 class="text-4xl font-bold tracking-tight text-highlighted sm:text-5xl">{{ title }}</h1>
       <p v-if="post.data.excerpt" class="text-lg text-muted">{{ post.data.excerpt }}</p>
     </header>

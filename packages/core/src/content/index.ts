@@ -7,3 +7,5 @@ export * as contentSchema from './schema';
 export { ContentStore, ContentStoreError, gitBlobSha, type StoredFile } from './services';
 
 export { syncAll, syncContent, type SyncReport } from './sync';
+
+export { getIndexedEntry, listCollections, listContentProblems, listIndexedEntries } from './admin';

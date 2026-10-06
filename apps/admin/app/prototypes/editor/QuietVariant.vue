@@ -63,16 +63,20 @@ onBeforeUnmount(() => {
       <button type="button" class="pv-btn pv-btn--ghost pv-press -ml-2">
         <UIcon name="i-lucide-chevron-left" class="size-4" />Posts
       </button>
+
       <p class="flex min-w-0 items-center gap-2 text-[13px]" aria-live="polite">
         <span class="pv-dot" :data-tone="status.tone" />
         <span class="truncate text-highlighted">{{ status.label }}</span>
         <span class="hidden shrink-0 text-dimmed sm:inline">{{ post.saveState.value === 'saving' ? 'Saving…' : 'Saved' }}</span>
       </p>
+
       <div class="ml-auto flex shrink-0 items-center gap-1">
         <button type="button" class="pv-btn pv-btn--ghost pv-press pv-wide">Preview</button>
+
         <button v-if="action" type="button" class="pv-btn pv-btn--ink pv-press min-w-[5.5rem] justify-center" :disabled="post.publishing.value" @click="runAction">
           {{ post.publishing.value ? 'Publishing…' : action }}
         </button>
+
         <button
           type="button"
           class="pv-btn pv-btn--ghost pv-btn--icon pv-press"
@@ -91,6 +95,7 @@ onBeforeUnmount(() => {
         <img :src="post.featureImage.value" alt="" class="aspect-[16/9] w-full object-cover">
         <button type="button" class="pv-btn pv-press absolute right-3 top-3 bg-black/60 text-white backdrop-blur" @click="post.featureImage.value = null">Remove</button>
       </figure>
+
       <button v-else type="button" class="pv-btn pv-btn--ghost pv-press -ml-3 mb-4" @click="post.pickFeatureImage">
         <UIcon name="i-lucide-image-plus" class="size-4" />Add feature image
       </button>
@@ -103,13 +108,16 @@ onBeforeUnmount(() => {
     <aside class="q-panel" :data-open="panelOpen || undefined" :data-instant="instant || undefined" :inert="!panelOpen" aria-label="Post settings">
       <div class="flex h-12 shrink-0 items-center justify-between px-5">
         <h2 class="text-[13px] font-semibold text-highlighted">Post settings</h2>
+
         <button type="button" class="pv-btn pv-btn--ghost pv-btn--icon pv-press -mr-2" aria-label="Close settings" @click="togglePanel()">
           <UIcon name="i-lucide-x" class="size-4" />
         </button>
       </div>
+
       <div class="min-h-0 flex-1 overflow-y-auto px-5 pb-6 pt-2">
         <ProtoSettingsFields :post="post" />
       </div>
+
       <div class="flex shrink-0 items-center gap-1 border-t border-default px-3 py-2.5">
         <button type="button" class="pv-btn pv-btn--ghost pv-press"><UIcon name="i-lucide-history" class="size-4" />History</button>
         <button v-if="post.status.value !== 'draft'" type="button" class="pv-btn pv-btn--ghost pv-press" @click="post.unpublish">Unpublish</button>

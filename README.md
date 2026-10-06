@@ -10,7 +10,10 @@ Venda is a file-first, Cloudflare-native CMS. Content and data models live as fi
 - `packages/server`: **`@venda/server`**, the Nitro 3 host. `pnpm --filter @venda/server build` targets Cloudflare Workers (D1, content bundled from `VENDA_CONTENT_DIR`, default `./content`); `NITRO_PRESET=node` builds a Node server that keeps `content/` and `.data/venda.sqlite` in its working directory and watches the content folder. Migrations apply at startup.
 - `packages/richtext`: **`@venda/richtext`**, the rich-text document format: validation, a safe HTML renderer and plain-text helpers.
 - `packages/nuxt`: **`@venda/nuxt`**, a Nuxt module any Nuxt 4 site can install to read Venda content (`useVendaCollection`, `useVendaEntry`, `<VendaContent>`). See [its README](packages/nuxt/README.md).
-- `apps/admin`: the admin, rebuilt as a plugin-built shell in slice 6; today it holds the Focus editor prototype (`/prototypes/editor`).
+- `packages/admin`: **`@venda/admin`**, the browser SDK and the provisional plugin contract, with a typed client built from `VendaApi`.
+- `packages/views-core`, `packages/pages-core`: the lazy screens (content and problems; people, invitations, tokens, account and join). They depend on the SDK, never on each other.
+- `packages/preset-default`: composes the first-party plugins.
+- `apps/admin`: **`@venda/admin-app`**, a Nuxt 4.6 static shell that the Nitro 3 host serves at `/admin/`, on the API's own origin. The Focus editor prototype is still at `/admin/prototypes/editor` until slice 3 promotes it.
 - `apps/landing`: the Venda website, a Nuxt UI site built on `@venda/nuxt`.
 
 ## Content on disk
@@ -40,8 +43,21 @@ Signed in (the session cookie, or `Authorization: Bearer <API token>`):
 - `GET /api/users`, `PATCH /api/users/:id` (`{ role?, status?, name? }`): administrators only.
 - `GET /api/invitations`, `POST /api/invitations` (`{ email, role }`), `DELETE /api/invitations/:id`: administrators only.
 - `GET /api/tokens`, `POST /api/tokens` (`{ name }`; the secret is returned once), `DELETE /api/tokens/:id`: your own tokens; making one needs a signed-in session, not a token.
+- `GET /api/admin/collections`, `GET /api/admin/collections/:collection/entries` (cursor-paged, `?q=` to search), `GET /api/admin/collections/:collection/entries/:slug`: what the admin shows. Administrators and editors see drafts and future-dated entries; authors and contributors see published entries only.
+- `GET /api/admin/content-problems`: files that do not fit their model, with their line. Administrators only.
 
-Entries come back as `{ collection, slug, publishedAt, data }`, with the rich-text field as a document. Errors are tagged JSON (`{ "_tag": "CollectionNotFound", ... }`) with one status code each. Roles are administrator, editor, author and contributor; in this slice only administrators have extra powers (people and invitations), and content roles arrive with the write path.
+Entries come back as `{ collection, slug, publishedAt, data }`, with the rich-text field as a document. Errors are tagged JSON (`{ "_tag": "CollectionNotFound", ... }`) with one status code each. Roles are administrator, editor, author and contributor; administrators and editors see drafts in the admin (people and invitations stay administrator-only), and per-entry ownership arrives with the write path.
+
+## Try the admin
+
+Run `pnpm try`, open `http://localhost:8794/slice-2b` and choose Workers or Node.
+Sign in as `owner@venda.local` / `try-venda-owner` (local only). Browse content
+and file problems, invite someone, manage people, change your password, and
+create or revoke API tokens. Content is read-only until slice 3. Each screen is
+a lazy plugin, and permissions stay enforced on the API.
+
+`pnpm e2e admin` drives that same UI in a browser on both presets, including an
+invited author in a private context and 390px screens.
 
 ## Configuration
 

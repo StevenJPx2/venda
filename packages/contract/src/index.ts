@@ -1,9 +1,12 @@
 import { HttpApi, OpenApi } from 'effect/http-api';
+import { AdminContentApi } from './admin-content';
 import { AuthApi, InvitationsApi, TokensApi, UsersApi } from './auth';
 import { ContentApi } from './content';
 import { SystemApi } from './system';
 
 export * from './auth';
+
+export * from './admin-content';
 
 export { CollectionNotFound, ContentApi, EntryNotFound, PublicEntry } from './content';
 
@@ -17,5 +20,6 @@ export class VendaApi extends HttpApi.make('venda')
   .add(UsersApi)
   .add(InvitationsApi)
   .add(TokensApi)
+  .add(AdminContentApi)
   .prefix('/api')
   .annotateMerge(OpenApi.annotations({ title: 'Venda API' })) {}

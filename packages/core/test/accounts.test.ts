@@ -121,6 +121,21 @@ describe('administrators', () => {
 });
 
 describe('passwords and tokens', () => {
+  it('lets the recovery owner confirm their configured password and choose a personal password', async () => {
+    const { actor, secret } = await signInOwner();
+    const fresh = await run(name(actor.userId, user => Effect.gen(function*() {
+      const inPerson = yield* signedInInPerson(user, actor);
+      const proof = yield* passwordConfirmed(user, OWNER.password, inPerson);
+
+      return yield* changePassword(user, 'a personal owner password', proof);
+    })));
+
+    expect(await outcome(actorFromSession(secret))).toBe('Unauthenticated');
+    expect((await run(actorFromSession(fresh))).userId).toBe(actor.userId);
+    expect((await run(signIn(OWNER.email, 'a personal owner password'))).user.id).toBe(actor.userId);
+    expect((await run(signIn(OWNER.email, OWNER.password))).user.id).toBe(actor.userId);
+  });
+
   it('change a password only after confirming the current one, ending other sessions', async () => {
     const { actor: owner } = await signInOwner();
     const ann = await addPerson(owner, 'ann@venda.test', 'author');

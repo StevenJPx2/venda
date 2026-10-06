@@ -40,14 +40,18 @@ const menu = computed(() => [[
         <span class="text-dimmed">/</span>
         <span class="truncate text-highlighted">{{ post.title.value || 'Untitled' }}</span>
       </nav>
+
       <div class="ml-auto flex shrink-0 items-center gap-1">
         <span class="mr-2 hidden text-xs text-dimmed sm:inline" aria-live="polite">{{ post.saveState.value === 'saving' ? 'Saving…' : 'Saved' }}</span>
+
         <UDropdownMenu :items="menu" :content="{ align: 'end' }">
           <button type="button" class="pv-btn pv-btn--ghost pv-btn--icon pv-press" aria-label="More actions">
             <UIcon name="i-lucide-ellipsis" class="size-4" />
           </button>
         </UDropdownMenu>
+
         <button type="button" class="pv-btn pv-btn--ghost pv-press pv-wide">Preview</button>
+
         <button v-if="action" type="button" class="pv-btn pv-btn--ink pv-press" :disabled="post.publishing.value" @click="runAction">
           {{ post.publishing.value ? 'Publishing…' : action }}
         </button>
@@ -63,33 +67,41 @@ const menu = computed(() => [[
             <dt><UIcon name="i-lucide-circle-dot" />Status</dt>
             <dd class="flex items-center gap-2 px-2 text-highlighted"><span class="pv-dot" :data-tone="status.tone" />{{ status.label }}</dd>
           </div>
+
           <div class="i-row">
             <dt><UIcon name="i-lucide-link" />URL</dt>
             <dd class="flex items-center px-2"><span class="text-dimmed">/blog/</span><input v-model="post.slug.value" class="i-input min-w-0 flex-1 px-0" spellcheck="false" aria-label="URL slug"></dd>
           </div>
+
           <div class="i-row">
             <dt><UIcon name="i-lucide-user-round" />Author</dt>
+
             <dd class="flex items-center gap-2 px-2 text-highlighted">
               <span class="grid size-5 place-items-center rounded-full bg-elevated text-[10px] font-semibold text-muted">AW</span>{{ post.author }}
             </dd>
           </div>
+
           <div class="i-row">
             <dt><UIcon name="i-lucide-calendar" />Publish date</dt>
             <dd><input v-model="post.publishAt.value" type="datetime-local" class="i-input pv-num" aria-label="Publish date"></dd>
           </div>
+
           <div class="i-row">
             <dt><UIcon name="i-lucide-tags" />Tags</dt>
             <dd><UInputTags v-model="post.tags.value" variant="none" size="sm" placeholder="Add a tag" aria-label="Tags" class="w-full" /></dd>
           </div>
+
           <div class="i-row">
             <dt><UIcon name="i-lucide-star" />Featured</dt>
             <dd class="flex items-center px-2"><USwitch v-model="post.featured.value" size="sm" aria-label="Featured" /></dd>
           </div>
+
           <div class="i-row i-row--top">
             <dt class="pt-[7px]"><UIcon name="i-lucide-align-left" />Excerpt</dt>
             <dd><UTextarea v-model="post.excerpt.value" variant="none" autoresize :rows="1" aria-label="Excerpt" class="w-full" :ui="{ base: 'px-2 py-1.5 text-[13px] leading-relaxed text-highlighted' }" /></dd>
           </div>
         </dl>
+
         <button type="button" class="pv-press mt-1 flex items-center gap-1 rounded px-1 py-1 text-xs text-dimmed hover:text-muted" :aria-expanded="propertiesOpen" @click="propertiesOpen = !propertiesOpen">
           <UIcon name="i-lucide-chevron-right" class="i-chevron size-3.5" :data-open="propertiesOpen || undefined" />
           {{ propertiesOpen ? 'Hide properties' : '7 properties' }}

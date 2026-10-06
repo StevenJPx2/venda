@@ -1,5 +1,7 @@
 <template>
   <UApp>
-    <NuxtPage />
+    <Suspense>
+      <AdminHost />
+    </Suspense>
   </UApp>
 </template>

@@ -7,6 +7,8 @@ import { Effect } from 'effect';
 import {
   acceptInvitation, changePassword, createToken, invitationIsOpen, isAdministrator, listUsers, ownsToken, revokeToken, signedInInPerson, updateUser
 } from '../src/auth';
+import { canBrowseContent } from '../src/auth/proofs/can-browse-content';
+import { getIndexedEntry } from '../src/content';
 
 declare const actor: Actor;
 
@@ -48,5 +50,9 @@ export const mistakes = [
 
   // Letting a proof escape the request it was checked in.
   // @ts-expect-error a proof cannot outlive its names
-  name(actor.userId, admin => isAdministrator(admin))
+  name(actor.userId, admin => isAdministrator(admin)),
+
+  name(actor.userId, other.userId, (user, differentUser) => Effect.flatMap(canBrowseContent(user), proof =>
+    // @ts-expect-error a content proof is tied to the named user who was checked
+    getIndexedEntry(differentUser, 'blog', 'draft', proof)))
 ];

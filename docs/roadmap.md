@@ -126,10 +126,15 @@ Status: `[ ]` not started · `[~]` partial · `[x]` done.
 
 Everything ships together, but work proceeds in dependency order:
 
+The admin shell and plugin host came forward into slice 2b, carrying working
+UI for the read path and accounts. Every slice after that ships its API, its
+admin screens as plugins and its testable HTML together, for a tighter working
+loop. Slice 6 finishes and freezes the plugin API.
+
 1. Server, file format and read path (architecture slices 0 and 1). **Done.**
 2. Users, roles, sessions, API tokens, because every later feature records who did what (slice 2). **Done.**
 3. Structured rich text editing and the write path (slice 3).
-4. GitHub content store, then the content lifecycle: drafts vs live, revisions, scheduling, preview, trash, search (slices 4 and 5); then the admin shell and CLI (slices 6 and 7).
+4. GitHub content store, then the content lifecycle: drafts vs live, revisions, scheduling, preview, trash, search (slices 4 and 5); then freeze the plugin API and finish the CLI (slices 6 and 7).
 5. Content model: new field types, relations, singletons, i18n, typegen.
 6. Media library.
 7. Site structure: taxonomies, menus, widgets, sections, settings, redirects, SEO.

@@ -15,3 +15,5 @@ export { KeyValue, KeyValueError, Owner } from './services';
 export { actorFromSession, actorFromToken, endSession, SESSION_TTL_SECONDS } from './sessions';
 
 export { signIn } from './sign-in';
+
+export { canBrowseContent, type CanBrowseContent } from './proofs/can-browse-content';

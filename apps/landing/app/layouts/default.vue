@@ -19,9 +19,11 @@ const navItems = computed(() => [
           <span class="font-semibold tracking-tight">Venda</span>
         </NuxtLink>
       </template>
+
       <template #default>
         <UNavigationMenu :items="navItems" />
       </template>
+
       <template #right>
         <UButton label="Open the app" icon="i-lucide-arrow-up-right" to="https://app.venda.stevenjohn.co" target="_blank" external size="sm" />
       </template>
@@ -35,6 +37,7 @@ const navItems = computed(() => [
       <template #left>
         <p class="text-sm text-muted">© {{ new Date().getFullYear() }} Venda · content, at the edge. Powered by Venda itself.</p>
       </template>
+
       <template #right>
         <div class="flex items-center gap-3">
           <UButton label="Blog" color="neutral" variant="link" to="/blog" />

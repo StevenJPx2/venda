@@ -21,7 +21,12 @@
       { "name": "contract", "patterns": ["packages/contract/**"] },
       { "name": "content", "patterns": ["packages/content/**"] },
       { "name": "core", "patterns": ["packages/core/**"] },
-      { "name": "server", "patterns": ["packages/server/**"] }
+      { "name": "server", "patterns": ["packages/server/**"] },
+      { "name": "admin-sdk", "patterns": ["packages/admin/**"] },
+      { "name": "views", "patterns": ["packages/views-core/**"] },
+      { "name": "pages", "patterns": ["packages/pages-core/**"] },
+      { "name": "preset", "patterns": ["packages/preset-default/**"] },
+      { "name": "admin-app", "patterns": ["apps/admin/app/**"] }
     ],
     // Dependencies only point down: the server hosts the core, both speak the
     // contract and read files through content.
@@ -29,7 +34,12 @@
       { "from": "contract", "allow": [] },
       { "from": "content", "allow": [] },
       { "from": "core", "allow": ["contract", "content"] },
-      { "from": "server", "allow": ["core", "contract", "content"] }
+      { "from": "server", "allow": ["core", "contract", "content"] },
+      { "from": "admin-sdk", "allow": ["contract"] },
+      { "from": "views", "allow": ["admin-sdk", "contract"] },
+      { "from": "pages", "allow": ["admin-sdk", "contract"] },
+      { "from": "preset", "allow": ["views", "pages"] },
+      { "from": "admin-app", "allow": ["admin-sdk", "preset", "contract"] }
     ]
   }
 }

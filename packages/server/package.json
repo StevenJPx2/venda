@@ -5,8 +5,8 @@
   "description": "Venda's host: a Nitro app that serves the core on Cloudflare Workers or Node.",
   "type": "module",
   "scripts": {
-    "build": "nitro build",
-    "build:node": "NITRO_PRESET=node nitro build",
+    "build": "pnpm --filter @venda/admin-app build && nitro build",
+    "build:node": "pnpm --filter @venda/admin-app build && NITRO_PRESET=node nitro build",
     "test": "vitest run",
     "typecheck": "tsc --noEmit && effect-language-service diagnostics --project tsconfig.json",
     "lint": "eslint .",

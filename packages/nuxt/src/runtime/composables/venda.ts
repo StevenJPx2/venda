@@ -1,5 +1,6 @@
 import { toValue, type MaybeRefOrGetter } from 'vue';
 import { useAsyncData, useRuntimeConfig } from '#imports';
+import type { AsyncData, NuxtError } from 'nuxt/app';
 import type { VendaCollectionOptions, VendaEntry } from '../types';
 import { collectionKey, contentUrl, isNotFound, shapeEntries } from '../utils';
 
@@ -33,7 +34,7 @@ export function useVenda() {
 export function useVendaCollection<TData = Record<string, unknown>>(
   collection: MaybeRefOrGetter<string>,
   options: VendaCollectionOptions<TData> = {}
-) {
+): AsyncData<VendaEntry<TData>[], NuxtError<unknown> | undefined> {
   const { list } = useVenda();
 
   return useAsyncData(
@@ -50,7 +51,7 @@ export function useVendaCollection<TData = Record<string, unknown>>(
 export function useVendaEntry<TData = Record<string, unknown>>(
   collection: MaybeRefOrGetter<string>,
   slug: MaybeRefOrGetter<string>
-) {
+): AsyncData<VendaEntry<TData> | null, NuxtError<unknown> | undefined> {
   const { get } = useVenda();
 
   return useAsyncData(

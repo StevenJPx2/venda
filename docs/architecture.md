@@ -160,12 +160,13 @@ retries and then reports the outage.
 | `@venda/content` | The file format: `config.ts` reader and printer, field definitions, frontmatter, Markdown/MDX to and from documents, block specs. | `@venda/richtext` |
 | `@venda/core` | Domain logic in Effect: content sync and reads today; auth, collections, entries, lifecycle, media and search as their slices land. The index schema is Drizzle (`src/content/schema.ts`), migrations come from `drizzle-kit generate`. | contract, content, `effect`, `drizzle-orm` |
 | `@venda/server` | Nitro host: the contract's routes, the admin as static assets, any Nitro preset (Cloudflare Workers by default). | core, `nitro`, `@effect/sql-*` |
-| `@venda/admin` | The admin shell and plugin host (Nuxt UI SPA). | contract |
+| `@venda/admin` | The browser SDK: the plugin contract, registration and route/access checks, a typed Effect API client and the injected runtime with async screen primitives. | contract |
+| `apps/admin` (`@venda/admin-app`) | The Nuxt 4.6 static shell: sign-in, identity, routing, navigation, theme and shared primitives; chooses a preset and loads a plugin screen only when it is opened. | admin SDK, preset |
 | `@venda/preset-default` | The default plugins below, as one install. | the plugins |
 | `@venda/editor-writer` | The Ghost-style writing editor (today's Focus prototype). | admin plugin API |
 | `@venda/editor-form` | Form editor for `single` and `records`. | admin plugin API |
-| `@venda/views-core` | Posts list, records table, media grid. | admin plugin API |
-| `@venda/pages-core` | Media library, settings (general, team, API tokens). | admin plugin API |
+| `@venda/views-core` | Content: collections, entries, search, the entry view and file problems. | admin plugin API |
+| `@venda/pages-core` | People, invitations, API tokens, your account and the join page. | admin plugin API |
 | `@venda/blocks-core` | Paragraph, headings, lists, quote, code, image, divider, callout. | content, admin plugin API |
 | `@venda/fields-core` | Text, textarea, number, toggle, date and time, tags, image, relation, JSON. | admin plugin API |
 | `@venda/nuxt` | Site module: typed reads, preview, `<VendaContent>`; can mount the server inside the site's own Nitro. | contract, richtext |
@@ -287,6 +288,15 @@ Rules for plugins:
 
 In detail:
 
+- **Page (today's whole surface):** each plugin has an id and pages, each with
+  an id, a path of named segments, a title, access (`public`, `signed-in`,
+  `administrator`), a section (`content`, `settings`, `account`, `public`), an
+  optional navigation label and icon, and a lazy `load()`.
+  `apps/admin/app/utils/plugins.ts` selects `@venda/preset-default`, which
+  composes `@venda/views-core` and `@venda/pages-core`. Duplicate ids and
+  equivalent route patterns are rejected at registration. The SDK is
+  provisional: the editor, block and field slots arrive only with the slices
+  that use them, and slice 6 finishes and freezes the API.
 - **Editor:** the screen for a collection kind. `posts` and `pages` default to
   the writer, `single` and `records` to the form editor; a collection may name
   another with `editor:`.
@@ -334,6 +344,20 @@ line. ESLint enforces the mechanical part
 (`@stylistic/padding-line-between-statements`, `padded-blocks`,
 `no-multiple-empty-lines` in `eslint.config.shared.mjs`); grouping by phase is
 checked in review.
+
+Templates have the same rhythm. Multiline sibling sections and components are
+separated by a blank line, nested containers are expanded and indented, and
+short text or inline phrases and adjacent leaf controls stay compact. A gap
+after a multiline opening tag's props is allowed, and consecutive variable
+declarations may be grouped. `sharedTemplateRules` in
+`eslint.config.shared.mjs` enforces it for the Nuxt apps and the plugin
+screens (`vue/padding-line-between-tags` on multiline neighbours,
+`vue/multiline-html-element-content-newline`,
+`vue/singleline-html-element-content-newline`, `vue/html-indent`), and
+`scripts/spacing.test.mjs` proves both that the rules accept the intended shape
+and that they produce it by autofix. Prettier 3.9.9 was checked against the
+same fixture and removes the gap after an opening tag, so it is installed but
+not wired in as a conflicting formatting gate.
 
 ## Delivery
 
@@ -385,16 +409,35 @@ suites; it does not replace them.
    that must not compile. "An administrator remains" is a guarded update
    instead, since a proof would be stale under concurrent demotions. The
    Worker is 524 kB gzipped.
+2b. **Admin catch-up.** Pull the shell and plugin host forward and build the
+   slices above as real UI. **Done:** the admin is a static Nuxt build served at
+   `/admin/` by `@venda/server` on the API's own origin, so there is no second
+   production server. Deep links fall back to the shell with `no-store`, while
+   a missing asset stays a 404 and is never answered with HTML. Screens exist
+   for collections, cursor-paged entries, search, the entry view, file
+   problems, people, invitations and their public join links, passwords, tokens
+   and your account. Content is read-only until slice 3.
+   `adminContent` is a protected contract group, and the `CanBrowseContent`
+   proof carries the case: administrators and editors see every file,
+   authors and contributors see published files only (entry ownership lands
+   with the write path), and only administrators see repository problems.
+   Playwright drives the real UI on both presets: sign-in, an invited author in
+   a private context, token creation and revocation, disabling someone, mobile
+   navigation at 390px and a thousand-entry collection with long non-Latin
+   titles. `try/slice-2b.html` links to the actual admin and checks its serving
+   and API boundaries rather than pretending to test the UI. From here every
+   slice ships API, admin plugins and a try page together.
 3. **Write path.** Working copies, publish to files, conflicts.
 4. **GitHub content store.** App authentication, commits, webhook sync; a
    contract test against a real throwaway repository.
 5. **Lifecycle on files.** Scheduling, unpublish, trash and restore, revisions
    from git, preview, search.
-6. **Admin shell, plugin API and default preset.** The shell and plugin host;
-   every first-party screen built as a plugin: the writer editor (promoting
-   the Focus prototype and deleting `app/prototypes`), the form editor, views,
-   pages, settings, core blocks and fields, and the model editor writing
-   `config.ts`; one external test plugin.
+6. **Finish and freeze the plugin API and the default preset.** Every screen
+   arrives as a plugin from slice 2b on. What is left: the model editor that
+   writes `config.ts`, any remaining slots, and one external test plugin
+   installed from outside this repository, then the API is frozen. The Focus
+   prototype is promoted to the writer in slice 3 and deleted once that screen
+   is proven.
 7. **CLI and deployment.** `init` against a repository, `sync`, `types` from
    `config.ts`, `deploy`; the hosted deployment moves to `@venda/server`.
 
@@ -422,15 +465,24 @@ Production:
 | `@effect/sql-d1`, `@effect/sql-sqlite-node` | 4.0.1 | server | The SQL clients behind Drizzle's Effect drivers |
 | `chokidar` | 5.0.0 | server | Required by Nitro's fs storage driver to watch the content folder |
 | `@gdp-ts/core` | 0.1.0 | core, server | Capability checks as compile-time proofs, and its Oxlint preset |
+| `nuxt`, `@nuxt/kit`, `@nuxt/schema` | 4.6.0 | admin, landing, nuxt | Exact pins, for the portable `nuxt/server` API and its CLI |
 
 Development: `oxlint` and `@oxlint/plugins` 1.86.0, `fallow` 3.31.0,
-`@effect/language-service` 0.87.3, `drizzle-kit` 1.0.0-rc.5-5935859.
+`@effect/language-service` 0.87.3, `drizzle-kit` 1.0.0-rc.5-5935859,
+`playwright` 1.63.0 (the browser suite).
 
 ## Risks
 
 - **Nitro 3 is in beta** (chosen over the stable `nitropack` 2.13.4 line).
   Venda pins the exact beta and only `@venda/server` depends on Nitro, so a
   regression stays in one package.
+- **Nuxt's build integration is still Nitro 2.** Stock Nuxt 4.6 builds with
+  `nitropack`, and native Nitro 3 integration arrives in Nuxt 5, per the
+  [4.6 release article](https://nuxt.com/blog/v4-6) and the
+  [server compatibility guide](https://nuxt.com/docs/4.x/guide/modules/server-compatibility).
+  It costs nothing here: the admin generates static files that Venda's Nitro 3
+  host serves, and new server code should use `nuxt/server` so it stays
+  portable. Do not override Nuxt's Nitro dependency with another major.
 - **Drizzle's Effect drivers are pre-1.0**, pinned to a commit snapshot.
   They sit behind the `IndexDb` service; the core's tests run on the real
   node:sqlite driver and the live suites on D1. Its type declarations still

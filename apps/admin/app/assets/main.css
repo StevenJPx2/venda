@@ -1,10 +1,63 @@
 @import 'tailwindcss';
 @import '@nuxt/ui';
+@source '../../../../packages/pages-core/src';
+@source '../../../../packages/views-core/src';
 
 @theme {
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
 }
+
+:root { --ui-primary: #15803d; --admin-ease: cubic-bezier(0.23, 1, 0.32, 1); }
+.dark { --ui-primary: #4ade80; }
+body { font-size: 14px; line-height: 1.45; }
+.brand-mark { display: block; font-size: 26px; font-weight: 650; letter-spacing: -0.05em; color: var(--ui-text-highlighted); }
+.brand-mark span { color: var(--ui-primary); }
+.auth-screen { min-height: 100dvh; display: grid; place-items: center; padding: 40px 24px; }
+.auth-form { width: 100%; max-width: 360px; }
+.admin-shell { min-height: 100dvh; }
+.admin-sidebar { position: fixed; inset: 0 auto 0 0; width: 232px; padding: 8px 16px 16px; border-right: 1px solid var(--ui-border); background: var(--ui-bg-muted); display: flex; flex-direction: column; }
+.admin-main { margin-left: 232px; padding: 48px 56px 80px; max-width: 1360px; }
+.nav-section { margin: 24px 0; }
+.nav-label { color: var(--ui-text-muted); font-size: 11px; letter-spacing: 0.04em; padding: 0 12px 8px; }
+.nav-link { min-height: 40px; display: flex; gap: 10px; align-items: center; padding: 8px 12px; border-radius: 6px; color: var(--ui-text-muted); font-weight: 500; }
+.nav-link.router-link-active, .nav-link.nav-current { color: var(--ui-text-highlighted); background: var(--ui-bg-elevated); }
+.admin-sidebar nav { display: flex; flex-direction: column; }
+.admin-sidebar .nav-section:last-child { margin-top: auto; }
+.sidebar-account { padding: 16px 12px 0; border-top: 1px solid var(--ui-border); }
+.mobile-bar { display: none; }
+.screen-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 32px; }
+.screen-title { font-size: 28px; font-weight: 600; letter-spacing: -0.022em; line-height: 1.2; color: var(--ui-text-highlighted); overflow-wrap: anywhere; }
+.list-surface { border-top: 1px solid var(--ui-border); }
+.content-row { display: flex; align-items: center; gap: 16px; min-height: 76px; padding: 16px 0; border-bottom: 1px solid var(--ui-border); }
+.entry-state { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; text-transform: capitalize; font-size: 12px; color: var(--ui-text-muted); }
+.entry-state > span { width: 6px; height: 6px; border-radius: 50%; background: var(--ui-text-dimmed); }
+.entry-state[data-state='published'] > span { background: var(--ui-primary); }
+.entry-state[data-state='future'] > span { background: #3b82f6; }
+.entry-preview { max-width: 680px; margin: 48px auto; }
+.preview-title { font-family: Georgia, serif; font-size: clamp(30px, 4vw, 42px); line-height: 1.2; letter-spacing: -0.025em; margin: 20px 0; color: var(--ui-text-highlighted); overflow-wrap: anywhere; }
+.preview-prose { font-family: Georgia, serif; font-size: 18px; line-height: 1.8; overflow-wrap: anywhere; }
+.preview-prose p { margin: 1em 0; }
+.preview-prose h1, .preview-prose h2, .preview-prose h3 { font-weight: 600; line-height: 1.3; margin: 1.5em 0 0.5em; }
+.preview-prose h2 { font-size: 1.4em; }
+.preview-prose ul, .preview-prose ol { padding-left: 1.5em; list-style: revert; }
+.preview-prose a { text-decoration: underline; color: var(--ui-primary); }
+.preview-prose pre { padding: 16px; border-radius: 6px; background: var(--ui-bg-muted); overflow: auto; font: 13px/1.5 var(--font-mono); }
+.preview-prose blockquote { border-left: 2px solid var(--ui-border); padding-left: 20px; }
+button, [role='button'] { transition: transform 120ms var(--admin-ease); }
+button:active:not(:disabled), [role='button']:active { transform: scale(0.97); }
+a:focus-visible { outline: 2px solid var(--ui-primary); outline-offset: 3px; }
+@media (hover: hover) and (pointer: fine) {
+  a.content-row:hover { background: var(--ui-bg-muted); }
+  .nav-link:hover { color: var(--ui-text-highlighted); }
+}
+@media (max-width: 900px) {
+  .admin-sidebar { display: none; }
+  .mobile-bar { display: flex; justify-content: space-between; align-items: center; padding: 8px 20px; border-bottom: 1px solid var(--ui-border); }
+  .admin-main { margin-left: 0; padding: 32px 20px 64px; }
+  .screen-heading { flex-wrap: wrap; }
+}
+@media (prefers-reduced-motion: reduce) { button, [role='button'] { transition: none; } }
 
 @layer base {
   button:not(:disabled),

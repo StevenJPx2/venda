@@ -332,6 +332,7 @@ defineExpose({ focusStart });
           <VendaLinkPopover v-model:open="linkOpen" :editor="editor" />
         </template>
       </UEditorToolbar>
+
       <UEditorSuggestionMenu :editor="editor" :items="cardItems" />
       <!-- Hovered dozens of times a minute, so it moves between blocks instantly. -->
       <UEditorDragHandle
@@ -352,6 +353,7 @@ defineExpose({ focusStart });
             :class="ui.handle()"
             @click="(event: MouseEvent) => { event.stopPropagation(); const selected = onClick(); editorHandlers.suggestion?.execute(editor, { pos: selected?.pos }).run(); }"
           />
+
           <span class="relative">
             <UButton
               icon="i-lucide-grip-vertical"
@@ -383,6 +385,7 @@ defineExpose({ focusStart });
         </div>
       </UEditorDragHandle>
     </UEditor>
+
     <div v-if="targetBox" class="proto-block-target" :style="{ top: `${targetBox.top}px`, left: `${targetBox.left}px`, width: `${targetBox.width}px`, height: `${targetBox.height}px` }" aria-hidden="true" />
   </div>
 </template>

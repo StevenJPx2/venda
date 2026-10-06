@@ -34,6 +34,8 @@ export default defineConfig({
   // Separate outputs, so building for Node never replaces a Workers build in use.
   output: { dir: onCloudflare ? '.output' : '.output-node' },
   alias: aliases(),
+  // Nuxt's build is already based at /admin/. Unmatched deep links reach the shell handler.
+  publicAssets: [{ dir: here('../../apps/admin/dist'), baseURL: '/admin', fallthrough: true }],
   // drizzle-kit's migrations, applied at startup on every runtime.
   serverAssets: [
     { baseName: 'migrations', dir: here('../core/drizzle') },

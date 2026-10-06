@@ -32,7 +32,11 @@ describe('VendaApi', () => {
       '/api/invitations/{id}',
       '/api/join/{token}',
       '/api/tokens',
-      '/api/tokens/{id}'
+      '/api/tokens/{id}',
+      '/api/admin/collections',
+      '/api/admin/collections/{collection}/entries',
+      '/api/admin/content-problems',
+      '/api/admin/collections/{collection}/entries/{slug}'
     ]);
   });
 

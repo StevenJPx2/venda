@@ -23,6 +23,8 @@ const paddingRule = createPaddingLineRule([
   { blankLine: "any", prev: "import", next: "import" },
   // Venda: consecutive guards read as one paragraph (eslint.config.shared.mjs).
   { blankLine: "any", prev: "if", next: "if" },
+  // Venda: related variable declarations form one paragraph, even at module scope.
+  { blankLine: "any", prev: ["const", "let", "var"], next: ["const", "let", "var"] },
   {
     blankLine: "any",
     prev: {

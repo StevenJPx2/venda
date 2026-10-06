@@ -31,9 +31,31 @@ export const sharedRules = {
       { blankLine: 'always', prev: 'if', next: '*' },
       { blankLine: 'any', prev: 'if', next: 'if' },
       { blankLine: 'always', prev: '*', next: 'block-like' },
-      { blankLine: 'always', prev: 'block-like', next: '*' }
+      { blankLine: 'always', prev: 'block-like', next: '*' },
+      { blankLine: 'any', prev: ['const', 'let', 'var'], next: ['const', 'let', 'var'] }
     ],
     '@stylistic/padded-blocks': ['error', 'never'],
     '@stylistic/no-multiple-empty-lines': ['error', { max: 1, maxBOF: 0, maxEOF: 0 }]
+  }
+};
+
+// Template breathing room: expand containers and custom components; keep text
+// and inline phrases compact. Multiline sibling sections get one blank line,
+// while adjacent leaf controls may stay grouped. No blank line at scope edges.
+export const sharedTemplateRules = {
+  name: 'venda/template-rhythm',
+  files: ['**/*.vue'],
+  rules: {
+    'vue/html-indent': ['error', 2],
+    'vue/padding-line-between-tags': ['error', [
+      { blankLine: 'always', prev: '*', next: '*:multi-line' },
+      { blankLine: 'always', prev: '*:multi-line', next: '*' }
+    ]],
+    'vue/multiline-html-element-content-newline': ['error', { ignores: ['pre', 'textarea'], allowEmptyLines: true }],
+    'vue/singleline-html-element-content-newline': ['error', {
+      ignoreWhenNoAttributes: false,
+      ignoreWhenEmpty: true,
+      ignores: ['a', 'span', 'p', 'h1', 'h2', 'h3', 'h4', 'dt', 'dd', 'label', 'strong', 'em', 'code', 'pre', 'textarea', 'button', 'NuxtLink', 'UButton']
+    }]
   }
 };

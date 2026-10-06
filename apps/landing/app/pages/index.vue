@@ -38,14 +38,18 @@ useSeoMeta({ title: 'Venda: a Cloudflare-native headless CMS', description: () =
       :ui="{ title: 'text-4xl sm:text-6xl lg:text-7xl', description: 'max-w-3xl text-lg sm:text-xl' }"
     >
       <template #headline>
-        <UBadge color="primary" variant="subtle" size="lg" icon="i-lucide-cloud">{{ hero.headline }}</UBadge>
+        <UBadge color="primary" variant="subtle" size="lg" icon="i-lucide-cloud">
+          {{ hero.headline }}
+        </UBadge>
       </template>
+
       <template #links>
         <div class="flex flex-wrap justify-center gap-3">
           <UButton label="Open the admin" icon="i-lucide-arrow-right" trailing to="https://app.venda.stevenjohn.co" target="_blank" external size="xl" />
           <UButton label="Read the blog" icon="i-lucide-newspaper" color="neutral" variant="outline" to="/blog" size="xl" />
         </div>
       </template>
+
       <template #bottom>
         <div class="mx-auto grid w-full max-w-4xl gap-4 sm:grid-cols-3">
           <UPageCard v-for="item in stackCards" :key="item.label" :icon="item.icon" :title="item.value" :description="item.label" spotlight />
@@ -108,6 +112,7 @@ useSeoMeta({ title: 'Venda: a Cloudflare-native headless CMS', description: () =
           spotlight
         />
       </UPageGrid>
+
       <div class="mt-8 flex justify-center">
         <UButton label="All posts" icon="i-lucide-arrow-right" trailing color="neutral" variant="outline" to="/blog" />
       </div>

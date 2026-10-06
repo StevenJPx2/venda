@@ -214,6 +214,7 @@ await mkdir(join(STATE, 'workers'), { recursive: true });
 await cp(CONTENT, LIVE_CONTENT, { recursive: true });
 console.log('Venda try: building and starting both runtimes');
 
+await step('build admin', 'pnpm', ['--filter', '@venda/admin-app', 'build']);
 await step('build for Workers', 'pnpm', ['exec', 'nitro', 'build'], { VENDA_CONTENT_DIR: CONTENT });
 await step('build for Node', 'pnpm', ['exec', 'nitro', 'build'], { NITRO_PRESET: 'node' });
 
@@ -231,6 +232,7 @@ console.log(`
   Open http://localhost:${PORTS.page}
 
   Owner: ${OWNER_ENV.VENDA_OWNER_EMAIL} / ${OWNER_ENV.VENDA_OWNER_PASSWORD} (local only)
+  Admin: http://localhost:${PORTS.workers}/admin/ or http://localhost:${PORTS.node}/admin/
   Workers (workerd + local D1/KV): http://localhost:${PORTS.workers}, content from try/content, bundled
   Node (node:sqlite + files):   http://localhost:${PORTS.node}, content from .try/node/content (edit freely)
   Logs: .try/*.log · Ctrl-C to stop

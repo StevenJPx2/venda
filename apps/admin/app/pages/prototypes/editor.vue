@@ -75,8 +75,10 @@ useHead({ title: 'Editor prototypes · Venda' });
 <template>
   <ClientOnly>
     <component :is="variants[current]!.component" :key="`${current}-${mountKey}`" />
+
     <nav class="proto-picker" aria-label="Prototype variants" :data-ready="ready || undefined">
       <span ref="highlightRef" class="proto-picker-highlight" aria-hidden="true" />
+
       <button
         v-for="(variant, index) in variants"
         ref="itemRefs"
