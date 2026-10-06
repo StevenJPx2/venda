@@ -40,13 +40,21 @@
   letter-spacing: -0.025em;
   outline: none;
 }
-.pv-title::placeholder { color: var(--ui-text-dimmed); }
+.pv-title::placeholder {
+  color: var(--ui-text-dimmed);
+}
 
 /* Every pressable element answers the press. */
 .pv-press {
-  transition: transform 120ms var(--ease-out), background-color 150ms ease, color 150ms ease, opacity 150ms ease;
+  transition:
+    transform 120ms var(--ease-out),
+    background-color 150ms ease,
+    color 150ms ease,
+    opacity 150ms ease;
 }
-.pv-press:active:not(:disabled) { transform: scale(0.97); }
+.pv-press:active:not(:disabled) {
+  transform: scale(0.97);
+}
 
 .pv-btn {
   display: inline-flex;
@@ -59,16 +67,40 @@
   font-size: 0.8125rem;
   white-space: nowrap;
 }
-.pv-btn:focus-visible { outline: 2px solid var(--ui-text-highlighted); outline-offset: 2px; }
-.pv-btn:disabled { opacity: 0.5; cursor: default; }
-.pv-btn--ink { background: var(--ink); color: var(--on-ink); }
-.pv-btn--ghost { color: var(--ui-text-muted); }
-.pv-btn--danger { color: var(--ui-error); }
-.pv-btn--icon { width: 2rem; padding: 0; justify-content: center; }
+.pv-btn:focus-visible {
+  outline: 2px solid var(--ui-text-highlighted);
+  outline-offset: 2px;
+}
+.pv-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.pv-btn--ink {
+  background: var(--ink);
+  color: var(--on-ink);
+}
+.pv-btn--ghost {
+  color: var(--ui-text-muted);
+}
+.pv-btn--danger {
+  color: var(--ui-error);
+}
+.pv-btn--icon {
+  width: 2rem;
+  padding: 0;
+  justify-content: center;
+}
 @media (hover: hover) and (pointer: fine) {
-  .pv-btn--ink:hover:not(:disabled) { opacity: 0.86; }
-  .pv-btn--ghost:hover:not(:disabled) { background: var(--ui-bg-elevated); color: var(--ui-text-highlighted); }
-  .pv-btn--danger:hover:not(:disabled) { background: color-mix(in oklab, var(--ui-error) 8%, transparent); }
+  .pv-btn--ink:hover:not(:disabled) {
+    opacity: 0.86;
+  }
+  .pv-btn--ghost:hover:not(:disabled) {
+    background: var(--ui-bg-elevated);
+    color: var(--ui-text-highlighted);
+  }
+  .pv-btn--danger:hover:not(:disabled) {
+    background: color-mix(in oklab, var(--ui-error) 8%, transparent);
+  }
 }
 
 .pv-dot {
@@ -78,9 +110,15 @@
   flex: none;
   background: var(--ui-text-dimmed);
 }
-.pv-dot[data-tone='success'] { background: var(--live); }
-.pv-dot[data-tone='warning'] { background: var(--pending); }
-.pv-dot[data-tone='info'] { background: var(--scheduled); }
+.pv-dot[data-tone='success'] {
+  background: var(--live);
+}
+.pv-dot[data-tone='warning'] {
+  background: var(--pending);
+}
+.pv-dot[data-tone='info'] {
+  background: var(--scheduled);
+}
 
 .pv-label {
   font-size: 0.6875rem;
@@ -99,17 +137,29 @@
   font-size: 0.8125rem;
   color: var(--ui-text-highlighted);
   outline: none;
-  transition: border-color 150ms ease, box-shadow 150ms ease;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
 }
-.pv-field:focus { border-color: var(--ui-border-inverted); box-shadow: 0 0 0 3px color-mix(in oklab, var(--ui-text-highlighted) 8%, transparent); }
+.pv-field:focus {
+  border-color: var(--ui-border-inverted);
+  box-shadow: 0 0 0 3px
+    color-mix(in oklab, var(--ui-text-highlighted) 8%, transparent);
+}
 
-.pv-num { font-variant-numeric: tabular-nums; }
+.pv-num {
+  font-variant-numeric: tabular-nums;
+}
 
 /* Secondary controls that phones drop (unlayered, so it must beat .pv-btn here, not via `hidden`). */
 @media (max-width: 639px) {
-  .pv-wide { display: none; }
+  .pv-wide {
+    display: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pv-press:active:not(:disabled) { transform: none; }
+  .pv-press:active:not(:disabled) {
+    transform: none;
+  }
 }

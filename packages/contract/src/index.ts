@@ -8,7 +8,12 @@ export * from './auth';
 
 export * from './admin-content';
 
-export { CollectionNotFound, ContentApi, EntryNotFound, PublicEntry } from './content';
+export {
+  CollectionNotFound,
+  ContentApi,
+  EntryNotFound,
+  PublicEntry
+} from './content';
 
 export { HealthStatus, SystemApi } from './system';
 

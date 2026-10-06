@@ -7,7 +7,9 @@ describe('HealthStatus', () => {
   const decode = Schema.decodeUnknownSync(HealthStatus);
 
   it('accepts the payload the server sends', () => {
-    expect(decode({ ok: true, version: '0.1.0' })).toEqual(new HealthStatus({ ok: true, version: '0.1.0' }));
+    expect(decode({ ok: true, version: '0.1.0' })).toEqual(
+      new HealthStatus({ ok: true, version: '0.1.0' })
+    );
   });
 
   it('rejects anything else', () => {
@@ -43,8 +45,14 @@ describe('VendaApi', () => {
   it('requires a session cookie or a bearer token where it authenticates', () => {
     const spec = OpenApi.fromApi(VendaApi);
 
-    expect(spec.components.securitySchemes).toMatchObject({ session: { type: 'apiKey', in: 'cookie', name: 'venda_session' }, token: { type: 'http', scheme: 'Bearer' } });
-    expect(spec.paths['/api/auth/me']?.get?.security).toEqual([{ token: [] }, { session: [] }]);
+    expect(spec.components.securitySchemes).toMatchObject({
+      session: { type: 'apiKey', in: 'cookie', name: 'venda_session' },
+      token: { type: 'http', scheme: 'Bearer' }
+    });
+    expect(spec.paths['/api/auth/me']?.get?.security).toEqual([
+      { token: [] },
+      { session: [] }
+    ]);
     expect(spec.paths['/api/auth/sign-in']?.post?.security).toEqual([]);
   });
 });

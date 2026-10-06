@@ -10,7 +10,10 @@ const MESSAGES = new Map([
   ['Forbidden', 'You do not have permission to do this.'],
   ['LastAdministrator', 'Keep at least one active administrator.'],
   ['EmailTaken', 'This email already has an account.'],
-  ['InvitationNotFound', 'This invitation has expired, was revoked, or has already been used.'],
+  [
+    'InvitationNotFound',
+    'This invitation has expired, was revoked, or has already been used.'
+  ],
   ['TokenNotFound', 'This token no longer exists.'],
   ['CollectionNotFound', 'This collection no longer exists.'],
   ['EntryNotFound', 'This entry is missing or is not visible to your role.'],
@@ -19,7 +22,10 @@ const MESSAGES = new Map([
 ]);
 
 export class AdminRequestError extends Error {
-  constructor(readonly tag: string, message: string) {
+  constructor(
+    readonly tag: string,
+    message: string
+  ) {
     super(message);
   }
 }
@@ -31,21 +37,37 @@ export async function request<A, E>(effect: Effect.Effect<A, E>): Promise<A> {
   if (Result.isSuccess(result)) return result.success;
 
   const error = result.failure;
-  const tag = Predicate.isObject(error) && Predicate.isString(error._tag) ? error._tag : 'Unavailable';
-  const reason = Predicate.isObject(error) && Predicate.isString(error.reason) ? error.reason : undefined;
+  const tag =
+    Predicate.isObject(error) && Predicate.isString(error._tag)
+      ? error._tag
+      : 'Unavailable';
+  const reason =
+    Predicate.isObject(error) && Predicate.isString(error.reason)
+      ? error.reason
+      : undefined;
 
-  throw new AdminRequestError(tag, reason ?? MESSAGES.get(tag) ?? 'The request could not be completed. Check your connection and try again.');
+  throw new AdminRequestError(
+    tag,
+    reason ??
+      MESSAGES.get(tag) ??
+      'The request could not be completed. Check your connection and try again.'
+  );
 }
 
 export async function createAdminRuntime(origin: string) {
-  const api = await Effect.runPromise(HttpApiClient.make(VendaApi, { baseUrl: origin }).pipe(Effect.provide(FetchHttpClient.layer)));
+  const api = await Effect.runPromise(
+    HttpApiClient.make(VendaApi, { baseUrl: origin }).pipe(
+      Effect.provide(FetchHttpClient.layer)
+    )
+  );
   const user = ref<User | null>(null);
 
   const invoke = async <A, E>(effect: Effect.Effect<A, E>): Promise<A> => {
     try {
       return await request(effect);
     } catch (error) {
-      if (error instanceof AdminRequestError && error.tag === 'Unauthenticated') user.value = null;
+      if (error instanceof AdminRequestError && error.tag === 'Unauthenticated')
+        user.value = null;
 
       throw error;
     }
@@ -55,7 +77,11 @@ export async function createAdminRuntime(origin: string) {
     try {
       user.value = await request(api.auth.me());
     } catch (error) {
-      if (!(error instanceof AdminRequestError) || error.tag !== 'Unauthenticated') throw error;
+      if (
+        !(error instanceof AdminRequestError) ||
+        error.tag !== 'Unauthenticated'
+      )
+        throw error;
 
       user.value = null;
     }
@@ -66,17 +92,23 @@ export async function createAdminRuntime(origin: string) {
 
 export type AdminRuntime = Awaited<ReturnType<typeof createAdminRuntime>>;
 
-export const AdminRuntimeKey: InjectionKey<AdminRuntime> = Symbol('venda/admin/runtime');
+export const AdminRuntimeKey: InjectionKey<AdminRuntime> = Symbol(
+  'venda/admin/runtime'
+);
 
 export function useAdmin(): AdminRuntime {
   const runtime = inject(AdminRuntimeKey);
 
-  if (!runtime) throw new Error('An admin plugin must run inside the Venda shell');
+  if (!runtime)
+    throw new Error('An admin plugin must run inside the Venda shell');
 
   return runtime;
 }
 
-const failure = (cause: unknown) => cause instanceof Error ? cause.message : 'The request failed. Please try again.';
+const failure = (cause: unknown) =>
+  cause instanceof Error
+    ? cause.message
+    : 'The request failed. Please try again.';
 
 /** A user-triggered mutation: one at a time, a visible error, always settled. */
 export function useAdminAction() {

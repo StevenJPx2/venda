@@ -41,7 +41,12 @@ async function save() {
   if (!person) return;
 
   await perform(async () => {
-    await admin.request(admin.api.users.update({ params: { id: person.id }, payload: changedFields(person) }));
+    await admin.request(
+      admin.api.users.update({
+        params: { id: person.id },
+        payload: changedFields(person)
+      })
+    );
     open.value = false;
     await people.reload();
 
@@ -52,28 +57,71 @@ async function save() {
 </script>
 
 <template>
-  <AdminScreenHeader title="People" description="The people who write and manage this site.">
-    <UButton to="/settings/invitations" label="Invite someone" icon="i-lucide-plus" />
+  <AdminScreenHeader
+    title="People"
+    description="The people who write and manage this site."
+  >
+    <UButton
+      to="/settings/invitations"
+      label="Invite someone"
+      icon="i-lucide-plus"
+    />
   </AdminScreenHeader>
 
-  <AdminFeedback :busy="people.busy.value" :error="people.error.value" @retry="people.reload" />
+  <AdminFeedback
+    :busy="people.busy.value"
+    :error="people.error.value"
+    @retry="people.reload"
+  />
 
   <div class="list-surface">
-    <div v-for="person in people.data.value" :key="person.id" class="content-row">
+    <div
+      v-for="person in people.data.value"
+      :key="person.id"
+      class="content-row"
+    >
       <div class="min-w-0 flex-1">
-        <p class="font-medium text-highlighted break-words">{{ person.name || person.email }}<span v-if="person.id === admin.user.value?.id" class="font-normal text-xs text-muted ml-2">you</span></p>
+        <p class="font-medium text-highlighted break-words">
+          {{ person.name || person.email
+          }}<span
+            v-if="person.id === admin.user.value?.id"
+            class="font-normal text-xs text-muted ml-2"
+            >you</span
+          >
+        </p>
+
         <p class="mt-1 text-xs text-muted break-all">{{ person.email }}</p>
       </div>
 
-      <span class="text-xs text-muted capitalize">{{ person.status === 'disabled' ? 'Disabled' : person.role }}</span>
+      <span class="text-xs text-muted capitalize">{{
+        person.status === 'disabled' ? 'Disabled' : person.role
+      }}</span>
 
-      <UDropdownMenu :items="[{ label: 'Edit person', icon: 'i-lucide-pencil', onSelect: () => edit(person) }]">
-        <UButton icon="i-lucide-ellipsis" :aria-label="`Actions for ${person.email}`" color="neutral" variant="ghost" />
+      <UDropdownMenu
+        :items="[
+          {
+            label: 'Edit person',
+            icon: 'i-lucide-pencil',
+            onSelect: () => edit(person)
+          }
+        ]"
+      >
+        <UButton
+          icon="i-lucide-ellipsis"
+          :aria-label="`Actions for ${person.email}`"
+          color="neutral"
+          variant="ghost"
+        />
       </UDropdownMenu>
     </div>
   </div>
 
-  <UModal v-model:open="open" title="Edit person" description="Role and status changes sign this person out on every device." :dismissible="!busy">
+  <UModal
+    v-model:open="open"
+    title="Edit person"
+    description="Role and status changes sign this person out on every device."
+    :dismissible="!busy"
+  >
     <template #body>
       <form id="edit-person" class="space-y-5" @submit.prevent="save">
         <p class="text-sm text-muted break-all">{{ selected?.email }}</p>
@@ -83,11 +131,21 @@ async function save() {
         </UFormField>
 
         <UFormField label="Role">
-          <USelect v-model="role" :items="roles" aria-label="Role" class="w-full" />
+          <USelect
+            v-model="role"
+            :items="roles"
+            aria-label="Role"
+            class="w-full"
+          />
         </UFormField>
 
         <UFormField label="Status">
-          <USelect v-model="status" :items="['active', 'disabled']" aria-label="Status" class="w-full" />
+          <USelect
+            v-model="status"
+            :items="['active', 'disabled']"
+            aria-label="Status"
+            class="w-full"
+          />
         </UFormField>
 
         <p v-if="error" role="alert" class="text-sm text-error">{{ error }}</p>
@@ -95,8 +153,20 @@ async function save() {
     </template>
 
     <template #footer>
-      <UButton label="Cancel" color="neutral" variant="ghost" :disabled="busy" @click="open = false" />
-      <UButton type="submit" form="edit-person" label="Save changes" :loading="busy" />
+      <UButton
+        label="Cancel"
+        color="neutral"
+        variant="ghost"
+        :disabled="busy"
+        @click="open = false"
+      />
+
+      <UButton
+        type="submit"
+        form="edit-person"
+        label="Save changes"
+        :loading="busy"
+      />
     </template>
   </UModal>
 </template>

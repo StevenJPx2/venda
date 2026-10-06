@@ -9,14 +9,20 @@ export const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
  * itself). `as` picks whose cookie jar the proxy uses; `origin` plays a
  * request from another site; `bearer` sends an API token.
  */
-export async function call(runtime, method, path, { body, as, origin, bearer } = {}) {
+export async function call(
+  runtime,
+  method,
+  path,
+  { body, as, origin, bearer } = {}
+) {
   // Content reads are cacheable for a minute; the page wants every change at once.
   const init = { method, headers: {}, cache: 'no-store' };
 
   if (body !== undefined) {
     init.body = typeof body === 'string' ? body : JSON.stringify(body);
 
-    if (typeof body !== 'string') init.headers['content-type'] = 'application/json';
+    if (typeof body !== 'string')
+      init.headers['content-type'] = 'application/json';
   }
 
   if (as) init.headers['x-try-as'] = as;
@@ -27,18 +33,32 @@ export async function call(runtime, method, path, { body, as, origin, bearer } =
   const text = await response.text();
   let data = text;
 
-  try { data = JSON.parse(text); } catch { /* not JSON */ }
+  try {
+    data = JSON.parse(text);
+  } catch {
+    /* not JSON */
+  }
 
   const who = as ? ` (as ${as})` : bearer ? ' (with a token)' : '';
 
-  return { status: response.status, ok: response.ok, headers: response.headers, data, line: `${method} ${path}${who} → ${response.status}` };
+  return {
+    status: response.status,
+    ok: response.ok,
+    headers: response.headers,
+    data,
+    line: `${method} ${path}${who} → ${response.status}`
+  };
 }
 
 /** Polls until `test` passes on a read. */
 export async function until(read, test, seconds = 6) {
   let last;
 
-  for (const deadline = Date.now() + seconds * 1000; Date.now() < deadline; await sleep(250)) {
+  for (
+    const deadline = Date.now() + seconds * 1000;
+    Date.now() < deadline;
+    await sleep(250)
+  ) {
     last = await read();
 
     if (test(last)) return last;
@@ -49,7 +69,12 @@ export async function until(read, test, seconds = 6) {
 
 function render(check) {
   const card = document.createElement('section');
-  const runtimes = check.only === 'page' ? ['page'] : check.only ? [check.only] : Object.keys(RUNTIMES);
+  const runtimes =
+    check.only === 'page'
+      ? ['page']
+      : check.only
+        ? [check.only]
+        : Object.keys(RUNTIMES);
   const panes = check.only === 'page' ? { page: 'Result' } : RUNTIMES;
 
   card.className = 'check';
@@ -59,18 +84,25 @@ function render(check) {
       <div class="actions">${check.only === 'page' ? '<button data-on="page">Run</button>' : runtimes.map(key => `<button data-on="${key}">Run on ${RUNTIMES[key]}</button>`).join('')}${runtimes.length > 1 ? '<button data-on="both">Both</button>' : ''}</div>
     </div>
     <div class="extra" ${check.extra ? '' : 'hidden'}>${check.extra ?? ''}</div>
-    <div class="runs ${check.only === 'page' ? 'single' : ''}">${Object.entries(panes).map(([key, label]) => `
+    <div class="runs ${check.only === 'page' ? 'single' : ''}">${Object.entries(
+      panes
+    )
+      .map(
+        ([key, label]) => `
       <div class="run" data-runtime="${key}">
         <div class="run-label">${label} <span class="verdict ${runtimes.includes(key) ? '' : 'skip'}">${runtimes.includes(key) ? '' : 'Not on this runtime'}</span></div>
         <div class="note">${runtimes.includes(key) ? 'Not run yet.' : 'See the description.'}</div>
         <pre hidden></pre>
-      </div>`).join('')}
+      </div>`
+      )
+      .join('')}
     </div>`;
   document.getElementById('checks').append(card);
 
   for (const button of card.querySelectorAll('[data-on]')) {
     button.addEventListener('click', () => {
-      const targets = button.dataset.on === 'both' ? runtimes : [button.dataset.on];
+      const targets =
+        button.dataset.on === 'both' ? runtimes : [button.dataset.on];
 
       targets.forEach(runtime => execute(check, card, runtime));
     });
@@ -97,10 +129,16 @@ async function execute(check, card, runtime) {
   const tools = {
     card,
     log(line, data) {
-      lines.push(data === undefined ? line : `${line}\n${typeof data === 'string' ? data : JSON.stringify(data, null, 2)}`);
+      lines.push(
+        data === undefined
+          ? line
+          : `${line}\n${typeof data === 'string' ? data : JSON.stringify(data, null, 2)}`
+      );
       pre.textContent = lines.join('\n\n');
     },
-    note(text) { noteEl.textContent = text; }
+    note(text) {
+      noteEl.textContent = text;
+    }
   };
 
   try {
@@ -124,7 +162,8 @@ export function mount(checks) {
   runAll.addEventListener('click', async () => {
     runAll.disabled = true;
 
-    for (const [check, { card, runtimes }] of cards) await Promise.all(runtimes.map(runtime => execute(check, card, runtime)));
+    for (const [check, { card, runtimes }] of cards)
+      await Promise.all(runtimes.map(runtime => execute(check, card, runtime)));
 
     runAll.disabled = false;
   });

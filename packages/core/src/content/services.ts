@@ -7,17 +7,23 @@ export interface StoredFile {
   readonly sha: string;
 }
 
-export class ContentStoreError extends Schema.TaggedError<ContentStoreError>()('ContentStoreError', {
-  message: Schema.String,
-  cause: Schema.optional(Schema.Defect())
-}) {}
+export class ContentStoreError extends Schema.TaggedError<ContentStoreError>()(
+  'ContentStoreError',
+  {
+    message: Schema.String,
+    cause: Schema.optional(Schema.Defect())
+  }
+) {}
 
 /** The content files: `<collection>/config.ts` and `<collection>/<slug>.md`. */
-export class ContentStore extends Context.Service<ContentStore, {
-  /** Every file, with its SHA. */
-  readonly list: Effect.Effect<ReadonlyArray<StoredFile>, ContentStoreError>;
-  readonly read: (path: string) => Effect.Effect<string, ContentStoreError>;
-}>()('venda/core/content/ContentStore') {}
+export class ContentStore extends Context.Service<
+  ContentStore,
+  {
+    /** Every file, with its SHA. */
+    readonly list: Effect.Effect<ReadonlyArray<StoredFile>, ContentStoreError>;
+    readonly read: (path: string) => Effect.Effect<string, ContentStoreError>;
+  }
+>()('venda/core/content/ContentStore') {}
 
 const encoder = new TextEncoder();
 
@@ -31,5 +37,7 @@ export async function gitBlobSha(content: Uint8Array): Promise<string> {
 
   const digest = new Uint8Array(await crypto.subtle.digest('SHA-1', blob));
 
-  return Array.from(digest, byte => byte.toString(16).padStart(2, '0')).join('');
+  return Array.from(digest, byte => byte.toString(16).padStart(2, '0')).join(
+    ''
+  );
 }

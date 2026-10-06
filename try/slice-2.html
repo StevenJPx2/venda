@@ -1,231 +1,401 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Slice 2 · Try Venda</title>
-  <link rel="stylesheet" href="/try.css">
-</head>
-<body>
-  <main>
-    <header>
-      <div>
-        <a class="crumb" href="/">← Try Venda</a>
-        <h1>Slice 2 · Accounts</h1>
-        <p class="lede">Signing in, people and roles, invitations and API tokens. The page acts as two people: the recovery owner (<code>owner@venda.local</code>) and Ann, whom the owner invites. The try server keeps a separate cookie jar for each, per runtime. Who may do what is enforced by capability proofs the core demands; the last check shows the compiler refusing code that skips one.</p>
-      </div>
-      <div style="text-align:right">
-        <button class="primary" id="run-all">Run every check</button>
-      </div>
-    </header>
-    <div id="checks"></div>
-  </main>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Slice 2 · Try Venda</title>
+    <link rel="stylesheet" href="/try.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <a class="crumb" href="/">← Try Venda</a>
+          <h1>Slice 2 · Accounts</h1>
+          <p class="lede">
+            Signing in, people and roles, invitations and API tokens. The page
+            acts as two people: the recovery owner
+            (<code>owner@venda.local</code>) and Ann, whom the owner invites.
+            The try server keeps a separate cookie jar for each, per runtime.
+            Who may do what is enforced by capability proofs the core demands;
+            the last check shows the compiler refusing code that skips one.
+          </p>
+        </div>
+        <div style="text-align: right">
+          <button class="primary" id="run-all">Run every check</button>
+        </div>
+      </header>
+      <div id="checks"></div>
+    </main>
 
-  <script type="module">
-    import { call, mount } from '/harness.js';
+    <script type="module">
+      import { call, mount } from '/harness.js';
 
-    const OWNER = { email: 'owner@venda.local', password: 'try-venda-owner' };
-    const ANN_PASSWORD = 'ann has a long password';
-    const people = {};
+      const OWNER = { email: 'owner@venda.local', password: 'try-venda-owner' };
+      const ANN_PASSWORD = 'ann has a long password';
+      const people = {};
 
-    const flags = setCookie => ['HttpOnly', 'Secure', 'SameSite=Lax'].filter(flag => new RegExp(flag, 'i').test(setCookie ?? ''));
+      const flags = setCookie =>
+        ['HttpOnly', 'Secure', 'SameSite=Lax'].filter(flag =>
+          new RegExp(flag, 'i').test(setCookie ?? '')
+        );
 
-    async function ownerSignedIn(runtime, log) {
-      const me = await call(runtime, 'GET', '/api/auth/me', { as: 'owner' });
+      async function ownerSignedIn(runtime, log) {
+        const me = await call(runtime, 'GET', '/api/auth/me', { as: 'owner' });
 
-      if (me.ok) return me.data;
+        if (me.ok) return me.data;
 
-      const signedIn = await call(runtime, 'POST', '/api/auth/sign-in', { as: 'owner', body: OWNER });
+        const signedIn = await call(runtime, 'POST', '/api/auth/sign-in', {
+          as: 'owner',
+          body: OWNER
+        });
 
-      log(signedIn.line);
+        log(signedIn.line);
 
-      return signedIn.data;
-    }
-
-    /** Ann on this runtime: invited by the owner, joined with the link, signed in. */
-    async function annSignedIn(runtime, log) {
-      people[runtime] ??= { email: `ann-${runtime}-${Date.now()}@venda.local` };
-
-      const ann = people[runtime];
-
-      if (ann.id) {
-        const me = await call(runtime, 'GET', '/api/auth/me', { as: 'ann' });
-
-        if (me.ok) return ann;
-      } else {
-        await ownerSignedIn(runtime, log);
-
-        const invited = await call(runtime, 'POST', '/api/invitations', { as: 'owner', body: { email: ann.email, role: 'author' } });
-        const joined = await call(runtime, 'POST', `/api/join/${invited.data.token}`, { body: { name: 'Ann', password: ANN_PASSWORD } });
-
-        log(invited.line);
-        log(joined.line);
-        ann.id = joined.data.id;
+        return signedIn.data;
       }
 
-      log((await call(runtime, 'POST', '/api/auth/sign-in', { as: 'ann', body: { email: ann.email, password: ANN_PASSWORD } })).line);
+      /** Ann on this runtime: invited by the owner, joined with the link, signed in. */
+      async function annSignedIn(runtime, log) {
+        people[runtime] ??= {
+          email: `ann-${runtime}-${Date.now()}@venda.local`
+        };
 
-      return ann;
-    }
+        const ann = people[runtime];
 
-    mount([
-      {
-        title: 'The owner signs in',
-        description: 'The recovery owner comes from the install’s secrets and always signs in as an administrator. The session cookie is HttpOnly (scripts cannot read it), Secure and SameSite=Lax; this page shows it because the try server echoes the Set-Cookie header.',
-        async run(runtime, { log }) {
-          const signedIn = await call(runtime, 'POST', '/api/auth/sign-in', { as: 'owner', body: OWNER });
-          const setCookie = signedIn.headers.get('x-try-set-cookie');
-          const me = await call(runtime, 'GET', '/api/auth/me', { as: 'owner' });
+        if (ann.id) {
+          const me = await call(runtime, 'GET', '/api/auth/me', { as: 'ann' });
 
-          log(signedIn.line, signedIn.data);
-          log('Set-Cookie', setCookie ?? 'none');
-          log(me.line, me.data);
-
-          return { pass: me.ok && me.data.role === 'administrator' && flags(setCookie).length === 3, note: `signed in as ${me.data?.email}, cookie ${flags(setCookie).join(', ')}` };
-        }
-      },
-      {
-        title: 'Wrong passwords lock an email',
-        description: 'A wrong password says only “invalid credentials”, whether or not the email exists. Ten failures lock that email for fifteen minutes, even for the right password. (This uses a made-up email, so the owner is not locked out.)',
-        async run(runtime, { log }) {
-          const email = `nobody-${Date.now()}@venda.local`;
-          const statuses = [];
-
-          for (let attempt = 0; attempt < 11; attempt++) statuses.push((await call(runtime, 'POST', '/api/auth/sign-in', { body: { email, password: 'wrong' } })).status);
-
-          const last = await call(runtime, 'POST', '/api/auth/sign-in', { body: { email, password: 'wrong' } });
-
-          log(`10 × POST /api/auth/sign-in → ${statuses.slice(0, 10).join(', ')}`);
-          log(last.line, last.data);
-
-          return { pass: statuses.slice(0, 10).every(status => status === 401) && last.status === 429, note: `401 ten times, then ${last.status} ${last.data?._tag}` };
-        }
-      },
-      {
-        title: 'Invite Ann, who joins with the link',
-        description: 'The owner invites Ann as an author. The join link’s secret is stored only as a hash; anyone holding the link sees what it is for and can accept it once.',
-        async run(runtime, { log }) {
+          if (me.ok) return ann;
+        } else {
           await ownerSignedIn(runtime, log);
 
-          const email = `ann-${runtime}-${Date.now()}@venda.local`;
-          const invited = await call(runtime, 'POST', '/api/invitations', { as: 'owner', body: { email, role: 'author' } });
-          const link = `/api/join/${invited.data.token}`;
-          const preview = await call(runtime, 'GET', link);
-          const joined = await call(runtime, 'POST', link, { body: { name: 'Ann', password: ANN_PASSWORD } });
-          const again = await call(runtime, 'POST', link, { body: { name: 'Ann', password: ANN_PASSWORD } });
+          const invited = await call(runtime, 'POST', '/api/invitations', {
+            as: 'owner',
+            body: { email: ann.email, role: 'author' }
+          });
+          const joined = await call(
+            runtime,
+            'POST',
+            `/api/join/${invited.data.token}`,
+            { body: { name: 'Ann', password: ANN_PASSWORD } }
+          );
 
-          log(invited.line, invited.data);
-          log(preview.line, preview.data);
-          log(joined.line, joined.data);
-          log(`${again.line} (the same link again)`, again.data);
-          people[runtime] = { email, id: joined.data?.id };
-
-          return { pass: preview.data?.role === 'author' && joined.ok && again.status === 404, note: `${email} joined as ${joined.data?.role}; the link then answers ${again.status}` };
+          log(invited.line);
+          log(joined.line);
+          ann.id = joined.data.id;
         }
-      },
-      {
-        title: 'Roles decide who may do what',
-        description: 'Only administrators manage people. The core’s listUsers demands an IsAdministrator proof, which only proofs/is-administrator.ts can make, after reading the caller’s role from the database (not from their session).',
-        async run(runtime, { log }) {
-          await annSignedIn(runtime, log);
 
-          const asAnn = await call(runtime, 'GET', '/api/users', { as: 'ann' });
-          const asOwner = await call(runtime, 'GET', '/api/users', { as: 'owner' });
+        log(
+          (
+            await call(runtime, 'POST', '/api/auth/sign-in', {
+              as: 'ann',
+              body: { email: ann.email, password: ANN_PASSWORD }
+            })
+          ).line
+        );
 
-          log(asAnn.line, asAnn.data);
-          log(asOwner.line, asOwner.data);
-
-          return { pass: asAnn.status === 403 && asOwner.ok, note: `Ann (author): ${asAnn.status}; owner: ${asOwner.data?.length} people` };
-        }
-      },
-      {
-        title: 'Requests from other sites cannot use the cookie',
-        description: 'Browsers send cookies along with requests from other sites. A changing request whose Origin is another site is refused, even with a valid session. (The try server plays that Origin.)',
-        async run(runtime, { log }) {
-          await ownerSignedIn(runtime, log);
-
-          const forged = await call(runtime, 'POST', '/api/invitations', { as: 'owner', origin: 'https://evil.example', body: { email: `x-${Date.now()}@venda.local`, role: 'administrator' } });
-
-          log(`${forged.line} (Origin: https://evil.example)`, forged.data);
-
-          return { pass: forged.status === 403, note: `${forged.status} ${forged.data?.reason ?? ''}` };
-        }
-      },
-      {
-        title: 'API tokens for scripts',
-        description: 'A token acts as the person who made it, sent as Authorization: Bearer. Tokens are made only in a signed-in session, so a leaked token cannot make more; a revoked token stops working at once.',
-        async run(runtime, { log }) {
-          await ownerSignedIn(runtime, log);
-
-          const created = await call(runtime, 'POST', '/api/tokens', { as: 'owner', body: { name: 'Try script' } });
-          const secret = created.data?.secret;
-          const me = await call(runtime, 'GET', '/api/auth/me', { bearer: secret });
-          const more = await call(runtime, 'POST', '/api/tokens', { bearer: secret, body: { name: 'Another' } });
-          const revoked = await call(runtime, 'DELETE', `/api/tokens/${created.data?.token?.id}`, { as: 'owner' });
-          const after = await call(runtime, 'GET', '/api/auth/me', { bearer: secret });
-
-          for (const response of [created, me, more, revoked, after]) log(response.line, response.data);
-
-          return { pass: me.ok && more.status === 403 && revoked.status === 204 && after.status === 401, note: `works as ${me.data?.email}; cannot make tokens (${more.status}); revoked → ${after.status}` };
-        }
-      },
-      {
-        title: 'Disabling someone ends their sessions',
-        description: 'Each request reads the person afresh, so a role or status change applies at once. The owner disables Ann; her next request is refused. Then she is re-enabled and signs in again.',
-        async run(runtime, { log }) {
-          const ann = await annSignedIn(runtime, log);
-          const disabled = await call(runtime, 'PATCH', `/api/users/${ann.id}`, { as: 'owner', body: { status: 'disabled' } });
-          const after = await call(runtime, 'GET', '/api/auth/me', { as: 'ann' });
-          const enabled = await call(runtime, 'PATCH', `/api/users/${ann.id}`, { as: 'owner', body: { status: 'active' } });
-
-          for (const response of [disabled, after, enabled]) log(response.line, response.data);
-
-          return { pass: disabled.ok && after.status === 401 && enabled.ok, note: `disabled → Ann’s next request ${after.status}; re-enabled` };
-        }
-      },
-      {
-        title: 'There is always an administrator',
-        description: 'Demoting or disabling the last active administrator is refused. The check and the change are one database statement, so two administrators demoting each other at once cannot leave none.',
-        async run(runtime, { log }) {
-          const owner = await ownerSignedIn(runtime, log);
-          const demoted = await call(runtime, 'PATCH', `/api/users/${owner.id}`, { as: 'owner', body: { role: 'editor' } });
-
-          log(demoted.line, demoted.data);
-
-          return { pass: demoted.status === 409 && demoted.data?._tag === 'LastAdministrator', note: `${demoted.status} ${demoted.data?._tag}` };
-        }
-      },
-      {
-        title: 'Changing a password ends other sessions',
-        description: 'Ann is signed in on two devices. Changing her password needs her current one; afterwards the other device is signed out and this one gets a fresh session.',
-        async run(runtime, { log }) {
-          const ann = await annSignedIn(runtime, log);
-
-          await call(runtime, 'POST', '/api/auth/sign-in', { as: 'ann-laptop', body: { email: ann.email, password: ANN_PASSWORD } });
-
-          const wrong = await call(runtime, 'POST', '/api/auth/password', { as: 'ann', body: { current: 'not it', next: 'a brand new password' } });
-          const changed = await call(runtime, 'POST', '/api/auth/password', { as: 'ann', body: { current: ANN_PASSWORD, next: ANN_PASSWORD } });
-          const here = await call(runtime, 'GET', '/api/auth/me', { as: 'ann' });
-          const laptop = await call(runtime, 'GET', '/api/auth/me', { as: 'ann-laptop' });
-
-          for (const response of [wrong, changed, here, laptop]) log(response.line, response.data);
-
-          return { pass: wrong.status === 401 && changed.status === 204 && here.ok && laptop.status === 401, note: `wrong current → ${wrong.status}; changed; this device ${here.status}, the laptop ${laptop.status}` };
-        }
-      },
-      {
-        title: 'Skipping a check does not compile',
-        only: 'page',
-        description: 'packages/core/test/mistakes.ts holds code that must not compile: listing people without an IsAdministrator proof, revoking a token with a proof about a different token, changing a password without confirming it, and more. This runs the type checker on that file with its @ts-expect-error markers removed (about ten seconds) and shows what it says.',
-        async run(_runtime, { log }) {
-          const errors = await call(null, 'POST', '/compile-mistakes');
-
-          log(`${errors.data.length} compile errors`, errors.data.join('\n'));
-
-          return { pass: Array.isArray(errors.data) && errors.data.length >= 7, note: `${errors.data.length} errors, one or more per mistake` };
-        }
+        return ann;
       }
-    ]);
-  </script>
-</body>
+
+      mount([
+        {
+          title: 'The owner signs in',
+          description:
+            'The recovery owner comes from the install’s secrets and always signs in as an administrator. The session cookie is HttpOnly (scripts cannot read it), Secure and SameSite=Lax; this page shows it because the try server echoes the Set-Cookie header.',
+          async run(runtime, { log }) {
+            const signedIn = await call(runtime, 'POST', '/api/auth/sign-in', {
+              as: 'owner',
+              body: OWNER
+            });
+            const setCookie = signedIn.headers.get('x-try-set-cookie');
+            const me = await call(runtime, 'GET', '/api/auth/me', {
+              as: 'owner'
+            });
+
+            log(signedIn.line, signedIn.data);
+            log('Set-Cookie', setCookie ?? 'none');
+            log(me.line, me.data);
+
+            return {
+              pass:
+                me.ok &&
+                me.data.role === 'administrator' &&
+                flags(setCookie).length === 3,
+              note: `signed in as ${me.data?.email}, cookie ${flags(setCookie).join(', ')}`
+            };
+          }
+        },
+        {
+          title: 'Wrong passwords lock an email',
+          description:
+            'A wrong password says only “invalid credentials”, whether or not the email exists. Ten failures lock that email for fifteen minutes, even for the right password. (This uses a made-up email, so the owner is not locked out.)',
+          async run(runtime, { log }) {
+            const email = `nobody-${Date.now()}@venda.local`;
+            const statuses = [];
+
+            for (let attempt = 0; attempt < 11; attempt++)
+              statuses.push(
+                (
+                  await call(runtime, 'POST', '/api/auth/sign-in', {
+                    body: { email, password: 'wrong' }
+                  })
+                ).status
+              );
+
+            const last = await call(runtime, 'POST', '/api/auth/sign-in', {
+              body: { email, password: 'wrong' }
+            });
+
+            log(
+              `10 × POST /api/auth/sign-in → ${statuses.slice(0, 10).join(', ')}`
+            );
+            log(last.line, last.data);
+
+            return {
+              pass:
+                statuses.slice(0, 10).every(status => status === 401) &&
+                last.status === 429,
+              note: `401 ten times, then ${last.status} ${last.data?._tag}`
+            };
+          }
+        },
+        {
+          title: 'Invite Ann, who joins with the link',
+          description:
+            'The owner invites Ann as an author. The join link’s secret is stored only as a hash; anyone holding the link sees what it is for and can accept it once.',
+          async run(runtime, { log }) {
+            await ownerSignedIn(runtime, log);
+
+            const email = `ann-${runtime}-${Date.now()}@venda.local`;
+            const invited = await call(runtime, 'POST', '/api/invitations', {
+              as: 'owner',
+              body: { email, role: 'author' }
+            });
+            const link = `/api/join/${invited.data.token}`;
+            const preview = await call(runtime, 'GET', link);
+            const joined = await call(runtime, 'POST', link, {
+              body: { name: 'Ann', password: ANN_PASSWORD }
+            });
+            const again = await call(runtime, 'POST', link, {
+              body: { name: 'Ann', password: ANN_PASSWORD }
+            });
+
+            log(invited.line, invited.data);
+            log(preview.line, preview.data);
+            log(joined.line, joined.data);
+            log(`${again.line} (the same link again)`, again.data);
+            people[runtime] = { email, id: joined.data?.id };
+
+            return {
+              pass:
+                preview.data?.role === 'author' &&
+                joined.ok &&
+                again.status === 404,
+              note: `${email} joined as ${joined.data?.role}; the link then answers ${again.status}`
+            };
+          }
+        },
+        {
+          title: 'Roles decide who may do what',
+          description:
+            'Only administrators manage people. The core’s listUsers demands an IsAdministrator proof, which only proofs/is-administrator.ts can make, after reading the caller’s role from the database (not from their session).',
+          async run(runtime, { log }) {
+            await annSignedIn(runtime, log);
+
+            const asAnn = await call(runtime, 'GET', '/api/users', {
+              as: 'ann'
+            });
+            const asOwner = await call(runtime, 'GET', '/api/users', {
+              as: 'owner'
+            });
+
+            log(asAnn.line, asAnn.data);
+            log(asOwner.line, asOwner.data);
+
+            return {
+              pass: asAnn.status === 403 && asOwner.ok,
+              note: `Ann (author): ${asAnn.status}; owner: ${asOwner.data?.length} people`
+            };
+          }
+        },
+        {
+          title: 'Requests from other sites cannot use the cookie',
+          description:
+            'Browsers send cookies along with requests from other sites. A changing request whose Origin is another site is refused, even with a valid session. (The try server plays that Origin.)',
+          async run(runtime, { log }) {
+            await ownerSignedIn(runtime, log);
+
+            const forged = await call(runtime, 'POST', '/api/invitations', {
+              as: 'owner',
+              origin: 'https://evil.example',
+              body: {
+                email: `x-${Date.now()}@venda.local`,
+                role: 'administrator'
+              }
+            });
+
+            log(`${forged.line} (Origin: https://evil.example)`, forged.data);
+
+            return {
+              pass: forged.status === 403,
+              note: `${forged.status} ${forged.data?.reason ?? ''}`
+            };
+          }
+        },
+        {
+          title: 'API tokens for scripts',
+          description:
+            'A token acts as the person who made it, sent as Authorization: Bearer. Tokens are made only in a signed-in session, so a leaked token cannot make more; a revoked token stops working at once.',
+          async run(runtime, { log }) {
+            await ownerSignedIn(runtime, log);
+
+            const created = await call(runtime, 'POST', '/api/tokens', {
+              as: 'owner',
+              body: { name: 'Try script' }
+            });
+            const secret = created.data?.secret;
+            const me = await call(runtime, 'GET', '/api/auth/me', {
+              bearer: secret
+            });
+            const more = await call(runtime, 'POST', '/api/tokens', {
+              bearer: secret,
+              body: { name: 'Another' }
+            });
+            const revoked = await call(
+              runtime,
+              'DELETE',
+              `/api/tokens/${created.data?.token?.id}`,
+              { as: 'owner' }
+            );
+            const after = await call(runtime, 'GET', '/api/auth/me', {
+              bearer: secret
+            });
+
+            for (const response of [created, me, more, revoked, after])
+              log(response.line, response.data);
+
+            return {
+              pass:
+                me.ok &&
+                more.status === 403 &&
+                revoked.status === 204 &&
+                after.status === 401,
+              note: `works as ${me.data?.email}; cannot make tokens (${more.status}); revoked → ${after.status}`
+            };
+          }
+        },
+        {
+          title: 'Disabling someone ends their sessions',
+          description:
+            'Each request reads the person afresh, so a role or status change applies at once. The owner disables Ann; her next request is refused. Then she is re-enabled and signs in again.',
+          async run(runtime, { log }) {
+            const ann = await annSignedIn(runtime, log);
+            const disabled = await call(
+              runtime,
+              'PATCH',
+              `/api/users/${ann.id}`,
+              { as: 'owner', body: { status: 'disabled' } }
+            );
+            const after = await call(runtime, 'GET', '/api/auth/me', {
+              as: 'ann'
+            });
+            const enabled = await call(
+              runtime,
+              'PATCH',
+              `/api/users/${ann.id}`,
+              { as: 'owner', body: { status: 'active' } }
+            );
+
+            for (const response of [disabled, after, enabled])
+              log(response.line, response.data);
+
+            return {
+              pass: disabled.ok && after.status === 401 && enabled.ok,
+              note: `disabled → Ann’s next request ${after.status}; re-enabled`
+            };
+          }
+        },
+        {
+          title: 'There is always an administrator',
+          description:
+            'Demoting or disabling the last active administrator is refused. The check and the change are one database statement, so two administrators demoting each other at once cannot leave none.',
+          async run(runtime, { log }) {
+            const owner = await ownerSignedIn(runtime, log);
+            const demoted = await call(
+              runtime,
+              'PATCH',
+              `/api/users/${owner.id}`,
+              { as: 'owner', body: { role: 'editor' } }
+            );
+
+            log(demoted.line, demoted.data);
+
+            return {
+              pass:
+                demoted.status === 409 &&
+                demoted.data?._tag === 'LastAdministrator',
+              note: `${demoted.status} ${demoted.data?._tag}`
+            };
+          }
+        },
+        {
+          title: 'Changing a password ends other sessions',
+          description:
+            'Ann is signed in on two devices. Changing her password needs her current one; afterwards the other device is signed out and this one gets a fresh session.',
+          async run(runtime, { log }) {
+            const ann = await annSignedIn(runtime, log);
+
+            await call(runtime, 'POST', '/api/auth/sign-in', {
+              as: 'ann-laptop',
+              body: { email: ann.email, password: ANN_PASSWORD }
+            });
+
+            const wrong = await call(runtime, 'POST', '/api/auth/password', {
+              as: 'ann',
+              body: { current: 'not it', next: 'a brand new password' }
+            });
+            const changed = await call(runtime, 'POST', '/api/auth/password', {
+              as: 'ann',
+              body: { current: ANN_PASSWORD, next: ANN_PASSWORD }
+            });
+            const here = await call(runtime, 'GET', '/api/auth/me', {
+              as: 'ann'
+            });
+            const laptop = await call(runtime, 'GET', '/api/auth/me', {
+              as: 'ann-laptop'
+            });
+
+            for (const response of [wrong, changed, here, laptop])
+              log(response.line, response.data);
+
+            return {
+              pass:
+                wrong.status === 401 &&
+                changed.status === 204 &&
+                here.ok &&
+                laptop.status === 401,
+              note: `wrong current → ${wrong.status}; changed; this device ${here.status}, the laptop ${laptop.status}`
+            };
+          }
+        },
+        {
+          title: 'Skipping a check does not compile',
+          only: 'page',
+          description:
+            'packages/core/test/mistakes.ts holds code that must not compile: listing people without an IsAdministrator proof, revoking a token with a proof about a different token, changing a password without confirming it, and more. This runs the type checker on that file with its @ts-expect-error markers removed (about ten seconds) and shows what it says.',
+          async run(_runtime, { log }) {
+            const errors = await call(null, 'POST', '/compile-mistakes');
+
+            log(`${errors.data.length} compile errors`, errors.data.join('\n'));
+
+            return {
+              pass: Array.isArray(errors.data) && errors.data.length >= 7,
+              note: `${errors.data.length} errors, one or more per mistake`
+            };
+          }
+        }
+      ]);
+    </script>
+  </body>
 </html>

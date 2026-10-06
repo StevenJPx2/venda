@@ -7,7 +7,10 @@ import { collectionKey, contentUrl, isNotFound, shapeEntries } from '../utils';
 function useApiBase(): string {
   const apiBase = useRuntimeConfig().public.venda?.apiBase;
 
-  if (!apiBase) throw new Error('[@venda/nuxt] Missing `venda.apiBase`. Set it in nuxt.config or NUXT_PUBLIC_VENDA_API_BASE.');
+  if (!apiBase)
+    throw new Error(
+      '[@venda/nuxt] Missing `venda.apiBase`. Set it in nuxt.config or NUXT_PUBLIC_VENDA_API_BASE.'
+    );
 
   return apiBase;
 }

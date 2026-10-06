@@ -1,5 +1,9 @@
 import withNuxt from './.nuxt/eslint.config.mjs';
-import { sharedIgnores, sharedRules, sharedTemplateRules } from '../../eslint.config.shared.mjs';
+import {
+  sharedIgnores,
+  sharedRules,
+  sharedTemplateRules
+} from '../../eslint.config.shared.mjs';
 
 export default withNuxt(
   { ignores: sharedIgnores },

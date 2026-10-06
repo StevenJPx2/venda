@@ -10,6 +10,12 @@ export default defineComponent({
   },
   setup(props) {
     // renderHtml escapes text and rejects unsafe URLs; raw repository HTML never reaches innerHTML.
-    return () => props.content ? h('div', { class: 'preview-prose', innerHTML: renderHtml(props.content) }) : null;
+    return () =>
+      props.content
+        ? h('div', {
+            class: 'preview-prose',
+            innerHTML: renderHtml(props.content)
+          })
+        : null;
   }
 });

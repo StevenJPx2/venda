@@ -4,4 +4,5 @@
 import shell from '../../../apps/admin/dist/index.html' with { type: 'text' };
 import { respondToAdminPath } from '../src/admin';
 
-export const adminResponse = (request: Request) => respondToAdminPath(request, shell);
+export const adminResponse = (request: Request) =>
+  respondToAdminPath(request, shell);

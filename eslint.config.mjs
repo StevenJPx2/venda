@@ -8,7 +8,11 @@ export default [
   { ignores: [...sharedIgnores, 'apps/**', 'packages/**'] },
   {
     files: ['**/*.mjs'],
-    languageOptions: { sourceType: 'module', ecmaVersion: 'latest', globals: globals.node },
+    languageOptions: {
+      sourceType: 'module',
+      ecmaVersion: 'latest',
+      globals: globals.node
+    },
     plugins: sharedRules.plugins,
     rules: sharedRules.rules
   }

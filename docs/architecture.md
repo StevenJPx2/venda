@@ -316,7 +316,8 @@ site component. An unknown block renders its text content, never raw markup.
 
 `pnpm check` runs, and must pass with zero warnings:
 
-1. Formatting.
+1. Formatting: Prettier (`prettier --check`), 80 columns, single quotes, no
+   trailing commas. `pnpm lint:fix` (or `pnpm format`) applies it.
 2. Oxlint with the vendored anti-slop rules and `max-lines-per-function: 70`
    for TypeScript packages; Nuxt ESLint stays for the Vue apps.
 3. Type checking (strict, `noUncheckedIndexedAccess`,
@@ -340,24 +341,25 @@ Code follows the code-breathing-room convention: blank lines group the
 statements of one phase; every braced block and every `if` (one-line guards
 included) gets a blank line above and below, with a run of consecutive guards
 kept together as one paragraph; and scopes never start or end with a blank
-line. ESLint enforces the mechanical part
-(`@stylistic/padding-line-between-statements`, `padded-blocks`,
-`no-multiple-empty-lines` in `eslint.config.shared.mjs`); grouping by phase is
-checked in review.
+line. Consecutive variable declarations may stay grouped.
 
-Templates have the same rhythm. Multiline sibling sections and components are
-separated by a blank line, nested containers are expanded and indented, and
-short text or inline phrases and adjacent leaf controls stay compact. A gap
-after a multiline opening tag's props is allowed, and consecutive variable
-declarations may be grouped. `sharedTemplateRules` in
-`eslint.config.shared.mjs` enforces it for the Nuxt apps and the plugin
-screens (`vue/padding-line-between-tags` on multiline neighbours,
-`vue/multiline-html-element-content-newline`,
-`vue/singleline-html-element-content-newline`, `vue/html-indent`), and
-`scripts/spacing.test.mjs` proves both that the rules accept the intended shape
-and that they produce it by autofix. Prettier 3.9.9 was checked against the
-same fixture and removes the gap after an opening tag, so it is installed but
-not wired in as a conflicting formatting gate.
+Prettier owns layout: indentation, wrapping and line breaks, in code and Vue
+templates alike. ESLint owns only the blank-line rhythm, which Prettier keeps
+but never adds: `@stylistic/padding-line-between-statements` for statements
+and, in templates, `vue/padding-line-between-tags`, which separates multiline
+sibling sections and components with one blank line while adjacent leaf
+controls may stay grouped. `eslint-config-prettier` turns off every rule that
+would fight Prettier. Prettier removes a blank line directly after a multiline
+opening tag and at the edges of blocks, so those gaps are not used. `pnpm
+lint:fix` runs Prettier, then the ESLint and Oxlint fixes, then Prettier again:
+a blank line ESLint adds beside a wrapped inline tag can let Prettier unwrap
+it, and Prettier itself can lay out a long method chain differently on a
+second pass. `scripts/spacing.test.mjs` proves the pipeline settles on Vue
+samples that broke a single pass. Grouping by phase is checked in review.
+
+Wrapping at 80 columns makes code taller, and the gate's size and duplication
+limits apply to the result: a test group that outgrew 70 lines is split by
+topic, and code that only looked distinct on one long line is shared.
 
 ## Delivery
 
@@ -467,7 +469,8 @@ Production:
 | `@gdp-ts/core` | 0.1.0 | core, server | Capability checks as compile-time proofs, and its Oxlint preset |
 | `nuxt`, `@nuxt/kit`, `@nuxt/schema` | 4.6.0 | admin, landing, nuxt | Exact pins, for the portable `nuxt/server` API and its CLI |
 
-Development: `oxlint` and `@oxlint/plugins` 1.86.0, `fallow` 3.31.0,
+Development: `prettier` 3.9.9 with `eslint-config-prettier` 10.1.8,
+`oxlint` and `@oxlint/plugins` 1.86.0, `fallow` 3.31.0,
 `@effect/language-service` 0.87.3, `drizzle-kit` 1.0.0-rc.5-5935859,
 `playwright` 1.63.0 (the browser suite).
 

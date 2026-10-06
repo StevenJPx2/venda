@@ -11,28 +11,50 @@ export interface KeyValueMount {
 
 // Expiry travels with the value: the file driver has no TTL. KV also expires
 // keys itself (it needs a TTL of at least 60 seconds).
-const Stored = Schema.Struct({ value: Schema.String, expiresAt: Schema.Number });
+const Stored = Schema.Struct({
+  value: Schema.String,
+  expiresAt: Schema.Number
+});
 
 const decodeStored = Schema.decodeUnknownOption(Schema.fromJsonString(Stored));
 
 const KV_MIN_TTL_SECONDS = 60;
 
-const failure = (message: string) => (cause: unknown) => new KeyValueError({ message, cause });
+const failure = (message: string) => (cause: unknown) =>
+  new KeyValueError({ message, cause });
 
-export const keyValueLayer = (mount: KeyValueMount) => Layer.succeed(KeyValue, {
-  get: key => Effect.gen(function*() {
-    const raw = yield* Effect.tryPromise({ try: () => mount.getItem(key), catch: failure(`Could not read ${key}`) });
-    // unstorage parses JSON values on read; the file driver may hand back the object.
-    const stored = decodeStored(Predicate.isString(raw) ? raw : JSON.stringify(raw));
-    const now = yield* Clock.currentTimeMillis;
+export const keyValueLayer = (mount: KeyValueMount) =>
+  Layer.succeed(KeyValue, {
+    get: key =>
+      Effect.gen(function* () {
+        const raw = yield* Effect.tryPromise({
+          try: () => mount.getItem(key),
+          catch: failure(`Could not read ${key}`)
+        });
+        // unstorage parses JSON values on read; the file driver may hand back the object.
+        const stored = decodeStored(
+          Predicate.isString(raw) ? raw : JSON.stringify(raw)
+        );
+        const now = yield* Clock.currentTimeMillis;
 
-    return Option.flatMap(stored, each => (each.expiresAt > now ? Option.some(each.value) : Option.none()));
-  }),
-  set: (key, value, ttlSeconds) => Effect.gen(function*() {
-    const expiresAt = (yield* Clock.currentTimeMillis) + ttlSeconds * 1000;
-    const ttl = Math.max(ttlSeconds, KV_MIN_TTL_SECONDS);
+        return Option.flatMap(stored, each =>
+          each.expiresAt > now ? Option.some(each.value) : Option.none()
+        );
+      }),
+    set: (key, value, ttlSeconds) =>
+      Effect.gen(function* () {
+        const expiresAt = (yield* Clock.currentTimeMillis) + ttlSeconds * 1000;
+        const ttl = Math.max(ttlSeconds, KV_MIN_TTL_SECONDS);
 
-    yield* Effect.tryPromise({ try: () => mount.setItem(key, JSON.stringify({ value, expiresAt }), { ttl }), catch: failure(`Could not write ${key}`) });
-  }),
-  remove: key => Effect.tryPromise({ try: () => mount.removeItem(key), catch: failure(`Could not remove ${key}`) })
-});
+        yield* Effect.tryPromise({
+          try: () =>
+            mount.setItem(key, JSON.stringify({ value, expiresAt }), { ttl }),
+          catch: failure(`Could not write ${key}`)
+        });
+      }),
+    remove: key =>
+      Effect.tryPromise({
+        try: () => mount.removeItem(key),
+        catch: failure(`Could not remove ${key}`)
+      })
+  });

@@ -1,7 +1,17 @@
-import { MAX_DEPTH, type RichTextDoc, type RichTextMark, type RichTextNode } from './types';
+import {
+  MAX_DEPTH,
+  type RichTextDoc,
+  type RichTextMark,
+  type RichTextNode
+} from './types';
 
 export function escapeHtml(text: string): string {
-  return text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
+  return text
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
 }
 
 const SAFE_LINK = /^(https?:|mailto:|tel:|\/|#)/i;
@@ -15,7 +25,15 @@ function safeUrl(value: unknown, pattern: RegExp): string | null {
   return pattern.test(url) ? url : null;
 }
 
-const MARK_TAGS: Record<string, string> = { bold: 'strong', italic: 'em', strike: 's', underline: 'u', code: 'code', superscript: 'sup', subscript: 'sub' };
+const MARK_TAGS: Record<string, string> = {
+  bold: 'strong',
+  italic: 'em',
+  strike: 's',
+  underline: 'u',
+  code: 'code',
+  superscript: 'sup',
+  subscript: 'sub'
+};
 
 function openMark(mark: RichTextMark): [string, string] {
   if (mark.type === 'link') {
@@ -24,7 +42,10 @@ function openMark(mark: RichTextMark): [string, string] {
     if (!href) return ['', ''];
 
     const external = /^https?:/i.test(href);
-    return [`<a href="${escapeHtml(href)}"${external ? ' rel="noopener noreferrer"' : ''}>`, '</a>'];
+    return [
+      `<a href="${escapeHtml(href)}"${external ? ' rel="noopener noreferrer"' : ''}>`,
+      '</a>'
+    ];
   }
 
   const tag = MARK_TAGS[mark.type];
@@ -54,31 +75,46 @@ function renderImage(node: RichTextNode): string {
   if (!src) return '';
 
   const alt = typeof node.attrs?.alt === 'string' ? node.attrs.alt : '';
-  const title = typeof node.attrs?.title === 'string' ? ` title="${escapeHtml(node.attrs.title)}"` : '';
+  const title =
+    typeof node.attrs?.title === 'string'
+      ? ` title="${escapeHtml(node.attrs.title)}"`
+      : '';
   return `<img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}"${title} loading="lazy">`;
 }
 
 function wrap(node: RichTextNode, inner: string): string {
   switch (node.type) {
-    case 'paragraph': return `<p>${inner}</p>`;
-    case 'heading': return `<h${headingLevel(node)}>${inner}</h${headingLevel(node)}>`;
-    case 'blockquote': return `<blockquote>${inner}</blockquote>`;
-    case 'bulletList': return `<ul>${inner}</ul>`;
+    case 'paragraph':
+      return `<p>${inner}</p>`;
+    case 'heading':
+      return `<h${headingLevel(node)}>${inner}</h${headingLevel(node)}>`;
+    case 'blockquote':
+      return `<blockquote>${inner}</blockquote>`;
+    case 'bulletList':
+      return `<ul>${inner}</ul>`;
 
     case 'orderedList': {
       const start = Number(node.attrs?.start);
-      return Number.isInteger(start) && start > 1 ? `<ol start="${start}">${inner}</ol>` : `<ol>${inner}</ol>`;
+      return Number.isInteger(start) && start > 1
+        ? `<ol start="${start}">${inner}</ol>`
+        : `<ol>${inner}</ol>`;
     }
 
-    case 'listItem': return `<li>${inner}</li>`;
+    case 'listItem':
+      return `<li>${inner}</li>`;
 
     case 'codeBlock': {
-      const language = typeof node.attrs?.language === 'string' && /^[\w+-]{1,32}$/.test(node.attrs.language) ? ` class="language-${node.attrs.language}"` : '';
+      const language =
+        typeof node.attrs?.language === 'string' &&
+        /^[\w+-]{1,32}$/.test(node.attrs.language)
+          ? ` class="language-${node.attrs.language}"`
+          : '';
       return `<pre><code${language}>${inner}</code></pre>`;
     }
 
     // Unknown node types (e.g. from plugins) render their children only.
-    default: return inner;
+    default:
+      return inner;
   }
 }
 
@@ -95,7 +131,10 @@ export function renderHtml(doc: RichTextDoc): string {
     if (node.type === 'horizontalRule') return '<hr>';
     if (node.type === 'image') return renderImage(node);
 
-    return wrap(node, (node.content ?? []).map(child => renderNode(child, depth + 1)).join(''));
+    return wrap(
+      node,
+      (node.content ?? []).map(child => renderNode(child, depth + 1)).join('')
+    );
   };
 
   return doc.content.map(node => renderNode(node, 1)).join('');

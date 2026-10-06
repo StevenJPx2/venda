@@ -4,7 +4,10 @@ import { useAdminResource } from '../src/runtime';
 function deferred<A>() {
   let resolve!: (value: A) => void;
   let reject!: (cause: Error) => void;
-  const promise = new Promise<A>((ok, fail) => { resolve = ok; reject = fail; });
+  const promise = new Promise<A>((ok, fail) => {
+    resolve = ok;
+    reject = fail;
+  });
 
   return { promise, resolve, reject };
 }
@@ -31,7 +34,7 @@ it('starts a newer read at once and keeps it when an older one answers late', as
   expect(resource.data.value).toBe('newer');
 });
 
-it('shows only the latest read\'s failure', async () => {
+it("shows only the latest read's failure", async () => {
   const answers = [deferred<string>(), deferred<string>()];
   let call = 0;
   const resource = useAdminResource(() => answers[call++]!.promise);

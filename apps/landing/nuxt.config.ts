@@ -7,7 +7,15 @@ export default defineNuxtConfig({
   nitro: { preset: 'cloudflare_module' },
   ui: {
     theme: {
-      colors: ['primary', 'secondary', 'success', 'info', 'warning', 'error', 'neutral']
+      colors: [
+        'primary',
+        'secondary',
+        'success',
+        'info',
+        'warning',
+        'error',
+        'neutral'
+      ]
     }
   },
   typescript: { strict: true, typeCheck: true }

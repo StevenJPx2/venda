@@ -8,7 +8,9 @@ provide(AdminRuntimeKey, admin);
 const route = useRoute();
 const ready = ref(false);
 const error = ref('');
-const publicPage = computed(() => resolvePage(adminPages, route.path)?.page.access === 'public');
+const publicPage = computed(
+  () => resolvePage(adminPages, route.path)?.page.access === 'public'
+);
 const prototype = computed(() => route.path.startsWith('/prototypes/'));
 
 async function identify() {

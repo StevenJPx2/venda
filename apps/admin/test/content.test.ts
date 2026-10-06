@@ -16,12 +16,18 @@ describe('hyphenateSlug', () => {
 
   it('moves the caret back by the characters removed before it', () => {
     // Pasting "edge  cases" before the caret at the end.
-    expect(hyphenateSlug('edge  cases', 11)).toEqual({ value: 'edge-cases', caret: 10 });
+    expect(hyphenateSlug('edge  cases', 11)).toEqual({
+      value: 'edge-cases',
+      caret: 10
+    });
     expect(hyphenateSlug('a  b', 2)).toEqual({ value: 'a-b', caret: 2 });
   });
 
   it('leaves case and other characters for slugify on blur', () => {
-    expect(hyphenateSlug('Hello World!')).toEqual({ value: 'Hello-World!', caret: 12 });
+    expect(hyphenateSlug('Hello World!')).toEqual({
+      value: 'Hello-World!',
+      caret: 12
+    });
   });
 });
 

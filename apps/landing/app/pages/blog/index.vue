@@ -4,10 +4,17 @@ import type { PostData } from '~/types';
 const { data: posts } = await useVendaCollection<PostData>('blog');
 
 function formatDate(value: string): string {
-  return new Date(value).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  return new Date(value).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
 }
 
-useSeoMeta({ title: 'Blog · Venda', description: 'Posts written and published with Venda.' });
+useSeoMeta({
+  title: 'Blog · Venda',
+  description: 'Posts written and published with Venda.'
+});
 </script>
 
 <template>
@@ -34,9 +41,17 @@ useSeoMeta({ title: 'Blog · Venda', description: 'Posts written and published w
       >
         <template #footer>
           <div class="flex flex-wrap items-center gap-2 text-xs text-muted">
-            <span v-if="post.publishedAt">{{ formatDate(post.publishedAt) }}</span>
+            <span v-if="post.publishedAt">{{
+              formatDate(post.publishedAt)
+            }}</span>
 
-            <UBadge v-for="tag in post.data.tags ?? []" :key="tag" color="neutral" variant="subtle" size="sm">
+            <UBadge
+              v-for="tag in post.data.tags ?? []"
+              :key="tag"
+              color="neutral"
+              variant="subtle"
+              size="sm"
+            >
               {{ tag }}
             </UBadge>
           </div>

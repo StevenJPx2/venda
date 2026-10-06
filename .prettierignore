@@ -1,0 +1,16 @@
+# Generated or vendored
+pnpm-lock.yaml
+**/.nuxt
+**/.output
+**/.output-node
+**/.wrangler
+**/dist
+.try
+.data
+packages/core/drizzle
+tools/oxlint/anti-slop
+
+# Content and prose keep their authored shape
+*.md
+**/fixtures
+try/content

@@ -16,15 +16,23 @@ const InvitationIsOpen = defineProof('InvitationIsOpen');
  */
 export interface InvitationIsOpen<I> extends Proof<'InvitationIsOpen', [I]> {}
 
-export const invitationIsOpen = <I>(secret: Named<I, string>) => Effect.gen(function*() {
-  const db = yield* Database;
-  const now = DateTime.formatIso(yield* DateTime.now);
-  const open = and(eq(invitations.tokenHash, yield* digest(secret.value)), isNull(invitations.acceptedAt), gt(invitations.expiresAt, now));
-  const [row] = yield* db.select({ id: invitations.id }).from(invitations).where(open);
+export const invitationIsOpen = <I>(secret: Named<I, string>) =>
+  Effect.gen(function* () {
+    const db = yield* Database;
+    const now = DateTime.formatIso(yield* DateTime.now);
+    const open = and(
+      eq(invitations.tokenHash, yield* digest(secret.value)),
+      isNull(invitations.acceptedAt),
+      gt(invitations.expiresAt, now)
+    );
+    const [row] = yield* db
+      .select({ id: invitations.id })
+      .from(invitations)
+      .where(open);
 
-  if (row === undefined) return yield* new InvitationNotFound();
+    if (row === undefined) return yield* new InvitationNotFound();
 
-  const proof: InvitationIsOpen<I> = InvitationIsOpen.prove(secret);
+    const proof: InvitationIsOpen<I> = InvitationIsOpen.prove(secret);
 
-  return proof;
-});
+    return proof;
+  });

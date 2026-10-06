@@ -2,7 +2,9 @@ import { Schema } from 'effect';
 import { HttpApiEndpoint, HttpApiGroup } from 'effect/http-api';
 
 /** A published entry as sites read it: `<collection>/<slug>.md`, its date and its fields. */
-export class PublicEntry extends Schema.Class<PublicEntry>('venda/contract/PublicEntry')({
+export class PublicEntry extends Schema.Class<PublicEntry>(
+  'venda/contract/PublicEntry'
+)({
   collection: Schema.String,
   slug: Schema.String,
   // The file's `publishedAt`, in UTC; null when the file has none.
@@ -11,14 +13,22 @@ export class PublicEntry extends Schema.Class<PublicEntry>('venda/contract/Publi
   data: Schema.Record(Schema.String, Schema.Json)
 }) {}
 
-export class CollectionNotFound extends Schema.TaggedError<CollectionNotFound>()('CollectionNotFound', {
-  collection: Schema.String
-}, { httpApiStatus: 404 }) {}
+export class CollectionNotFound extends Schema.TaggedError<CollectionNotFound>()(
+  'CollectionNotFound',
+  {
+    collection: Schema.String
+  },
+  { httpApiStatus: 404 }
+) {}
 
-export class EntryNotFound extends Schema.TaggedError<EntryNotFound>()('EntryNotFound', {
-  collection: Schema.String,
-  slug: Schema.String
-}, { httpApiStatus: 404 }) {}
+export class EntryNotFound extends Schema.TaggedError<EntryNotFound>()(
+  'EntryNotFound',
+  {
+    collection: Schema.String,
+    slug: Schema.String
+  },
+  { httpApiStatus: 404 }
+) {}
 
 const collection = Schema.String;
 

@@ -2,7 +2,12 @@
 
 /** A slug as entry files are named: lowercase words joined by hyphens. */
 export function slugify(value: string): string {
-  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80);
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 80);
 }
 
 /**
@@ -10,7 +15,10 @@ export function slugify(value: string): string {
  * already there) and the caret keeps its place. Everything else is left for
  * `slugify` when the field loses focus, so typing never fights the cursor.
  */
-export function hyphenateSlug(value: string, caret = value.length): { value: string; caret: number } {
+export function hyphenateSlug(
+  value: string,
+  caret = value.length
+): { value: string; caret: number } {
   let out = '';
   let nextCaret = -1;
 

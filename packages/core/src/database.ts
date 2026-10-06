@@ -13,4 +13,6 @@ interface Queries extends QueryEffectHKTBase {
 
 export type DrizzleDatabase = SQLiteEffectDatabase<Queries, unknown>;
 
-export class Database extends Context.Service<Database, DrizzleDatabase>()('venda/core/Database') {}
+export class Database extends Context.Service<Database, DrizzleDatabase>()(
+  'venda/core/Database'
+) {}

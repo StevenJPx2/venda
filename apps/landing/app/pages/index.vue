@@ -3,17 +3,20 @@ import type { FeatureData, HeroData, PostData, StepData } from '~/types';
 
 // All landing copy comes from Venda (via @venda/nuxt): pages/home, features,
 // steps and blog. Missing content falls back to sensible defaults.
-const [{ data: home }, { data: features }, { data: steps }, { data: posts }] = await Promise.all([
-  useVendaEntry<HeroData>('pages', 'home'),
-  useVendaCollection<FeatureData>('features', { sortBy: 'order' }),
-  useVendaCollection<StepData>('steps', { sortBy: 'order' }),
-  useVendaCollection<PostData>('blog', { limit: 3 })
-]);
+const [{ data: home }, { data: features }, { data: steps }, { data: posts }] =
+  await Promise.all([
+    useVendaEntry<HeroData>('pages', 'home'),
+    useVendaCollection<FeatureData>('features', { sortBy: 'order' }),
+    useVendaCollection<StepData>('steps', { sortBy: 'order' }),
+    useVendaCollection<PostData>('blog', { limit: 3 })
+  ]);
 
 const hero = computed(() => ({
   headline: home.value?.data.headline ?? 'Built entirely on Cloudflare',
   title: home.value?.data.title ?? 'The headless CMS that lives on the edge',
-  description: home.value?.data.description ?? 'A Nuxt UI admin with a Workers API, D1 for content, R2 for media, and KV for cache.'
+  description:
+    home.value?.data.description ??
+    'A Nuxt UI admin with a Workers API, D1 for content, R2 for media, and KV for cache.'
 }));
 
 const stackCards = [
@@ -26,7 +29,10 @@ function stepTitle(index: number, title: string | undefined): string {
   return `${String(index + 1).padStart(2, '0')} · ${title ?? ''}`;
 }
 
-useSeoMeta({ title: 'Venda: a Cloudflare-native headless CMS', description: () => hero.value.description });
+useSeoMeta({
+  title: 'Venda: a Cloudflare-native headless CMS',
+  description: () => hero.value.description
+});
 </script>
 
 <template>
@@ -35,24 +41,55 @@ useSeoMeta({ title: 'Venda: a Cloudflare-native headless CMS', description: () =
       :title="hero.title"
       :description="hero.description"
       class="overflow-hidden"
-      :ui="{ title: 'text-4xl sm:text-6xl lg:text-7xl', description: 'max-w-3xl text-lg sm:text-xl' }"
+      :ui="{
+        title: 'text-4xl sm:text-6xl lg:text-7xl',
+        description: 'max-w-3xl text-lg sm:text-xl'
+      }"
     >
       <template #headline>
-        <UBadge color="primary" variant="subtle" size="lg" icon="i-lucide-cloud">
+        <UBadge
+          color="primary"
+          variant="subtle"
+          size="lg"
+          icon="i-lucide-cloud"
+        >
           {{ hero.headline }}
         </UBadge>
       </template>
 
       <template #links>
         <div class="flex flex-wrap justify-center gap-3">
-          <UButton label="Open the admin" icon="i-lucide-arrow-right" trailing to="https://app.venda.stevenjohn.co" target="_blank" external size="xl" />
-          <UButton label="Read the blog" icon="i-lucide-newspaper" color="neutral" variant="outline" to="/blog" size="xl" />
+          <UButton
+            label="Open the admin"
+            icon="i-lucide-arrow-right"
+            trailing
+            to="https://app.venda.stevenjohn.co"
+            target="_blank"
+            external
+            size="xl"
+          />
+
+          <UButton
+            label="Read the blog"
+            icon="i-lucide-newspaper"
+            color="neutral"
+            variant="outline"
+            to="/blog"
+            size="xl"
+          />
         </div>
       </template>
 
       <template #bottom>
         <div class="mx-auto grid w-full max-w-4xl gap-4 sm:grid-cols-3">
-          <UPageCard v-for="item in stackCards" :key="item.label" :icon="item.icon" :title="item.value" :description="item.label" spotlight />
+          <UPageCard
+            v-for="item in stackCards"
+            :key="item.label"
+            :icon="item.icon"
+            :title="item.value"
+            :description="item.label"
+            spotlight
+          />
         </div>
       </template>
     </UPageHero>
@@ -114,7 +151,14 @@ useSeoMeta({ title: 'Venda: a Cloudflare-native headless CMS', description: () =
       </UPageGrid>
 
       <div class="mt-8 flex justify-center">
-        <UButton label="All posts" icon="i-lucide-arrow-right" trailing color="neutral" variant="outline" to="/blog" />
+        <UButton
+          label="All posts"
+          icon="i-lucide-arrow-right"
+          trailing
+          color="neutral"
+          variant="outline"
+          to="/blog"
+        />
       </div>
     </UPageSection>
 
@@ -126,8 +170,25 @@ useSeoMeta({ title: 'Venda: a Cloudflare-native headless CMS', description: () =
     >
       <template #links>
         <div class="flex flex-wrap justify-center gap-3">
-          <UButton label="Launch the admin" icon="i-lucide-arrow-up-right" to="https://app.venda.stevenjohn.co" target="_blank" external size="lg" />
-          <UButton label="Read the API" icon="i-lucide-code-2" color="neutral" variant="outline" to="https://api.venda.stevenjohn.co/api/content/blog" target="_blank" external size="lg" />
+          <UButton
+            label="Launch the admin"
+            icon="i-lucide-arrow-up-right"
+            to="https://app.venda.stevenjohn.co"
+            target="_blank"
+            external
+            size="lg"
+          />
+
+          <UButton
+            label="Read the API"
+            icon="i-lucide-code-2"
+            color="neutral"
+            variant="outline"
+            to="https://api.venda.stevenjohn.co/api/content/blog"
+            target="_blank"
+            external
+            size="lg"
+          />
         </div>
       </template>
     </UPageSection>

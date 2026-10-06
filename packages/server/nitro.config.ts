@@ -23,7 +23,10 @@ function aliases() {
   return {
     '#venda/target': here('./src/targets/cloudflare.ts'),
     // yaml's Node build loads `process` with require(), which workerd cannot do; its ESM browser build has no Node imports.
-    yaml: join(dirname(fromContent.resolve('yaml/package.json')), 'browser/index.js')
+    yaml: join(
+      dirname(fromContent.resolve('yaml/package.json')),
+      'browser/index.js'
+    )
   };
 }
 
@@ -33,10 +36,16 @@ export default defineConfig({
   serverDir: './server',
   // Separate outputs, so building for Node never replaces a Workers build in use.
   // VENDA_OUTPUT_DIR gives a long-running caller (`pnpm try`) its own, so another build cannot pull files from under it.
-  output: { dir: process.env.VENDA_OUTPUT_DIR ?? (onCloudflare ? '.output' : '.output-node') },
+  output: {
+    dir:
+      process.env.VENDA_OUTPUT_DIR ??
+      (onCloudflare ? '.output' : '.output-node')
+  },
   alias: aliases(),
   // Nuxt's build is already based at /admin/. Unmatched deep links reach the shell handler.
-  publicAssets: [{ dir: here('../../apps/admin/dist'), baseURL: '/admin', fallthrough: true }],
+  publicAssets: [
+    { dir: here('../../apps/admin/dist'), baseURL: '/admin', fallthrough: true }
+  ],
   // drizzle-kit's migrations, applied at startup on every runtime.
   serverAssets: [
     { baseName: 'migrations', dir: here('../core/drizzle') },
@@ -45,7 +54,10 @@ export default defineConfig({
   // `kv` holds sessions and sign-in attempts: Workers KV, or files beside the database.
   storage: onCloudflare
     ? { kv: { driver: 'cloudflare-kv-binding', binding: 'VENDA_KV' } }
-    : { content: { driver: 'fs', base: './content' }, kv: { driver: 'fs', base: './.data/kv' } },
+    : {
+        content: { driver: 'fs', base: './content' },
+        kv: { driver: 'fs', base: './.data/kv' }
+      },
   cloudflare: {
     deployConfig: true,
     nodeCompat: true,
@@ -53,7 +65,9 @@ export default defineConfig({
       name: 'venda',
       compatibility_flags: ['nodejs_compat'],
       // Local `wrangler dev` creates the database by binding name; installs write their own ID.
-      d1_databases: [{ binding: 'VENDA_DB', database_name: 'venda', database_id: 'local' }],
+      d1_databases: [
+        { binding: 'VENDA_DB', database_name: 'venda', database_id: 'local' }
+      ],
       kv_namespaces: [{ binding: 'VENDA_KV', id: 'local' }]
     }
   }

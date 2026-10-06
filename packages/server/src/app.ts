@@ -26,13 +26,30 @@ export interface VendaApp {
 // Content is public; sites and CDNs may keep a read for a minute.
 const PUBLIC_CACHE = 'public, max-age=60';
 
-async function build(target: Target, mounts: Mounts, env: RawEnv): Promise<VendaApp> {
-  const { VENDA_VERSION, VENDA_OWNER_EMAIL, VENDA_OWNER_PASSWORD } = decodeServerEnv(env);
+async function build(
+  target: Target,
+  mounts: Mounts,
+  env: RawEnv
+): Promise<VendaApp> {
+  const { VENDA_VERSION, VENDA_OWNER_EMAIL, VENDA_OWNER_PASSWORD } =
+    decodeServerEnv(env);
   const content = target.content();
-  const owner = Layer.succeed(Owner, { email: VENDA_OWNER_EMAIL, password: Redacted.make(VENDA_OWNER_PASSWORD) });
-  const runtime = ManagedRuntime.make(Layer.mergeAll(target.database.layer, contentStoreLayer(content.files), keyValueLayer(mounts.keyValue), owner));
+  const owner = Layer.succeed(Owner, {
+    email: VENDA_OWNER_EMAIL,
+    password: Redacted.make(VENDA_OWNER_PASSWORD)
+  });
+  const runtime = ManagedRuntime.make(
+    Layer.mergeAll(
+      target.database.layer,
+      contentStoreLayer(content.files),
+      keyValueLayer(mounts.keyValue),
+      owner
+    )
+  );
 
-  await runtime.runPromise(migrate(target.database, await readMigrations(mounts.migrations)));
+  await runtime.runPromise(
+    migrate(target.database, await readMigrations(mounts.migrations))
+  );
 
   const sync = contentSync(effect => runtime.runPromise(effect));
 
@@ -41,14 +58,21 @@ async function build(target: Target, mounts: Mounts, env: RawEnv): Promise<Venda
   const unwatch = await content.watch?.(() => void sync());
 
   const domain = await runtime.runPromise(Effect.context<DomainServices>());
-  const services = Layer.mergeAll(Layer.succeed(BuildInfo, { version: VENDA_VERSION ?? 'dev' }), Layer.succeedContext(domain));
+  const services = Layer.mergeAll(
+    Layer.succeed(BuildInfo, { version: VENDA_VERSION ?? 'dev' }),
+    Layer.succeedContext(domain)
+  );
   const api = toApiHandler(services);
 
   return {
     async fetch(request) {
       const response = await api.handler(request);
 
-      if (response.ok && new URL(request.url).pathname.startsWith('/api/content/')) response.headers.set('Cache-Control', PUBLIC_CACHE);
+      if (
+        response.ok &&
+        new URL(request.url).pathname.startsWith('/api/content/')
+      )
+        response.headers.set('Cache-Control', PUBLIC_CACHE);
 
       return response;
     },
@@ -71,14 +95,20 @@ export interface AppLoader {
  * bindings inside an event. A failed build is not cached, so the next request
  * retries it.
  */
-export function appLoader(target: Target, mounts: () => Mounts, readEnv: () => RawEnv): AppLoader {
+export function appLoader(
+  target: Target,
+  mounts: () => Mounts,
+  readEnv: () => RawEnv
+): AppLoader {
   let pending: Promise<VendaApp> | undefined;
 
   const load = () => {
-    pending ??= Promise.resolve().then(() => build(target, mounts(), readEnv())).catch((error: Error) => {
-      pending = undefined;
-      throw error;
-    });
+    pending ??= Promise.resolve()
+      .then(() => build(target, mounts(), readEnv()))
+      .catch((error: Error) => {
+        pending = undefined;
+        throw error;
+      });
 
     return pending;
   };

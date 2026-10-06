@@ -1,10 +1,21 @@
 <script setup lang="ts">
 // Prototype only: the rich-text body without a frame or fixed toolbar.
 // Formatting appears on selection; "+" and "/" insert blocks.
-import type { DropdownMenuItem, EditorCustomHandlers, EditorSuggestionMenuItem, EditorToolbarItem } from '@nuxt/ui';
+import type {
+  DropdownMenuItem,
+  EditorCustomHandlers,
+  EditorSuggestionMenuItem,
+  EditorToolbarItem
+} from '@nuxt/ui';
 import type { Editor } from '@tiptap/vue-3';
 import type { RichTextDoc } from '@venda/richtext';
-import { BLOCK_TYPES, blockTypeOf, deleteBlock, duplicateBlock, turnInto as turnBlockInto } from './blockTypes';
+import {
+  BLOCK_TYPES,
+  blockTypeOf,
+  deleteBlock,
+  duplicateBlock,
+  turnInto as turnBlockInto
+} from './blockTypes';
 
 const props = defineProps<{ serif?: boolean }>();
 const body = defineModel<RichTextDoc>({ required: true });
@@ -25,7 +36,12 @@ const handlers = {
       input.onchange = () => {
         const file = input.files?.[0];
 
-        if (file) editor.chain().focus().setImage({ src: URL.createObjectURL(file), alt: file.name }).run();
+        if (file)
+          editor
+            .chain()
+            .focus()
+            .setImage({ src: URL.createObjectURL(file), alt: file.name })
+            .run();
       };
 
       input.click();
@@ -38,15 +54,23 @@ const handlers = {
 const bubbleItems = [
   [
     { kind: 'mark', mark: 'bold', icon: 'i-lucide-bold', 'aria-label': 'Bold' },
-    { kind: 'mark', mark: 'italic', icon: 'i-lucide-italic', 'aria-label': 'Italic' }
+    {
+      kind: 'mark',
+      mark: 'italic',
+      icon: 'i-lucide-italic',
+      'aria-label': 'Italic'
+    }
   ],
   [
-    { kind: 'heading', level: 2, icon: 'i-lucide-heading-2', 'aria-label': 'Heading' },
+    {
+      kind: 'heading',
+      level: 2,
+      icon: 'i-lucide-heading-2',
+      'aria-label': 'Heading'
+    },
     { kind: 'blockquote', icon: 'i-lucide-text-quote', 'aria-label': 'Quote' }
   ],
-  [
-    { slot: 'link' as const, icon: 'i-lucide-link' }
-  ]
+  [{ slot: 'link' as const, icon: 'i-lucide-link' }]
 ] satisfies EditorToolbarItem<typeof handlers>[][];
 
 const cardItems = [
@@ -54,16 +78,29 @@ const cardItems = [
     { type: 'label', label: 'Text' },
     { kind: 'paragraph', label: 'Paragraph', icon: 'i-lucide-type' },
     { kind: 'heading', level: 2, label: 'Heading', icon: 'i-lucide-heading-2' },
-    { kind: 'heading', level: 3, label: 'Subheading', icon: 'i-lucide-heading-3' },
+    {
+      kind: 'heading',
+      level: 3,
+      label: 'Subheading',
+      icon: 'i-lucide-heading-3'
+    },
     { kind: 'bulletList', label: 'Bulleted list', icon: 'i-lucide-list' },
-    { kind: 'orderedList', label: 'Numbered list', icon: 'i-lucide-list-ordered' }
+    {
+      kind: 'orderedList',
+      label: 'Numbered list',
+      icon: 'i-lucide-list-ordered'
+    }
   ],
   [
     { type: 'label', label: 'Cards' },
     { kind: 'imageUpload', label: 'Image', icon: 'i-lucide-image' },
     { kind: 'blockquote', label: 'Quote', icon: 'i-lucide-text-quote' },
     { kind: 'codeBlock', label: 'Code', icon: 'i-lucide-square-code' },
-    { kind: 'horizontalRule', label: 'Divider', icon: 'i-lucide-separator-horizontal' }
+    {
+      kind: 'horizontalRule',
+      label: 'Divider',
+      icon: 'i-lucide-separator-horizontal'
+    }
   ]
 ] satisfies EditorSuggestionMenuItem<typeof handlers>[][];
 
@@ -72,7 +109,11 @@ interface BubbleContext {
   view: { hasFocus: () => boolean };
   state: { selection: { empty: boolean } };
 }
-const showBubble = ({ editor, view, state }: BubbleContext) => view.hasFocus() && !state.selection.empty && !editor.isActive('image') && !editor.isActive('codeBlock');
+const showBubble = ({ editor, view, state }: BubbleContext) =>
+  view.hasFocus() &&
+  !state.selection.empty &&
+  !editor.isActive('image') &&
+  !editor.isActive('codeBlock');
 
 function focusStart(): void {
   const editor = editorComponent.value?.editor;
@@ -100,15 +141,23 @@ function onKeydown(event: KeyboardEvent): void {
 // Not named like the template ref: in Vue 3.5 a matching binding captures the ref.
 const rootEl = useTemplateRef<HTMLElement>('bodyRoot');
 
-function setHandleMeta(key: 'lockDragHandle' | 'hideDragHandle', value: boolean): void {
+function setHandleMeta(
+  key: 'lockDragHandle' | 'hideDragHandle',
+  value: boolean
+): void {
   const editor = editorComponent.value?.editor;
 
-  if (editor) editor.view.dispatch(editor.state.tr.setMeta(key, value).setMeta('addToHistory', false));
+  if (editor)
+    editor.view.dispatch(
+      editor.state.tr.setMeta(key, value).setMeta('addToHistory', false)
+    );
 }
 
 // The "+" and the grip together.
 function handleEl(): HTMLElement | null {
-  return rootEl.value?.querySelector<HTMLElement>('[data-block-handle]') ?? null;
+  return (
+    rootEl.value?.querySelector<HTMLElement>('[data-block-handle]') ?? null
+  );
 }
 
 // Block menu (Notion's ⋮⋮): click the grip to change a block's type, duplicate
@@ -117,7 +166,12 @@ const hoveredPos = shallowRef<number | null>(null);
 const menuOpen = shallowRef(false);
 const menuItems = shallowRef<DropdownMenuItem[][]>([]);
 /** Where the block being acted on sits, relative to the body, for its highlight. */
-const targetBox = shallowRef<{ top: number; left: number; width: number; height: number } | null>(null);
+const targetBox = shallowRef<{
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+} | null>(null);
 const REOPEN_GUARD_MS = 300;
 let closedAt = 0;
 
@@ -125,22 +179,42 @@ function buildMenu(editor: Editor, pos: number): DropdownMenuItem[][] {
   const node = editor.state.doc.nodeAt(pos);
   const current = node ? blockTypeOf(node) : null;
   const actions: DropdownMenuItem[] = [
-    { label: 'Duplicate', icon: 'i-lucide-copy', onSelect: () => duplicateBlock(editor, pos) },
-    { label: 'Delete', icon: 'i-lucide-trash-2', color: 'error', onSelect: () => deleteBlock(editor, pos) }
+    {
+      label: 'Duplicate',
+      icon: 'i-lucide-copy',
+      onSelect: () => duplicateBlock(editor, pos)
+    },
+    {
+      label: 'Delete',
+      icon: 'i-lucide-trash-2',
+      color: 'error',
+      onSelect: () => deleteBlock(editor, pos)
+    }
   ];
 
   if (!current) return [actions];
 
   const turnInto: DropdownMenuItem[] = [
     { type: 'label', label: 'Turn into' },
-    ...BLOCK_TYPES.map(block => ({ type: 'checkbox' as const, label: block.label, icon: block.icon, checked: block.type === current, onSelect: () => turnBlockInto(editor, pos, block.type) }))
+    ...BLOCK_TYPES.map(block => ({
+      type: 'checkbox' as const,
+      label: block.label,
+      icon: block.icon,
+      checked: block.type === current,
+      onSelect: () => turnBlockInto(editor, pos, block.type)
+    }))
   ];
   return [turnInto, actions];
 }
 
 function openMenu(editor: Editor): void {
   // A click on the grip while the menu is open first closes it (pointer-down outside); don't reopen.
-  if (hoveredPos.value === null || menuOpen.value || performance.now() - closedAt < REOPEN_GUARD_MS) return;
+  if (
+    hoveredPos.value === null ||
+    menuOpen.value ||
+    performance.now() - closedAt < REOPEN_GUARD_MS
+  )
+    return;
 
   clearTimeout(idle);
   anchor = null;
@@ -152,7 +226,12 @@ function openMenu(editor: Editor): void {
 
   if (dom instanceof HTMLElement && root) {
     const box = dom.getBoundingClientRect();
-    targetBox.value = { top: box.top - root.top, left: box.left - root.left, width: box.width, height: box.height };
+    targetBox.value = {
+      top: box.top - root.top,
+      left: box.left - root.left,
+      width: box.width,
+      height: box.height
+    };
   }
 
   menuOpen.value = true;
@@ -171,13 +250,17 @@ function closeMenu(editor: Editor): void {
   if (!editor.view.hasFocus()) editor.view.focus();
 }
 
-const isShown = (el: HTMLElement | null): el is HTMLElement => el !== null && getComputedStyle(el).visibility !== 'hidden';
+const isShown = (el: HTMLElement | null): el is HTMLElement =>
+  el !== null && getComputedStyle(el).visibility !== 'hidden';
 
 // Safe triangle (menu-aim): while the pointer travels from the text towards
 // the "+", the handle stays on its block instead of jumping to whichever
 // block a sagging path crosses. pointermove fires before the mousemove the
 // drag handle listens to, so a lock set here applies to that same move.
-interface Point { x: number; y: number }
+interface Point {
+  x: number;
+  y: number;
+}
 // Widens the 28px handle so a hand's natural wobble (up to ~17px off the line) still counts as aiming.
 const TRIANGLE_SLACK_PX = 12;
 const HANDLE_SLACK_PX = 4;
@@ -205,14 +288,27 @@ function release(): void {
   // The editor ignored the pointer while locked. Catch up: hide the handle if the
   // pointer has left, otherwise let it settle on the block the pointer rests on.
   const box = rootEl.value?.getBoundingClientRect();
-  const inside = box && pointer.x >= box.left - 64 && pointer.x <= box.right && pointer.y >= box.top && pointer.y <= box.bottom;
+  const inside =
+    box &&
+    pointer.x >= box.left - 64 &&
+    pointer.x <= box.right &&
+    pointer.y >= box.top &&
+    pointer.y <= box.bottom;
   const view = editorComponent.value?.editor?.view.dom;
 
   if (!inside) setHandleMeta('hideDragHandle', true);
-  else view?.dispatchEvent(new MouseEvent('mousemove', { clientX: pointer.x, clientY: pointer.y, bubbles: true }));
+  else
+    view?.dispatchEvent(
+      new MouseEvent('mousemove', {
+        clientX: pointer.x,
+        clientY: pointer.y,
+        bubbles: true
+      })
+    );
 }
 
-const side = (p: Point, a: Point, b: Point) => (p.x - b.x) * (a.y - b.y) - (a.x - b.x) * (p.y - b.y);
+const side = (p: Point, a: Point, b: Point) =>
+  (p.x - b.x) * (a.y - b.y) - (a.x - b.x) * (p.y - b.y);
 
 function inTriangle(p: Point, a: Point, b: Point, c: Point): boolean {
   const d1 = side(p, a, b);
@@ -234,7 +330,11 @@ function onPointerMove(event: PointerEvent): void {
   }
 
   const r = handle.getBoundingClientRect();
-  const onHandle = pointer.x >= r.left - HANDLE_SLACK_PX && pointer.x <= r.right + HANDLE_SLACK_PX && pointer.y >= r.top - HANDLE_SLACK_PX && pointer.y <= r.bottom + HANDLE_SLACK_PX;
+  const onHandle =
+    pointer.x >= r.left - HANDLE_SLACK_PX &&
+    pointer.x <= r.right + HANDLE_SLACK_PX &&
+    pointer.y >= r.top - HANDLE_SLACK_PX &&
+    pointer.y <= r.bottom + HANDLE_SLACK_PX;
 
   if (onHandle) {
     // The editor doesn't track the pointer over the handle, so no lock is needed;
@@ -248,7 +348,11 @@ function onPointerMove(event: PointerEvent): void {
   const top = { x: r.right, y: r.top - TRIANGLE_SLACK_PX };
   const bottom = { x: r.right, y: r.bottom + TRIANGLE_SLACK_PX };
 
-  if (anchor && pointer.x < anchor.x && inTriangle(pointer, anchor, top, bottom)) {
+  if (
+    anchor &&
+    pointer.x < anchor.x &&
+    inTriangle(pointer, anchor, top, bottom)
+  ) {
     setLocked(true);
     // Resting inside the triangle means the pointer is not heading anywhere: let the handle follow again.
     clearTimeout(idle);
@@ -263,7 +367,9 @@ function onPointerMove(event: PointerEvent): void {
 
 onMounted(() => {
   window.addEventListener('pointermove', onPointerMove, { passive: true });
-  window.addEventListener('pointermove', onPointerMoveWhileTyping, { passive: true });
+  window.addEventListener('pointermove', onPointerMoveWhileTyping, {
+    passive: true
+  });
 });
 onBeforeUnmount(() => {
   window.removeEventListener('pointermove', onPointerMove);
@@ -283,7 +389,13 @@ let typingFrom: Point = { x: 0, y: 0 };
 function onKeydownCapture(event: KeyboardEvent): void {
   release();
 
-  if (event.metaKey || event.ctrlKey || event.altKey || ['Shift', 'Meta', 'Control', 'Alt'].includes(event.key)) return;
+  if (
+    event.metaKey ||
+    event.ctrlKey ||
+    event.altKey ||
+    ['Shift', 'Meta', 'Control', 'Alt'].includes(event.key)
+  )
+    return;
 
   typing.value = true;
   typingFrom = pointer;
@@ -302,7 +414,11 @@ let returnTimer: ReturnType<typeof setTimeout> | undefined;
 
 function onPointerMoveWhileTyping(event: PointerEvent): void {
   if (!typing.value || returnTimer !== undefined) return;
-  if (Math.hypot(event.clientX - typingFrom.x, event.clientY - typingFrom.y) <= JITTER_PX) return;
+  if (
+    Math.hypot(event.clientX - typingFrom.x, event.clientY - typingFrom.y) <=
+    JITTER_PX
+  )
+    return;
 
   returnTimer = setTimeout(() => {
     typing.value = false;
@@ -314,7 +430,13 @@ defineExpose({ focusStart });
 </script>
 
 <template>
-  <div ref="bodyRoot" :class="['proto-body', props.serif && 'proto-body--serif']" :data-typing="typing || undefined" @keydown="onKeydown" @keydown.capture="onKeydownCapture">
+  <div
+    ref="bodyRoot"
+    :class="['proto-body', props.serif && 'proto-body--serif']"
+    :data-typing="typing || undefined"
+    @keydown="onKeydown"
+    @keydown.capture="onKeydownCapture"
+  >
     <UEditor
       ref="editorRef"
       v-slot="{ editor, handlers: editorHandlers }"
@@ -322,12 +444,20 @@ defineExpose({ focusStart });
       content-type="json"
       :extensions="vendaEditorExtensions"
       :handlers="handlers"
-      :placeholder="{ placeholder: 'Begin writing your post…', mode: 'firstLine' }"
+      :placeholder="{
+        placeholder: 'Begin writing your post…',
+        mode: 'firstLine'
+      }"
       class="w-full"
       :ui="{ base: 'min-h-[50vh] p-0 sm:px-0' }"
       @update:model-value="value => (body = value as RichTextDoc)"
     >
-      <UEditorToolbar :editor="editor" :items="bubbleItems" layout="bubble" :should-show="showBubble">
+      <UEditorToolbar
+        :editor="editor"
+        :items="bubbleItems"
+        layout="bubble"
+        :should-show="showBubble"
+      >
         <template #link>
           <VendaLinkPopover v-model:open="linkOpen" :editor="editor" />
         </template>
@@ -351,7 +481,15 @@ defineExpose({ focusStart });
             aria-label="Insert a card"
             title="Insert a card"
             :class="ui.handle()"
-            @click="(event: MouseEvent) => { event.stopPropagation(); const selected = onClick(); editorHandlers.suggestion?.execute(editor, { pos: selected?.pos }).run(); }"
+            @click="
+              (event: MouseEvent) => {
+                event.stopPropagation();
+                const selected = onClick();
+                editorHandlers.suggestion
+                  ?.execute(editor, { pos: selected?.pos })
+                  .run();
+              }
+            "
           />
 
           <span class="relative">
@@ -375,18 +513,39 @@ defineExpose({ focusStart });
               :open="menuOpen"
               :modal="false"
               :items="menuItems"
-              :content="{ align: 'start', sideOffset: 6, onCloseAutoFocus: (event: Event) => event.preventDefault() }"
+              :content="{
+                align: 'start',
+                sideOffset: 6,
+                onCloseAutoFocus: (event: Event) => event.preventDefault()
+              }"
               :ui="{ content: 'w-52' }"
-              @update:open="open => { if (!open) closeMenu(editor); }"
+              @update:open="
+                open => {
+                  if (!open) closeMenu(editor);
+                }
+              "
             >
-              <span aria-hidden="true" class="pointer-events-none absolute inset-0" />
+              <span
+                aria-hidden="true"
+                class="pointer-events-none absolute inset-0"
+              />
             </UDropdownMenu>
           </span>
         </div>
       </UEditorDragHandle>
     </UEditor>
 
-    <div v-if="targetBox" class="proto-block-target" :style="{ top: `${targetBox.top}px`, left: `${targetBox.left}px`, width: `${targetBox.width}px`, height: `${targetBox.height}px` }" aria-hidden="true" />
+    <div
+      v-if="targetBox"
+      class="proto-block-target"
+      :style="{
+        top: `${targetBox.top}px`,
+        left: `${targetBox.left}px`,
+        width: `${targetBox.width}px`,
+        height: `${targetBox.height}px`
+      }"
+      aria-hidden="true"
+    />
   </div>
 </template>
 
@@ -398,7 +557,9 @@ defineExpose({ focusStart });
   letter-spacing: 0;
   color: var(--ui-text);
 }
-.proto-body :deep(.ProseMirror p) { margin-block: 0 1.1em; }
+.proto-body :deep(.ProseMirror p) {
+  margin-block: 0 1.1em;
+}
 /* The handle's gutter belongs to the editor, so moving the pointer from the
    text to "+" never leaves the editor (which would hide the handle). Phones
    have no hover and no room for a gutter. */
@@ -416,28 +577,42 @@ defineExpose({ focusStart });
 .proto-body[data-typing] :deep(.proto-handle) {
   opacity: 0;
   visibility: hidden;
-  transition: opacity 180ms ease, visibility 0s linear 180ms;
+  transition:
+    opacity 180ms ease,
+    visibility 0s linear 180ms;
 }
 /* The editor sets pointer-events inline when it shows the handle. */
-.proto-body[data-typing] :deep(.proto-handle) { pointer-events: none !important; }
+.proto-body[data-typing] :deep(.proto-handle) {
+  pointer-events: none !important;
+}
 
 /* Taller invisible hit areas than the 28px icons (not wider: the two sit side by side), plus press feedback. */
 .proto-body :deep([data-block-handle] button) {
   position: relative;
-  transition: transform 120ms var(--ease-out), background-color 150ms ease, color 150ms ease;
+  transition:
+    transform 120ms var(--ease-out),
+    background-color 150ms ease,
+    color 150ms ease;
 }
 .proto-body :deep([data-block-handle] button)::before {
   content: '';
   position: absolute;
   inset: -6px 0;
 }
-.proto-body :deep([data-block-handle] button:active) { transform: scale(0.94); }
+.proto-body :deep([data-block-handle] button:active) {
+  transform: scale(0.94);
+}
 @media (prefers-reduced-motion: reduce) {
-  .proto-body :deep([data-block-handle] button:active) { transform: none; }
+  .proto-body :deep([data-block-handle] button:active) {
+    transform: none;
+  }
 }
 
 /* The block the open menu acts on. Drawn outside the editor so ProseMirror's DOM is untouched. */
-.proto-body { position: relative; isolation: isolate; }
+.proto-body {
+  position: relative;
+  isolation: isolate;
+}
 .proto-block-target {
   position: absolute;
   z-index: -1;
@@ -468,7 +643,9 @@ defineExpose({ focusStart });
 }
 
 .proto-body--serif :deep(.ProseMirror) {
-  font-family: Charter, 'Bitstream Charter', 'Iowan Old Style', 'Sitka Text', Cambria, Georgia, serif;
+  font-family:
+    Charter, 'Bitstream Charter', 'Iowan Old Style', 'Sitka Text', Cambria,
+    Georgia, serif;
   font-size: 1.25rem;
   line-height: 1.65;
 }

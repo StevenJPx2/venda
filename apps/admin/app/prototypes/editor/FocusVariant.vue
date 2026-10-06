@@ -18,7 +18,9 @@ const typing = shallowRef(false);
 // get it on top of the writing. The page renders client-side only, so this is
 // the first paint and the panel doesn't slide in on load.
 const DOCKED_MIN_WIDTH = 1024;
-const panelOpen = shallowRef(import.meta.client && window.innerWidth >= DOCKED_MIN_WIDTH);
+const panelOpen = shallowRef(
+  import.meta.client && window.innerWidth >= DOCKED_MIN_WIDTH
+);
 // Keyboard toggles are instant: they repeat too often to animate.
 const instant = shallowRef(false);
 const confirmOpen = shallowRef(false);
@@ -26,10 +28,16 @@ const when = shallowRef<'now' | 'later'>('now');
 const laterAt = shallowRef('');
 const scrolled = shallowRef(false);
 
-const onScroll = () => { scrolled.value = window.scrollY > 4; };
+const onScroll = () => {
+  scrolled.value = window.scrollY > 4;
+};
 
-const canPublish = computed(() => post.status.value !== 'published' || post.hasUnpublishedChanges.value);
-const publishLabel = computed(() => (post.status.value === 'published' ? 'Publish changes' : 'Publish'));
+const canPublish = computed(
+  () => post.status.value !== 'published' || post.hasUnpublishedChanges.value
+);
+const publishLabel = computed(() =>
+  post.status.value === 'published' ? 'Publish changes' : 'Publish'
+);
 
 function togglePanel(fromKeyboard = false): void {
   instant.value = fromKeyboard;
@@ -44,7 +52,8 @@ function startTyping(): void {
 let last: { x: number; y: number } | null = null;
 
 function onPointerMove(event: PointerEvent): void {
-  if (last && Math.hypot(event.clientX - last.x, event.clientY - last.y) > 4) typing.value = false;
+  if (last && Math.hypot(event.clientX - last.x, event.clientY - last.y) > 4)
+    typing.value = false;
 
   last = { x: event.clientX, y: event.clientY };
 }
@@ -67,7 +76,12 @@ function onPointerDown(event: PointerEvent): void {
 
   // Floating content opened from inside the popover (the calendar) renders at the end of <body>.
   if (target.closest?.('[data-reka-popper-content-wrapper]')) return;
-  if (confirmOpen.value && publishRef.value && !publishRef.value.contains(target)) confirmOpen.value = false;
+  if (
+    confirmOpen.value &&
+    publishRef.value &&
+    !publishRef.value.contains(target)
+  )
+    confirmOpen.value = false;
 }
 
 async function confirm(): Promise<void> {
@@ -90,7 +104,11 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="pv f" :data-typing="typing || undefined" :data-panel="panelOpen || undefined">
+  <div
+    class="pv f"
+    :data-typing="typing || undefined"
+    :data-panel="panelOpen || undefined"
+  >
     <header class="f-chrome f-bar" :data-scrolled="scrolled || undefined">
       <button type="button" class="pv-btn pv-btn--ghost pv-press -ml-2">
         <UIcon name="i-lucide-arrow-left" class="size-4" />Posts
@@ -99,11 +117,16 @@ onBeforeUnmount(() => {
       <p class="flex min-w-0 items-center gap-2 text-[13px]" aria-live="polite">
         <span class="pv-dot" :data-tone="status.tone" />
         <span class="truncate text-highlighted">{{ status.label }}</span>
-        <span class="hidden shrink-0 text-dimmed sm:inline">{{ post.saveState.value === 'saving' ? 'Saving…' : 'Saved' }}</span>
+
+        <span class="hidden shrink-0 text-dimmed sm:inline">{{
+          post.saveState.value === 'saving' ? 'Saving…' : 'Saved'
+        }}</span>
       </p>
 
       <div class="ml-auto flex shrink-0 items-center gap-1">
-        <button type="button" class="pv-btn pv-btn--ghost pv-press pv-wide">Preview</button>
+        <button type="button" class="pv-btn pv-btn--ghost pv-press pv-wide">
+          Preview
+        </button>
 
         <div ref="publishRef" class="relative">
           <button
@@ -116,18 +139,42 @@ onBeforeUnmount(() => {
             {{ post.publishing.value ? 'Publishing…' : publishLabel }}
           </button>
 
-          <div class="f-pop" :data-open="confirmOpen || undefined" :inert="!confirmOpen" role="dialog" aria-label="Publish">
-            <p class="text-[13px] font-semibold text-highlighted">Ready to publish?</p>
-            <p class="mt-1 line-clamp-2 text-xs text-muted">“{{ post.title.value || 'Untitled' }}” will be visible on your site.</p>
+          <div
+            class="f-pop"
+            :data-open="confirmOpen || undefined"
+            :inert="!confirmOpen"
+            role="dialog"
+            aria-label="Publish"
+          >
+            <p class="text-[13px] font-semibold text-highlighted">
+              Ready to publish?
+            </p>
+
+            <p class="mt-1 line-clamp-2 text-xs text-muted">
+              “{{ post.title.value || 'Untitled' }}” will be visible on your
+              site.
+            </p>
 
             <div class="mt-4 space-y-1">
               <label class="f-option">
-                <input v-model="when" type="radio" value="now" class="accent-current">
+                <input
+                  v-model="when"
+                  type="radio"
+                  value="now"
+                  class="accent-current"
+                />
+
                 <span>Right now</span>
               </label>
 
               <label class="f-option">
-                <input v-model="when" type="radio" value="later" class="accent-current">
+                <input
+                  v-model="when"
+                  type="radio"
+                  value="later"
+                  class="accent-current"
+                />
+
                 <span>Schedule for later</span>
               </label>
 
@@ -142,9 +189,20 @@ onBeforeUnmount(() => {
             </div>
 
             <div class="mt-4 flex justify-end gap-1">
-              <button type="button" class="pv-btn pv-btn--ghost pv-press" @click="confirmOpen = false">Cancel</button>
+              <button
+                type="button"
+                class="pv-btn pv-btn--ghost pv-press"
+                @click="confirmOpen = false"
+              >
+                Cancel
+              </button>
 
-              <button type="button" class="pv-btn pv-btn--ink pv-press" :disabled="when === 'later' && !laterAt" @click="confirm">
+              <button
+                type="button"
+                class="pv-btn pv-btn--ink pv-press"
+                :disabled="when === 'later' && !laterAt"
+                @click="confirm"
+              >
                 {{ when === 'later' ? 'Schedule' : publishLabel }}
               </button>
             </div>
@@ -159,41 +217,96 @@ onBeforeUnmount(() => {
           title="Post settings (⌘.)"
           @click="togglePanel()"
         >
-          <UIcon name="i-lucide-panel-right" class="size-[18px]" :class="panelOpen && 'text-highlighted'" />
+          <UIcon
+            name="i-lucide-panel-right"
+            class="size-[18px]"
+            :class="panelOpen && 'text-highlighted'"
+          />
         </button>
       </div>
     </header>
 
     <main class="f-main">
       <div class="mx-auto max-w-[680px] px-6 pb-48 pt-[14vh]">
-        <figure v-if="post.featureImage.value" class="group relative mb-12 overflow-hidden rounded-lg">
-          <img :src="post.featureImage.value" alt="" class="aspect-[16/9] w-full object-cover">
-          <button type="button" class="f-chrome pv-btn pv-press absolute right-3 top-3 bg-black/60 text-white backdrop-blur" @click="post.featureImage.value = null">Remove</button>
+        <figure
+          v-if="post.featureImage.value"
+          class="group relative mb-12 overflow-hidden rounded-lg"
+        >
+          <img
+            :src="post.featureImage.value"
+            alt=""
+            class="aspect-[16/9] w-full object-cover"
+          />
+
+          <button
+            type="button"
+            class="f-chrome pv-btn pv-press absolute right-3 top-3 bg-black/60 text-white backdrop-blur"
+            @click="post.featureImage.value = null"
+          >
+            Remove
+          </button>
         </figure>
 
-        <button v-else type="button" class="f-chrome pv-btn pv-btn--ghost pv-press -ml-3 mb-4" @click="post.pickFeatureImage">
+        <button
+          v-else
+          type="button"
+          class="f-chrome pv-btn pv-btn--ghost pv-press -ml-3 mb-4"
+          @click="post.pickFeatureImage"
+        >
           <UIcon name="i-lucide-image-plus" class="size-4" />Add feature image
         </button>
 
-        <ProtoTitle v-model="post.title.value" class="f-title" @enter="bodyRef?.focusStart()" @typing="startTyping" />
+        <ProtoTitle
+          v-model="post.title.value"
+          class="f-title"
+          @enter="bodyRef?.focusStart()"
+          @typing="startTyping"
+        />
         <!-- Part of the post, not a control, so it stays while you type. -->
         <p class="mt-4 flex items-center gap-2 text-[13px] text-muted">
-          <span class="grid size-6 place-items-center rounded-full bg-elevated text-[10px] font-semibold text-muted" aria-hidden="true">AW</span>
+          <span
+            class="grid size-6 place-items-center rounded-full bg-elevated text-[10px] font-semibold text-muted"
+            aria-hidden="true"
+            >AW</span
+          >
+
           <span>{{ post.author }}</span>
           <span class="text-dimmed" aria-hidden="true">·</span>
-          <span class="pv-num text-dimmed">{{ post.readingMinutes.value }} min read</span>
+
+          <span class="pv-num text-dimmed"
+            >{{ post.readingMinutes.value }} min read</span
+          >
         </p>
 
         <div class="h-8" />
-        <ProtoBody ref="bodyRef" v-model="post.body.value" serif @typing="startTyping" />
+
+        <ProtoBody
+          ref="bodyRef"
+          v-model="post.body.value"
+          serif
+          @typing="startTyping"
+        />
       </div>
     </main>
 
-    <aside class="f-panel" :data-open="panelOpen || undefined" :data-instant="instant || undefined" :inert="!panelOpen" aria-label="Post settings">
+    <aside
+      class="f-panel"
+      :data-open="panelOpen || undefined"
+      :data-instant="instant || undefined"
+      :inert="!panelOpen"
+      aria-label="Post settings"
+    >
       <div class="flex h-12 shrink-0 items-center justify-between px-5">
-        <h2 class="text-[13px] font-semibold text-highlighted">Post settings</h2>
+        <h2 class="text-[13px] font-semibold text-highlighted">
+          Post settings
+        </h2>
 
-        <button type="button" class="pv-btn pv-btn--ghost pv-btn--icon pv-press -mr-2" aria-label="Close settings" @click="togglePanel()">
+        <button
+          type="button"
+          class="pv-btn pv-btn--ghost pv-btn--icon pv-press -mr-2"
+          aria-label="Close settings"
+          @click="togglePanel()"
+        >
           <UIcon name="i-lucide-x" class="size-4" />
         </button>
       </div>
@@ -202,14 +315,33 @@ onBeforeUnmount(() => {
         <ProtoSettingsFields :post="post" />
       </div>
 
-      <div class="flex shrink-0 items-center gap-1 border-t border-default px-3 py-2.5">
-        <button type="button" class="pv-btn pv-btn--ghost pv-press"><UIcon name="i-lucide-history" class="size-4" />History</button>
-        <button v-if="post.status.value !== 'draft'" type="button" class="pv-btn pv-btn--ghost pv-press" @click="post.unpublish">Unpublish</button>
-        <button type="button" class="pv-btn pv-btn--danger pv-press ml-auto">Move to trash</button>
+      <div
+        class="flex shrink-0 items-center gap-1 border-t border-default px-3 py-2.5"
+      >
+        <button type="button" class="pv-btn pv-btn--ghost pv-press">
+          <UIcon name="i-lucide-history" class="size-4" />History
+        </button>
+
+        <button
+          v-if="post.status.value !== 'draft'"
+          type="button"
+          class="pv-btn pv-btn--ghost pv-press"
+          @click="post.unpublish"
+        >
+          Unpublish
+        </button>
+
+        <button type="button" class="pv-btn pv-btn--danger pv-press ml-auto">
+          Move to trash
+        </button>
       </div>
     </aside>
 
-    <p class="f-chrome f-words pv-num fixed bottom-4 left-5 hidden text-xs text-dimmed sm:block">{{ post.words.value.toLocaleString() }} words</p>
+    <p
+      class="f-chrome f-words pv-num fixed bottom-4 left-5 hidden text-xs text-dimmed sm:block"
+    >
+      {{ post.words.value.toLocaleString() }} words
+    </p>
   </div>
 </template>
 
@@ -242,16 +374,23 @@ onBeforeUnmount(() => {
   opacity: 0;
   transition: opacity 150ms ease;
 }
-.f-bar[data-scrolled]::after { opacity: 1; }
+.f-bar[data-scrolled]::after {
+  opacity: 1;
+}
 @media (prefers-reduced-transparency: reduce) {
-  .f-bar { background: var(--ui-bg); backdrop-filter: none; }
+  .f-bar {
+    background: var(--ui-bg);
+    backdrop-filter: none;
+  }
 }
 
 /* Leaving is ambient (the writer is looking at the text), so it takes its
    time and drifts away from the page; returning answers the pointer, so it
    is quicker, and drifts back along the same path. */
 .f-chrome {
-  transition: opacity 220ms var(--ease-out), transform 220ms var(--ease-out);
+  transition:
+    opacity 220ms var(--ease-out),
+    transform 220ms var(--ease-out);
 }
 .f[data-typing] .f-chrome {
   opacity: 0;
@@ -259,14 +398,23 @@ onBeforeUnmount(() => {
   transition-duration: 280ms;
   transition-timing-function: ease;
 }
-.f[data-typing] .f-bar { transform: translateY(-6px); }
-.f[data-typing] .f-words { transform: translateY(6px); }
+.f[data-typing] .f-bar {
+  transform: translateY(-6px);
+}
+.f[data-typing] .f-words {
+  transform: translateY(6px);
+}
 @media (prefers-reduced-motion: reduce) {
-  .f[data-typing] .f-bar, .f[data-typing] .f-words { transform: none; }
+  .f[data-typing] .f-bar,
+  .f[data-typing] .f-words {
+    transform: none;
+  }
 }
 
 .f-title {
-  font-family: Charter, 'Bitstream Charter', 'Iowan Old Style', 'Sitka Text', Cambria, Georgia, serif;
+  font-family:
+    Charter, 'Bitstream Charter', 'Iowan Old Style', 'Sitka Text', Cambria,
+    Georgia, serif;
   font-size: clamp(2.25rem, 5vw, 3rem);
   line-height: 1.1;
   letter-spacing: -0.02em;
@@ -281,12 +429,17 @@ onBeforeUnmount(() => {
   padding: 1rem;
   border-radius: 10px;
   background: var(--ui-bg);
-  box-shadow: 0 0 0 1px var(--ui-border), 0 12px 32px -8px rgb(0 0 0 / 0.18), 0 2px 6px rgb(0 0 0 / 0.06);
+  box-shadow:
+    0 0 0 1px var(--ui-border),
+    0 12px 32px -8px rgb(0 0 0 / 0.18),
+    0 2px 6px rgb(0 0 0 / 0.06);
   transform-origin: top right;
   opacity: 0;
   transform: scale(0.97);
   pointer-events: none;
-  transition: opacity 120ms var(--ease-out), transform 120ms var(--ease-out);
+  transition:
+    opacity 120ms var(--ease-out),
+    transform 120ms var(--ease-out);
 }
 .f-pop[data-open] {
   opacity: 1;
@@ -306,7 +459,9 @@ onBeforeUnmount(() => {
   cursor: pointer;
 }
 @media (hover: hover) and (pointer: fine) {
-  .f-option:hover { background: var(--ui-bg-elevated); }
+  .f-option:hover {
+    background: var(--ui-bg-elevated);
+  }
 }
 
 /* Floating sidebar (from "Quiet"): a parallel panel, so no scrim. On wide screens
@@ -329,38 +484,63 @@ onBeforeUnmount(() => {
   background: color-mix(in oklab, var(--ui-bg) 92%, transparent);
   backdrop-filter: blur(20px) saturate(1.6);
   -webkit-backdrop-filter: blur(20px) saturate(1.6);
-  box-shadow: -12px 0 32px -16px rgb(0 0 0 / 0.14), 0 2px 8px -4px rgb(0 0 0 / 0.06);
+  box-shadow:
+    -12px 0 32px -16px rgb(0 0 0 / 0.14),
+    0 2px 8px -4px rgb(0 0 0 / 0.06);
   /* Past its own width so the shadow leaves with it. */
   transform: translateX(calc(100% + 32px));
   /* Closing is quicker than opening. `translate` (not `transform`) carries the
      typing drift, so it never fights the open/close slide. */
-  transition: transform 180ms var(--ease-drawer), opacity 150ms var(--ease-out), translate 150ms var(--ease-out);
+  transition:
+    transform 180ms var(--ease-drawer),
+    opacity 150ms var(--ease-out),
+    translate 150ms var(--ease-out);
 }
 .f-panel[data-open] {
   transform: translateX(0);
   transition-duration: 240ms, 220ms, 220ms;
 }
-.f-panel[data-instant] { transition: none; }
+.f-panel[data-instant] {
+  transition: none;
+}
 /* Fades with the other controls while you write; it stays open, and the text
    column keeps its place, so it returns where you left it. */
 .f[data-typing] .f-panel[data-open] {
   opacity: 0;
   translate: 8px 0;
   pointer-events: none;
-  transition: transform 240ms var(--ease-drawer), opacity 280ms ease, translate 280ms ease;
+  transition:
+    transform 240ms var(--ease-drawer),
+    opacity 280ms ease,
+    translate 280ms ease;
 }
 @media (min-width: 1024px) {
   /* Centred in what's left of the viewport: text column (680) + panel + gutters. */
-  .f[data-panel] .f-main { padding-right: max(0px, calc(680px + 2 * var(--panel-w) + 48px - 100vw)); }
+  .f[data-panel] .f-main {
+    padding-right: max(0px, calc(680px + 2 * var(--panel-w) + 48px - 100vw));
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .f[data-typing] .f-panel[data-open] { translate: none; }
-  .f-pop { transform: none; }
-  .f-panel { transform: none; opacity: 0; transition: opacity 150ms ease; }
-  .f-panel[data-open] { opacity: 1; }
+  .f[data-typing] .f-panel[data-open] {
+    translate: none;
+  }
+  .f-pop {
+    transform: none;
+  }
+  .f-panel {
+    transform: none;
+    opacity: 0;
+    transition: opacity 150ms ease;
+  }
+  .f-panel[data-open] {
+    opacity: 1;
+  }
 }
 @media (prefers-reduced-transparency: reduce) {
-  .f-panel { background: var(--ui-bg); backdrop-filter: none; }
+  .f-panel {
+    background: var(--ui-bg);
+    backdrop-filter: none;
+  }
 }
 </style>

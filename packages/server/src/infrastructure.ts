@@ -8,7 +8,15 @@ import { Context, Effect } from 'effect';
 export type DomainServices = Database | KeyValue | Owner;
 
 /** Captures the domain services once, so handlers can run domain effects with them. */
-export const domainRunner = Effect.map(Effect.context<DomainServices>(), services => <A, E, R extends DomainServices>(effect: Effect.Effect<A, E, R>) => effect.pipe(
-  Effect.catchTags({ EffectDrizzleQueryError: Effect.die, KeyValueError: Effect.die }),
-  Effect.provideContext(Context.pick(Database, KeyValue, Owner)(services))
-));
+export const domainRunner = Effect.map(
+  Effect.context<DomainServices>(),
+  services =>
+    <A, E, R extends DomainServices>(effect: Effect.Effect<A, E, R>) =>
+      effect.pipe(
+        Effect.catchTags({
+          EffectDrizzleQueryError: Effect.die,
+          KeyValueError: Effect.die
+        }),
+        Effect.provideContext(Context.pick(Database, KeyValue, Owner)(services))
+      )
+);

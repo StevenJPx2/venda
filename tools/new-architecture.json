@@ -1,4 +1,13 @@
 {
   "description": "Packages on the architecture in docs/architecture.md. Oxlint with anti-slop and the Fallow gate cover exactly these; a package joins when its slice rewrites it.",
-  "packages": ["packages/contract", "packages/content", "packages/core", "packages/server", "packages/admin", "packages/views-core", "packages/pages-core", "packages/preset-default"]
+  "packages": [
+    "packages/contract",
+    "packages/content",
+    "packages/core",
+    "packages/server",
+    "packages/admin",
+    "packages/views-core",
+    "packages/pages-core",
+    "packages/preset-default"
+  ]
 }

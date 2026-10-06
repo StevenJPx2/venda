@@ -32,7 +32,10 @@ export default defineConfig({
   ],
   jsPlugins: [
     { name: 'anti-slop', specifier: './tools/oxlint/anti-slop/index.ts' },
-    { name: 'anti-slop-effect', specifier: './tools/oxlint/anti-slop/effect/index.ts' },
+    {
+      name: 'anti-slop-effect',
+      specifier: './tools/oxlint/anti-slop/effect/index.ts'
+    },
     ...proofs.jsPlugins
   ],
   overrides: [
@@ -40,7 +43,10 @@ export default defineConfig({
     {
       files: NEW_ARCHITECTURE,
       rules: {
-        'max-lines-per-function': ['error', { max: 70, skipBlankLines: true, skipComments: true }],
+        'max-lines-per-function': [
+          'error',
+          { max: 70, skipBlankLines: true, skipComments: true }
+        ],
         'oxc/no-accumulating-spread': 'error',
         'anti-slop/no-array-filter-map': 'error',
         'anti-slop/no-reduce-accumulator-copy': 'error',

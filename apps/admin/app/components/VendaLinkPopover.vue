@@ -9,7 +9,7 @@ const open = defineModel<boolean>('open', { default: false });
 const url = shallowRef('');
 const active = computed(() => props.editor.isActive('link'));
 
-watch(open, (isOpen) => {
+watch(open, isOpen => {
   if (isOpen) url.value = String(props.editor.getAttributes('link').href ?? '');
 });
 
@@ -50,10 +50,35 @@ function remove(): void {
     />
 
     <template #content>
-      <form class="flex w-80 items-center gap-1.5 p-1.5" @submit.prevent="apply">
-        <UInput v-model="url" placeholder="Paste or type a link…" autofocus size="sm" class="flex-1" aria-label="Link URL" />
-        <UButton type="submit" icon="i-lucide-corner-down-left" size="sm" aria-label="Apply link" />
-        <UButton v-if="active" icon="i-lucide-unlink" size="sm" color="neutral" variant="ghost" aria-label="Remove link" @click="remove" />
+      <form
+        class="flex w-80 items-center gap-1.5 p-1.5"
+        @submit.prevent="apply"
+      >
+        <UInput
+          v-model="url"
+          placeholder="Paste or type a link…"
+          autofocus
+          size="sm"
+          class="flex-1"
+          aria-label="Link URL"
+        />
+
+        <UButton
+          type="submit"
+          icon="i-lucide-corner-down-left"
+          size="sm"
+          aria-label="Apply link"
+        />
+
+        <UButton
+          v-if="active"
+          icon="i-lucide-unlink"
+          size="sm"
+          color="neutral"
+          variant="ghost"
+          aria-label="Remove link"
+          @click="remove"
+        />
       </form>
     </template>
   </UPopover>

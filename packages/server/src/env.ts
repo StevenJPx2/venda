@@ -5,7 +5,9 @@ const ServerEnv = Schema.Struct({
   VENDA_VERSION: Schema.optional(Schema.String),
   // The recovery owner: always signs in as an administrator (rotate to recover access).
   VENDA_OWNER_EMAIL: Schema.NonEmptyString,
-  VENDA_OWNER_PASSWORD: Schema.String.pipe(Schema.check(Schema.isMinLength(12, { expected: 'at least 12 characters' })))
+  VENDA_OWNER_PASSWORD: Schema.String.pipe(
+    Schema.check(Schema.isMinLength(12, { expected: 'at least 12 characters' }))
+  )
 });
 
 /** The environment as the host hands it over (`process.env`), before decoding. */

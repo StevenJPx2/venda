@@ -20,14 +20,26 @@ const LIVE_CONTENT = join(NODE_DIR, 'content');
 const CONTENT_FILE = /^\/files\/([a-z0-9-]+\/[a-z0-9-]+\.mdx?)$/;
 const PORTS = { page: 8794, workers: 8805, node: 8807 };
 // Own build outputs, so `pnpm e2e` or a manual build cannot replace files these servers are serving.
-const BUILDS = { workers: join(STATE, 'build/workers'), node: join(STATE, 'build/node') };
+const BUILDS = {
+  workers: join(STATE, 'build/workers'),
+  node: join(STATE, 'build/node')
+};
 // Throwaway local credentials for the recovery owner; wiped with .try/ on every start.
-const OWNER_ENV = { VENDA_OWNER_EMAIL: 'owner@venda.local', VENDA_OWNER_PASSWORD: 'try-venda-owner' };
+const OWNER_ENV = {
+  VENDA_OWNER_EMAIL: 'owner@venda.local',
+  VENDA_OWNER_PASSWORD: 'try-venda-owner'
+};
 const children = [];
 
 function spawnLogged(name, command, args, options = {}) {
   const log = createWriteStream(join(STATE, `${name}.log`));
-  const child = spawn(command, args, { cwd: SERVER, detached: true, ...options, env: { ...process.env, ...options.env }, stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn(command, args, {
+    cwd: SERVER,
+    detached: true,
+    ...options,
+    env: { ...process.env, ...options.env },
+    stdio: ['ignore', 'pipe', 'pipe']
+  });
 
   child.stdout.pipe(log);
   child.stderr.pipe(log);
@@ -39,16 +51,19 @@ function step(label, command, args, env) {
   process.stdout.write(`  ${label}… `);
 
   return new Promise((done, fail) => {
-    spawnLogged(label.replaceAll(' ', '-'), command, args, { env }).once('exit', code => {
-      if (code === 0) {
-        console.log('done');
-        done();
-        return;
-      }
+    spawnLogged(label.replaceAll(' ', '-'), command, args, { env }).once(
+      'exit',
+      code => {
+        if (code === 0) {
+          console.log('done');
+          done();
+          return;
+        }
 
-      console.log(`failed (see .try/${label.replaceAll(' ', '-')}.log)`);
-      fail(new Error(`${label} failed`));
-    });
+        console.log(`failed (see .try/${label.replaceAll(' ', '-')}.log)`);
+        fail(new Error(`${label} failed`));
+      }
+    );
   });
 }
 
@@ -58,7 +73,13 @@ function serve(name, command, args, options = {}) {
 
 async function healthy(port) {
   for (let attempt = 0; attempt < 120; attempt++) {
-    if (await fetch(`http://localhost:${port}/api/health`).then(r => r.ok, () => false)) return;
+    if (
+      await fetch(`http://localhost:${port}/api/health`).then(
+        r => r.ok,
+        () => false
+      )
+    )
+      return;
 
     await new Promise(r => setTimeout(r, 500));
   }
@@ -72,7 +93,13 @@ async function healthy(port) {
 // `x-try-set-cookie` for the page to show.
 const jars = new Map();
 
-const TRY_HEADERS = new Set(['host', 'origin', 'cookie', 'x-try-as', 'x-try-origin']);
+const TRY_HEADERS = new Set([
+  'host',
+  'origin',
+  'cookie',
+  'x-try-as',
+  'x-try-origin'
+]);
 
 async function proxy(request, response, prefix, port) {
   const chunks = [];
@@ -80,22 +107,35 @@ async function proxy(request, response, prefix, port) {
   for await (const chunk of request) chunks.push(chunk);
 
   const jar = `${prefix}:${request.headers['x-try-as'] ?? 'anonymous'}`;
-  const headers = Object.fromEntries(Object.entries(request.headers).filter(([key]) => !TRY_HEADERS.has(key)));
+  const headers = Object.fromEntries(
+    Object.entries(request.headers).filter(([key]) => !TRY_HEADERS.has(key))
+  );
 
   if (jars.has(jar)) headers.cookie = jars.get(jar);
 
   // The page is same-origin in spirit; `x-try-origin` plays a request from another site.
-  if (request.headers['x-try-origin']) headers.origin = request.headers['x-try-origin'];
+  if (request.headers['x-try-origin'])
+    headers.origin = request.headers['x-try-origin'];
 
-  const body = ['GET', 'HEAD'].includes(request.method) ? undefined : Buffer.concat(chunks);
-  const upstream = await fetch(`http://localhost:${port}${request.url.slice(prefix.length)}`, { method: request.method, headers, body, redirect: 'manual' });
+  const body = ['GET', 'HEAD'].includes(request.method)
+    ? undefined
+    : Buffer.concat(chunks);
+  const upstream = await fetch(
+    `http://localhost:${port}${request.url.slice(prefix.length)}`,
+    { method: request.method, headers, body, redirect: 'manual' }
+  );
   const out = {};
   const setCookie = upstream.headers.getSetCookie();
 
   for (const cookie of setCookie) jars.set(jar, cookie.split(';')[0]);
 
   upstream.headers.forEach((value, key) => {
-    if (key !== 'content-encoding' && key !== 'content-length' && key !== 'set-cookie') out[key] = value;
+    if (
+      key !== 'content-encoding' &&
+      key !== 'content-length' &&
+      key !== 'set-cookie'
+    )
+      out[key] = value;
   });
 
   if (setCookie.length) out['x-try-set-cookie'] = setCookie.join(', ');
@@ -111,28 +151,52 @@ const UNCHECKED = join(ROOT, 'packages/core/test/mistakes-unchecked.ts');
 
 /** Type-checks the core with the mistakes file's `@ts-expect-error` markers removed, and returns what the compiler says. */
 async function compileMistakes(response) {
-  await writeFile(UNCHECKED, (await readFile(MISTAKES, 'utf8')).replaceAll(/^\s*\/\/ @ts-expect-error.*\n/gm, ''));
+  await writeFile(
+    UNCHECKED,
+    (await readFile(MISTAKES, 'utf8')).replaceAll(
+      /^\s*\/\/ @ts-expect-error.*\n/gm,
+      ''
+    )
+  );
 
-  const output = await new Promise((done) => {
+  const output = await new Promise(done => {
     let text = '';
-    const child = spawn('npx', ['tsc', '--noEmit', '--pretty', 'false', '-p', 'packages/core'], { cwd: ROOT });
+    const child = spawn(
+      'npx',
+      ['tsc', '--noEmit', '--pretty', 'false', '-p', 'packages/core'],
+      { cwd: ROOT }
+    );
 
-    child.stdout.on('data', (data) => { text += data; });
+    child.stdout.on('data', data => {
+      text += data;
+    });
     child.on('exit', () => done(text));
   });
 
   await rm(UNCHECKED, { force: true });
 
-  const errors = output.split('\n').filter(line => line.includes('mistakes-unchecked.ts')).map(line => line.replace(/^.*mistakes-unchecked\.ts/, 'mistakes.ts'));
+  const errors = output
+    .split('\n')
+    .filter(line => line.includes('mistakes-unchecked.ts'))
+    .map(line => line.replace(/^.*mistakes-unchecked\.ts/, 'mistakes.ts'));
 
-  response.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(errors));
+  response
+    .writeHead(200, { 'content-type': 'application/json' })
+    .end(JSON.stringify(errors));
 }
 
 // The pages, and the stylesheet and check runner they share.
-const SHARED = new Map([['/try.css', 'text/css'], ['/harness.js', 'text/javascript']]);
+const SHARED = new Map([
+  ['/try.css', 'text/css'],
+  ['/harness.js', 'text/javascript']
+]);
 
 async function page(name, response) {
-  const file = SHARED.has(name) ? name.slice(1) : name === '/' ? 'index.html' : `${name.slice(1)}.html`;
+  const file = SHARED.has(name)
+    ? name.slice(1)
+    : name === '/'
+      ? 'index.html'
+      : `${name.slice(1)}.html`;
   const type = SHARED.get(name) ?? 'text/html';
 
   if (!SHARED.has(name) && !/^[a-z0-9-]+\.html$/.test(file)) {
@@ -141,7 +205,12 @@ async function page(name, response) {
   }
 
   try {
-    response.writeHead(200, { 'content-type': `${type}; charset=utf-8`, 'cache-control': 'no-store' }).end(await readFile(join(ROOT, 'try', file)));
+    response
+      .writeHead(200, {
+        'content-type': `${type}; charset=utf-8`,
+        'cache-control': 'no-store'
+      })
+      .end(await readFile(join(ROOT, 'try', file)));
   } catch {
     response.writeHead(404).end('Not found');
   }
@@ -159,11 +228,17 @@ async function readBody(request) {
 // files, and list the problems its sync recorded (straight from its SQLite).
 async function files(request, response, path) {
   if (path === '/files/problems') {
-    const db = new DatabaseSync(join(NODE_DIR, '.data/venda.sqlite'), { readOnly: true });
-    const problems = db.prepare('SELECT path, message, line FROM content_problems ORDER BY path').all();
+    const db = new DatabaseSync(join(NODE_DIR, '.data/venda.sqlite'), {
+      readOnly: true
+    });
+    const problems = db
+      .prepare('SELECT path, message, line FROM content_problems ORDER BY path')
+      .all();
 
     db.close();
-    response.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(problems));
+    response
+      .writeHead(200, { 'content-type': 'application/json' })
+      .end(JSON.stringify(problems));
     return;
   }
 
@@ -180,18 +255,36 @@ async function files(request, response, path) {
     return;
   }
 
-  const text = await readFile(join(LIVE_CONTENT, file), 'utf8').catch(() => null);
+  const text = await readFile(join(LIVE_CONTENT, file), 'utf8').catch(
+    () => null
+  );
 
-  response.writeHead(text === null ? 404 : 200, { 'content-type': 'text/markdown; charset=utf-8', 'cache-control': 'no-store' }).end(text ?? 'Not found');
+  response
+    .writeHead(text === null ? 404 : 200, {
+      'content-type': 'text/markdown; charset=utf-8',
+      'cache-control': 'no-store'
+    })
+    .end(text ?? 'Not found');
 }
 
 function startPageServer() {
   createServer((request, response) => {
     const url = request.url ?? '/';
     const path = url.split('?')[0];
-    const route = url.startsWith('/workers') ? ['/workers', PORTS.workers] : url.startsWith('/node') ? ['/node', PORTS.node] : null;
-    const local = () => (path === '/compile-mistakes' ? compileMistakes(response) : path.startsWith('/files/') ? files(request, response, path) : page(path, response));
-    const handled = route ? proxy(request, response, route[0], route[1]) : local();
+    const route = url.startsWith('/workers')
+      ? ['/workers', PORTS.workers]
+      : url.startsWith('/node')
+        ? ['/node', PORTS.node]
+        : null;
+    const local = () =>
+      path === '/compile-mistakes'
+        ? compileMistakes(response)
+        : path.startsWith('/files/')
+          ? files(request, response, path)
+          : page(path, response);
+    const handled = route
+      ? proxy(request, response, route[0], route[1])
+      : local();
 
     handled.catch(error => response.writeHead(502).end(String(error)));
   }).listen(PORTS.page);
@@ -199,14 +292,18 @@ function startPageServer() {
 
 function stopAll(code = 0) {
   for (const child of children) {
-    try { process.kill(-child.pid, 'SIGTERM'); } catch { /* already gone */ }
+    try {
+      process.kill(-child.pid, 'SIGTERM');
+    } catch {
+      /* already gone */
+    }
   }
 
   process.exit(code);
 }
 
 // A crash must not leave the servers running on their ports for the next start.
-process.on('uncaughtException', (error) => {
+process.on('uncaughtException', error => {
   console.error(error);
   stopAll(1);
 });
@@ -217,13 +314,36 @@ await cp(CONTENT, LIVE_CONTENT, { recursive: true });
 console.log('Venda try: building and starting both runtimes');
 
 await step('build admin', 'pnpm', ['--filter', '@venda/admin-app', 'build']);
-await step('build for Workers', 'pnpm', ['exec', 'nitro', 'build'], { VENDA_CONTENT_DIR: CONTENT, VENDA_OUTPUT_DIR: BUILDS.workers });
-await step('build for Node', 'pnpm', ['exec', 'nitro', 'build'], { NITRO_PRESET: 'node', VENDA_OUTPUT_DIR: BUILDS.node });
+await step('build for Workers', 'pnpm', ['exec', 'nitro', 'build'], {
+  VENDA_CONTENT_DIR: CONTENT,
+  VENDA_OUTPUT_DIR: BUILDS.workers
+});
+await step('build for Node', 'pnpm', ['exec', 'nitro', 'build'], {
+  NITRO_PRESET: 'node',
+  VENDA_OUTPUT_DIR: BUILDS.node
+});
 
-const vars = Object.entries(OWNER_ENV).flatMap(([key, value]) => ['--var', `${key}:${value}`]);
+const vars = Object.entries(OWNER_ENV).flatMap(([key, value]) => [
+  '--var',
+  `${key}:${value}`
+]);
 
-serve('workers', 'npx', ['wrangler', 'dev', '--local', '--persist-to', join(STATE, 'workers'), '--config', join(BUILDS.workers, 'server/wrangler.json'), '--port', String(PORTS.workers), ...vars]);
-serve('node', 'node', [join(BUILDS.node, 'server/index.mjs')], { cwd: NODE_DIR, env: { PORT: String(PORTS.node), ...OWNER_ENV } });
+serve('workers', 'npx', [
+  'wrangler',
+  'dev',
+  '--local',
+  '--persist-to',
+  join(STATE, 'workers'),
+  '--config',
+  join(BUILDS.workers, 'server/wrangler.json'),
+  '--port',
+  String(PORTS.workers),
+  ...vars
+]);
+serve('node', 'node', [join(BUILDS.node, 'server/index.mjs')], {
+  cwd: NODE_DIR,
+  env: { PORT: String(PORTS.node), ...OWNER_ENV }
+});
 process.on('SIGINT', () => stopAll());
 process.on('SIGTERM', () => stopAll());
 

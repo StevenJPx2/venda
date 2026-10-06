@@ -16,21 +16,33 @@ export const users = sqliteTable('users', {
   createdAt: text('created_at').notNull()
 });
 
-export const invitations = sqliteTable('invitations', {
-  id: text().primaryKey(),
-  email: text().notNull(),
-  role: text({ enum: ROLES }).notNull(),
-  tokenHash: text('token_hash').notNull().unique(),
-  invitedBy: text('invited_by').notNull().references(() => users.id),
-  expiresAt: text('expires_at').notNull(),
-  acceptedAt: text('accepted_at')
-}, table => [index('invitations_email').on(table.email)]);
+export const invitations = sqliteTable(
+  'invitations',
+  {
+    id: text().primaryKey(),
+    email: text().notNull(),
+    role: text({ enum: ROLES }).notNull(),
+    tokenHash: text('token_hash').notNull().unique(),
+    invitedBy: text('invited_by')
+      .notNull()
+      .references(() => users.id),
+    expiresAt: text('expires_at').notNull(),
+    acceptedAt: text('accepted_at')
+  },
+  table => [index('invitations_email').on(table.email)]
+);
 
-export const apiTokens = sqliteTable('api_tokens', {
-  id: text().primaryKey(),
-  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  name: text().notNull(),
-  secretHash: text('secret_hash').notNull().unique(),
-  createdAt: text('created_at').notNull(),
-  lastUsedAt: text('last_used_at')
-}, table => [index('api_tokens_user').on(table.userId)]);
+export const apiTokens = sqliteTable(
+  'api_tokens',
+  {
+    id: text().primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    name: text().notNull(),
+    secretHash: text('secret_hash').notNull().unique(),
+    createdAt: text('created_at').notNull(),
+    lastUsedAt: text('last_used_at')
+  },
+  table => [index('api_tokens_user').on(table.userId)]
+);

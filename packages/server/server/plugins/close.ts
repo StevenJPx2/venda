@@ -2,6 +2,6 @@
 import { definePlugin } from 'nitro';
 import { venda } from '../app';
 
-export default definePlugin((nitroApp) => {
+export default definePlugin(nitroApp => {
   nitroApp.hooks.hook('close', () => venda.close());
 });

@@ -68,7 +68,8 @@ invited author in a private context and 390px screens.
 ## Checks
 
 ```sh
-pnpm lint       # ESLint in every package, then Oxlint (warnings denied)
+pnpm format     # Prettier: formats every source file
+pnpm lint       # Prettier check, ESLint in every package, then Oxlint (warnings denied)
 pnpm typecheck  # tsc, plus Effect diagnostics in the Effect packages
 pnpm test
 pnpm build
@@ -78,4 +79,4 @@ pnpm e2e        # live suites: the server built and run on Workers (local worker
 pnpm try        # start both and open http://localhost:8794 to try each slice by hand
 ```
 
-Linting uses ESLint flat config. Shared rules live in `eslint.config.shared.mjs`; the Nuxt apps extend `@nuxt/eslint`'s `withNuxt()`, and the other packages use `typescript-eslint`. Packages listed in `tools/new-architecture.json` also get Oxlint's vendored anti-slop and Effect rules and the Fallow gate. Run `pnpm lint:fix` to auto-fix.
+Prettier formats everything (`.prettierrc.json`, 80 columns); Markdown, content fixtures and generated files keep their authored shape (`.prettierignore`). Linting uses ESLint flat config for the blank-line rhythm and code rules, with `eslint-config-prettier` so the two never disagree. Shared rules live in `eslint.config.shared.mjs`; the Nuxt apps extend `@nuxt/eslint`'s `withNuxt()`, and the other packages use `typescript-eslint`. Packages listed in `tools/new-architecture.json` also get Oxlint's vendored anti-slop and Effect rules and the Fallow gate. Run `pnpm lint:fix` to format and auto-fix in one pass.

@@ -6,7 +6,12 @@ import InlineVariant from '~/prototypes/editor/InlineVariant.vue';
 import QuietVariant from '~/prototypes/editor/QuietVariant.vue';
 import '~/prototypes/editor/proto.css';
 
-if (!import.meta.dev) throw createError({ statusCode: 404, statusMessage: 'Page not found', fatal: true });
+if (!import.meta.dev)
+  throw createError({
+    statusCode: 404,
+    statusMessage: 'Page not found',
+    fatal: true
+  });
 
 const variants = [
   { name: 'Quiet', component: QuietVariant },
@@ -17,7 +22,9 @@ const variants = [
 const route = useRoute();
 const router = useRouter();
 const toast = useToast();
-const current = shallowRef(Math.min(Math.max((Number(route.query.v) || 1) - 1, 0), variants.length - 1));
+const current = shallowRef(
+  Math.min(Math.max((Number(route.query.v) || 1) - 1, 0), variants.length - 1)
+);
 const mountKey = shallowRef(0);
 
 const highlightRef = useTemplateRef<HTMLElement>('highlightRef');
@@ -46,14 +53,20 @@ function setActive(index: number): void {
 function onKeydown(event: KeyboardEvent): void {
   const target = event.target as HTMLElement;
 
-  if (/^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName) || target.isContentEditable) return;
+  if (
+    /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName) ||
+    target.isContentEditable
+  )
+    return;
   if (event.metaKey || event.ctrlKey || event.altKey) return;
 
   const num = Number.parseInt(event.key, 10);
 
   if (num >= 1 && num <= variants.length) setActive(num - 1);
-  else if (event.key === 'ArrowRight') setActive((current.value + 1) % variants.length);
-  else if (event.key === 'ArrowLeft') setActive((current.value - 1 + variants.length) % variants.length);
+  else if (event.key === 'ArrowRight')
+    setActive((current.value + 1) % variants.length);
+  else if (event.key === 'ArrowLeft')
+    setActive((current.value - 1 + variants.length) % variants.length);
 }
 
 onMounted(async () => {
@@ -62,7 +75,11 @@ onMounted(async () => {
   await nextTick();
   moveHighlight();
   // Enable the slide only after first paint, so load doesn't animate.
-  requestAnimationFrame(() => requestAnimationFrame(() => { ready.value = true; }));
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => {
+      ready.value = true;
+    })
+  );
 });
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown);
@@ -74,10 +91,21 @@ useHead({ title: 'Editor prototypes · Venda' });
 
 <template>
   <ClientOnly>
-    <component :is="variants[current]!.component" :key="`${current}-${mountKey}`" />
+    <component
+      :is="variants[current]!.component"
+      :key="`${current}-${mountKey}`"
+    />
 
-    <nav class="proto-picker" aria-label="Prototype variants" :data-ready="ready || undefined">
-      <span ref="highlightRef" class="proto-picker-highlight" aria-hidden="true" />
+    <nav
+      class="proto-picker"
+      aria-label="Prototype variants"
+      :data-ready="ready || undefined"
+    >
+      <span
+        ref="highlightRef"
+        class="proto-picker-highlight"
+        aria-hidden="true"
+      />
 
       <button
         v-for="(variant, index) in variants"
@@ -115,7 +143,7 @@ useHead({ title: 'Editor prototypes · Venda' });
     0 0 0 1px rgba(255, 255, 255, 0.08) inset,
     0 8px 24px rgba(0, 0, 0, 0.24),
     0 2px 6px rgba(0, 0, 0, 0.12);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: 13px;
   line-height: 1;
   -webkit-font-smoothing: antialiased;
@@ -140,7 +168,9 @@ useHead({ title: 'Editor prototypes · Venda' });
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .proto-picker[data-ready] .proto-picker-highlight { transition: none; }
+  .proto-picker[data-ready] .proto-picker-highlight {
+    transition: none;
+  }
 }
 
 .proto-picker-item {

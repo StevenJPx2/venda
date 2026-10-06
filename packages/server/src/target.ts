@@ -7,9 +7,14 @@ import type { SqlClient, SqlError, Statement } from 'effect/sql';
 
 export interface DatabaseDriver {
   /** The SQL client and the Drizzle index over it; fails when the database cannot be opened or its binding is missing. */
-  readonly layer: Layer.Layer<SqlClient.SqlClient | Database, SqlError.SqlError | Config.ConfigError | Schema.SchemaError>;
+  readonly layer: Layer.Layer<
+    SqlClient.SqlClient | Database,
+    SqlError.SqlError | Config.ConfigError | Schema.SchemaError
+  >;
   /** Runs statements all or nothing: a transaction on SQLite, a batch on D1 (which has no transactions). */
-  readonly atomically: (statements: ReadonlyArray<Statement.Statement<object>>) => Effect.Effect<void, SqlError.SqlError, SqlClient.SqlClient>;
+  readonly atomically: (
+    statements: ReadonlyArray<Statement.Statement<object>>
+  ) => Effect.Effect<void, SqlError.SqlError, SqlClient.SqlClient>;
 }
 
 /** A file's raw value: bytes from the filesystem driver, possibly text from bundled assets. */
@@ -24,7 +29,8 @@ export interface ContentFiles {
 export interface ContentSource {
   readonly files: ContentFiles;
   /** Calls `onChange` after files change, where the files can change while running; resolves to a function that stops watching. */
-  readonly watch: ((onChange: () => void) => Promise<() => Promise<void>>) | undefined;
+  readonly watch:
+    ((onChange: () => void) => Promise<() => Promise<void>>) | undefined;
 }
 
 export interface Target {

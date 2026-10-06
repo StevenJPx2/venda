@@ -22,7 +22,8 @@ function togglePanel(fromKeyboard = false): void {
 }
 
 const action = computed(() => {
-  const future = post.publishAt.value && Date.parse(post.publishAt.value) > Date.now();
+  const future =
+    post.publishAt.value && Date.parse(post.publishAt.value) > Date.now();
 
   if (post.status.value === 'draft') return future ? 'Schedule' : 'Publish';
   if (post.status.value === 'scheduled') return 'Publish now';
@@ -67,13 +68,24 @@ onBeforeUnmount(() => {
       <p class="flex min-w-0 items-center gap-2 text-[13px]" aria-live="polite">
         <span class="pv-dot" :data-tone="status.tone" />
         <span class="truncate text-highlighted">{{ status.label }}</span>
-        <span class="hidden shrink-0 text-dimmed sm:inline">{{ post.saveState.value === 'saving' ? 'Saving…' : 'Saved' }}</span>
+
+        <span class="hidden shrink-0 text-dimmed sm:inline">{{
+          post.saveState.value === 'saving' ? 'Saving…' : 'Saved'
+        }}</span>
       </p>
 
       <div class="ml-auto flex shrink-0 items-center gap-1">
-        <button type="button" class="pv-btn pv-btn--ghost pv-press pv-wide">Preview</button>
+        <button type="button" class="pv-btn pv-btn--ghost pv-press pv-wide">
+          Preview
+        </button>
 
-        <button v-if="action" type="button" class="pv-btn pv-btn--ink pv-press min-w-[5.5rem] justify-center" :disabled="post.publishing.value" @click="runAction">
+        <button
+          v-if="action"
+          type="button"
+          class="pv-btn pv-btn--ink pv-press min-w-[5.5rem] justify-center"
+          :disabled="post.publishing.value"
+          @click="runAction"
+        >
           {{ post.publishing.value ? 'Publishing…' : action }}
         </button>
 
@@ -85,18 +97,41 @@ onBeforeUnmount(() => {
           title="Post settings (⌘.)"
           @click="togglePanel()"
         >
-          <UIcon name="i-lucide-panel-right" class="size-[18px]" :class="panelOpen && 'text-highlighted'" />
+          <UIcon
+            name="i-lucide-panel-right"
+            class="size-[18px]"
+            :class="panelOpen && 'text-highlighted'"
+          />
         </button>
       </div>
     </header>
 
     <main class="mx-auto max-w-[680px] px-6 pb-48 pt-14 sm:pt-20">
-      <figure v-if="post.featureImage.value" class="group relative mb-10 overflow-hidden rounded-lg">
-        <img :src="post.featureImage.value" alt="" class="aspect-[16/9] w-full object-cover">
-        <button type="button" class="pv-btn pv-press absolute right-3 top-3 bg-black/60 text-white backdrop-blur" @click="post.featureImage.value = null">Remove</button>
+      <figure
+        v-if="post.featureImage.value"
+        class="group relative mb-10 overflow-hidden rounded-lg"
+      >
+        <img
+          :src="post.featureImage.value"
+          alt=""
+          class="aspect-[16/9] w-full object-cover"
+        />
+
+        <button
+          type="button"
+          class="pv-btn pv-press absolute right-3 top-3 bg-black/60 text-white backdrop-blur"
+          @click="post.featureImage.value = null"
+        >
+          Remove
+        </button>
       </figure>
 
-      <button v-else type="button" class="pv-btn pv-btn--ghost pv-press -ml-3 mb-4" @click="post.pickFeatureImage">
+      <button
+        v-else
+        type="button"
+        class="pv-btn pv-btn--ghost pv-press -ml-3 mb-4"
+        @click="post.pickFeatureImage"
+      >
         <UIcon name="i-lucide-image-plus" class="size-4" />Add feature image
       </button>
 
@@ -105,11 +140,24 @@ onBeforeUnmount(() => {
       <ProtoBody ref="bodyRef" v-model="post.body.value" />
     </main>
 
-    <aside class="q-panel" :data-open="panelOpen || undefined" :data-instant="instant || undefined" :inert="!panelOpen" aria-label="Post settings">
+    <aside
+      class="q-panel"
+      :data-open="panelOpen || undefined"
+      :data-instant="instant || undefined"
+      :inert="!panelOpen"
+      aria-label="Post settings"
+    >
       <div class="flex h-12 shrink-0 items-center justify-between px-5">
-        <h2 class="text-[13px] font-semibold text-highlighted">Post settings</h2>
+        <h2 class="text-[13px] font-semibold text-highlighted">
+          Post settings
+        </h2>
 
-        <button type="button" class="pv-btn pv-btn--ghost pv-btn--icon pv-press -mr-2" aria-label="Close settings" @click="togglePanel()">
+        <button
+          type="button"
+          class="pv-btn pv-btn--ghost pv-btn--icon pv-press -mr-2"
+          aria-label="Close settings"
+          @click="togglePanel()"
+        >
           <UIcon name="i-lucide-x" class="size-4" />
         </button>
       </div>
@@ -118,14 +166,31 @@ onBeforeUnmount(() => {
         <ProtoSettingsFields :post="post" />
       </div>
 
-      <div class="flex shrink-0 items-center gap-1 border-t border-default px-3 py-2.5">
-        <button type="button" class="pv-btn pv-btn--ghost pv-press"><UIcon name="i-lucide-history" class="size-4" />History</button>
-        <button v-if="post.status.value !== 'draft'" type="button" class="pv-btn pv-btn--ghost pv-press" @click="post.unpublish">Unpublish</button>
-        <button type="button" class="pv-btn pv-btn--danger pv-press ml-auto">Move to trash</button>
+      <div
+        class="flex shrink-0 items-center gap-1 border-t border-default px-3 py-2.5"
+      >
+        <button type="button" class="pv-btn pv-btn--ghost pv-press">
+          <UIcon name="i-lucide-history" class="size-4" />History
+        </button>
+
+        <button
+          v-if="post.status.value !== 'draft'"
+          type="button"
+          class="pv-btn pv-btn--ghost pv-press"
+          @click="post.unpublish"
+        >
+          Unpublish
+        </button>
+
+        <button type="button" class="pv-btn pv-btn--danger pv-press ml-auto">
+          Move to trash
+        </button>
       </div>
     </aside>
 
-    <p class="pv-num fixed bottom-4 left-5 hidden text-xs text-dimmed sm:block">{{ post.words.value.toLocaleString() }} words</p>
+    <p class="pv-num fixed bottom-4 left-5 hidden text-xs text-dimmed sm:block">
+      {{ post.words.value.toLocaleString() }} words
+    </p>
   </div>
 </template>
 
@@ -153,7 +218,9 @@ onBeforeUnmount(() => {
   opacity: 0;
   transition: opacity 150ms ease;
 }
-.q-bar[data-scrolled]::after { opacity: 1; }
+.q-bar[data-scrolled]::after {
+  opacity: 1;
+}
 
 .q-panel {
   position: fixed;
@@ -176,13 +243,25 @@ onBeforeUnmount(() => {
   transform: translateX(0);
   transition-duration: 240ms;
 }
-.q-panel[data-instant] { transition: none; }
+.q-panel[data-instant] {
+  transition: none;
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .q-panel { transform: none; opacity: 0; transition: opacity 150ms ease; }
-  .q-panel[data-open] { opacity: 1; }
+  .q-panel {
+    transform: none;
+    opacity: 0;
+    transition: opacity 150ms ease;
+  }
+  .q-panel[data-open] {
+    opacity: 1;
+  }
 }
 @media (prefers-reduced-transparency: reduce) {
-  .q-bar, .q-panel { background: var(--ui-bg); backdrop-filter: none; }
+  .q-bar,
+  .q-panel {
+    background: var(--ui-bg);
+    backdrop-filter: none;
+  }
 }
 </style>

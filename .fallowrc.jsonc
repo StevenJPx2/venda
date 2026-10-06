@@ -15,7 +15,12 @@
   // Nitro's generated storage code imports chokidar for the fs driver's watcher,
   // so no source file does; Nitro requires the app to list it.
   "ignoreDependencies": ["chokidar"],
-  "ignorePatterns": ["tools/oxlint/anti-slop/**", "**/.output/**", "**/.output-node/**", "**/.wrangler/**"],
+  "ignorePatterns": [
+    "tools/oxlint/anti-slop/**",
+    "**/.output/**",
+    "**/.output-node/**",
+    "**/.wrangler/**"
+  ],
   "boundaries": {
     "zones": [
       { "name": "contract", "patterns": ["packages/contract/**"] },

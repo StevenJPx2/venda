@@ -1,4 +1,9 @@
-import { isEmptyDoc, isRichTextDoc, renderHtml, type RichTextDoc } from '@venda/richtext';
+import {
+  isEmptyDoc,
+  isRichTextDoc,
+  renderHtml,
+  type RichTextDoc
+} from '@venda/richtext';
 import { computed, defineComponent, h, type PropType } from 'vue';
 
 /**
@@ -17,7 +22,14 @@ export default defineComponent({
     as: { type: String, default: 'div' }
   },
   setup(props) {
-    const html = computed(() => (isRichTextDoc(props.content) && !isEmptyDoc(props.content) ? renderHtml(props.content) : ''));
-    return () => (html.value ? h(props.as, { class: 'venda-content', innerHTML: html.value }) : null);
+    const html = computed(() =>
+      isRichTextDoc(props.content) && !isEmptyDoc(props.content)
+        ? renderHtml(props.content)
+        : ''
+    );
+    return () =>
+      html.value
+        ? h(props.as, { class: 'venda-content', innerHTML: html.value })
+        : null;
   }
 });

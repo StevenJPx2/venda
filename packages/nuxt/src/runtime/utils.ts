@@ -1,9 +1,16 @@
 import type { VendaCollectionOptions, VendaEntry } from './types';
 
 /** Joins the configured API base and a content path without doubling slashes. */
-export function contentUrl(apiBase: string, collection: string, slug?: string): string {
+export function contentUrl(
+  apiBase: string,
+  collection: string,
+  slug?: string
+): string {
   const base = apiBase.replace(/\/+$/, '');
-  const path = [collection, slug].filter((part): part is string => Boolean(part)).map(encodeURIComponent).join('/');
+  const path = [collection, slug]
+    .filter((part): part is string => Boolean(part))
+    .map(encodeURIComponent)
+    .join('/');
   return `${base}/content/${path}`;
 }
 
@@ -17,7 +24,10 @@ function compare(a: unknown, b: unknown): number {
 }
 
 /** Applies client-side sorting and limiting; the API itself returns newest-first. */
-export function shapeEntries<TData>(entries: VendaEntry<TData>[], options: VendaCollectionOptions<TData> = {}): VendaEntry<TData>[] {
+export function shapeEntries<TData>(
+  entries: VendaEntry<TData>[],
+  options: VendaCollectionOptions<TData> = {}
+): VendaEntry<TData>[] {
   const { sortBy, order = 'asc', limit } = options;
   let shaped = [...entries];
 
@@ -38,13 +48,25 @@ export function shapeEntries<TData>(entries: VendaEntry<TData>[], options: Venda
 }
 
 /** Stable, option-aware cache key so SSR payloads and client hydration match. */
-export function collectionKey<TData>(collection: string, options: VendaCollectionOptions<TData> = {}): string {
-  return ['venda', collection, options.sortBy ?? '', options.order ?? '', options.limit ?? ''].join(':');
+export function collectionKey<TData>(
+  collection: string,
+  options: VendaCollectionOptions<TData> = {}
+): string {
+  return [
+    'venda',
+    collection,
+    options.sortBy ?? '',
+    options.order ?? '',
+    options.limit ?? ''
+  ].join(':');
 }
 
 export function isNotFound(error: unknown): boolean {
   if (typeof error !== 'object' || error === null) return false;
 
-  const { statusCode, status } = error as { statusCode?: number; status?: number };
+  const { statusCode, status } = error as {
+    statusCode?: number;
+    status?: number;
+  };
   return statusCode === 404 || status === 404;
 }

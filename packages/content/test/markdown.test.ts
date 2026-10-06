@@ -6,7 +6,8 @@ import { docToMarkdown, markdownToDoc } from '../src';
 function read(source: string): RichTextDoc {
   const result = markdownToDoc(source);
 
-  if (Result.isFailure(result)) throw new Error(`could not read: ${result.failure.message}`);
+  if (Result.isFailure(result))
+    throw new Error(`could not read: ${result.failure.message}`);
 
   return result.success;
 }
@@ -68,7 +69,7 @@ Inline <Badge color="blue">new</Badge> tag.
 [ref]: https://example.com/ref
 `;
 
-describe('markdownToDoc and docToMarkdown', () => {
+describe('markdownToDoc and docToMarkdown: round trip', () => {
   it('round-trips every construct', () => {
     const { doc, written } = roundTrip(EVERYTHING);
     const types = doc.content.map(node => node.type);
@@ -117,33 +118,81 @@ describe('markdownToDoc and docToMarkdown', () => {
       "
     `);
 
-    expect(types).toEqual(['heading', 'paragraph', 'image', 'blockquote', 'bulletList', 'orderedList', 'taskList', 'codeBlock', 'horizontalRule', 'table', 'paragraph', 'block', 'block', 'paragraph', 'footnoteDefinition']);
+    expect(types).toEqual([
+      'heading',
+      'paragraph',
+      'image',
+      'blockquote',
+      'bulletList',
+      'orderedList',
+      'taskList',
+      'codeBlock',
+      'horizontalRule',
+      'table',
+      'paragraph',
+      'block',
+      'block',
+      'paragraph',
+      'footnoteDefinition'
+    ]);
   });
+});
 
+describe('markdownToDoc and docToMarkdown: reading constructs', () => {
   it('reads marks, including sup and sub tags', () => {
     const [, paragraph] = read(EVERYTHING).content;
-    const marked = (paragraph?.content ?? []).filter(node => node.marks?.length).map(node => [node.text, node.marks?.map(mark => mark.type).join('+')]);
+    const marked = (paragraph?.content ?? [])
+      .filter(node => node.marks?.length)
+      .map(node => [node.text, node.marks?.map(mark => mark.type).join('+')]);
 
-    expect(marked).toEqual(expect.arrayContaining([['bold', 'bold'], ['italic', 'italic'], ['struck', 'strike'], ['code', 'code'], ['link', 'link'], ['2', 'subscript'], ['2', 'superscript'], ['underline', 'underline'], ['and italic', 'bold+italic']]));
-    expect(paragraph?.content?.some(node => node.type === 'hardBreak')).toBe(true);
-    expect(paragraph?.content?.some(node => node.text?.includes('Soft breaks'))).toBe(true);
+    expect(marked).toEqual(
+      expect.arrayContaining([
+        ['bold', 'bold'],
+        ['italic', 'italic'],
+        ['struck', 'strike'],
+        ['code', 'code'],
+        ['link', 'link'],
+        ['2', 'subscript'],
+        ['2', 'superscript'],
+        ['underline', 'underline'],
+        ['and italic', 'bold+italic']
+      ])
+    );
+    expect(paragraph?.content?.some(node => node.type === 'hardBreak')).toBe(
+      true
+    );
+    expect(
+      paragraph?.content?.some(node => node.text?.includes('Soft breaks'))
+    ).toBe(true);
   });
 
   it('reads block tags with their attributes as data', () => {
-    const blocks = read(EVERYTHING).content.filter(node => node.type === 'block');
+    const blocks = read(EVERYTHING).content.filter(
+      node => node.type === 'block'
+    );
 
-    expect(blocks[0]?.attrs).toEqual({ name: 'Callout', props: { tone: 'warn', open: true, count: 3, meta: { a: [1, 2] } } });
+    expect(blocks[0]?.attrs).toEqual({
+      name: 'Callout',
+      props: { tone: 'warn', open: true, count: 3, meta: { a: [1, 2] } }
+    });
     expect(blocks[0]?.content?.[0]?.type).toBe('paragraph');
-    expect(blocks[1]).toEqual({ type: 'block', attrs: { name: 'Video', props: { src: '/media/clip.mp4' } } });
+    expect(blocks[1]).toEqual({
+      type: 'block',
+      attrs: { name: 'Video', props: { src: '/media/clip.mp4' } }
+    });
   });
 
   it('resolves reference links and keeps lists, tasks and tables', () => {
     const doc = read(EVERYTHING);
     const find = (type: string) => doc.content.find(node => node.type === type);
 
-    expect(JSON.stringify(find('blockquote'))).toContain('https://example.com/ref');
+    expect(JSON.stringify(find('blockquote'))).toContain(
+      'https://example.com/ref'
+    );
     expect(find('orderedList')?.attrs).toEqual({ start: 3 });
-    expect(find('taskList')?.content?.map(item => item.attrs?.checked)).toEqual([true, false]);
+    expect(find('taskList')?.content?.map(item => item.attrs?.checked)).toEqual(
+      [true, false]
+    );
     expect(find('table')?.attrs).toEqual({ align: ['left', 'right'] });
     expect(find('table')?.content?.[0]?.content?.[0]?.type).toBe('tableHeader');
   });
@@ -151,7 +200,19 @@ describe('markdownToDoc and docToMarkdown', () => {
 
 describe('edge cases', () => {
   it('drops a trailing line break, which Markdown cannot spell', () => {
-    const doc: RichTextDoc = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Yours,' }, { type: 'hardBreak' }] }, { type: 'paragraph', content: [{ type: 'text', text: 'Ann', marks: [{ type: 'bold' }] }] }] };
+    const doc: RichTextDoc = {
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [{ type: 'text', text: 'Yours,' }, { type: 'hardBreak' }]
+        },
+        {
+          type: 'paragraph',
+          content: [{ type: 'text', text: 'Ann', marks: [{ type: 'bold' }] }]
+        }
+      ]
+    };
 
     expect(docToMarkdown(doc)).toBe('Yours,\n\n**Ann**\n');
   });
@@ -159,7 +220,10 @@ describe('edge cases', () => {
   it.each([
     ['nested marks', 'Some **bold _both_ and** plain _italic **both**_.\n'],
     ['adjacent marks', '**a**_b_ and `x` **`y`**\n'],
-    ['escapes', 'Stars \\* and \\_ underscores, \\<not a tag>, and {braces}.\n'],
+    [
+      'escapes',
+      'Stars \\* and \\_ underscores, \\<not a tag>, and {braces}.\n'
+    ],
     ['a linked image', '[![Alt](/a.png)](https://example.com)\n'],
     ['empty document', '']
   ])('round-trips %s', (_name, source) => {
@@ -167,10 +231,20 @@ describe('edge cases', () => {
   });
 
   it.each([
-    ['an expression attribute', '<Chart data={load()} />', /CallExpression is not plain data/, 1],
+    [
+      'an expression attribute',
+      '<Chart data={load()} />',
+      /CallExpression is not plain data/,
+      1
+    ],
     ['a spread attribute', 'Text\n\n<Chart {...props} />', /cannot spread/, 3],
     ['a fragment', '<>hi</>', /Fragments/, 1],
-    ['an unclosed tag', 'Hello\n\n<Callout>\n\nNo end', /Callout|closing/i, undefined]
+    [
+      'an unclosed tag',
+      'Hello\n\n<Callout>\n\nNo end',
+      /Callout|closing/i,
+      undefined
+    ]
   ])('rejects %s', (_name, source, message, line) => {
     const result = markdownToDoc(source);
 

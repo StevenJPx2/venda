@@ -11,26 +11,46 @@ export type Props = Readonly<Record<string, Json>>;
 
 export type JsxElement = MdxJsxFlowElement | MdxJsxTextElement;
 
-function expression(source: string, line: number | undefined): Result.Result<Json, LiteralProblem> {
+function expression(
+  source: string,
+  line: number | undefined
+): Result.Result<Json, LiteralProblem> {
   try {
-    const node = parseExpressionAt(source, 0, { ecmaVersion: 'latest', locations: true });
+    const node = parseExpressionAt(source, 0, {
+      ecmaVersion: 'latest',
+      locations: true
+    });
 
-    if (source.slice(node.end).trim()) return Result.fail({ message: 'Attribute values must be one value', line });
+    if (source.slice(node.end).trim())
+      return Result.fail({
+        message: 'Attribute values must be one value',
+        line
+      });
 
-    return Result.mapError(literal(node), problem => ({ message: problem.message, line }));
+    return Result.mapError(literal(node), problem => ({
+      message: problem.message,
+      line
+    }));
   } catch {
-    return Result.fail({ message: `Attribute value {${source}} is not valid JavaScript`, line });
+    return Result.fail({
+      message: `Attribute value {${source}} is not valid JavaScript`,
+      line
+    });
   }
 }
 
 function props(element: JsxElement): Result.Result<Props, LiteralProblem> {
   const line = element.position?.start.line;
 
-  return Result.gen(function*() {
+  return Result.gen(function* () {
     const values: Record<string, Json> = {};
 
     for (const attribute of element.attributes) {
-      if (attribute.type === 'mdxJsxExpressionAttribute') return yield* Result.fail({ message: `<${element.name ?? ''}> cannot spread attributes`, line });
+      if (attribute.type === 'mdxJsxExpressionAttribute')
+        return yield* Result.fail({
+          message: `<${element.name ?? ''}> cannot spread attributes`,
+          line
+        });
 
       const { name, value } = attribute;
 
@@ -46,14 +66,23 @@ function props(element: JsxElement): Result.Result<Props, LiteralProblem> {
 const isParent = (node: Nodes): node is Nodes & Parent => 'children' in node;
 
 /** Every block tag's attributes, or the first one that is not plain data. */
-export function collectProps(tree: Nodes): Result.Result<WeakMap<JsxElement, Props>, LiteralProblem> {
-  return Result.gen(function*() {
+export function collectProps(
+  tree: Nodes
+): Result.Result<WeakMap<JsxElement, Props>, LiteralProblem> {
+  return Result.gen(function* () {
     const found = new WeakMap<JsxElement, Props>();
     const pending: Nodes[] = [tree];
 
     for (let node = pending.pop(); node !== undefined; node = pending.pop()) {
-      if (node.type === 'mdxJsxFlowElement' || node.type === 'mdxJsxTextElement') {
-        if (node.name === null) return yield* Result.fail({ message: 'Fragments (<>...</>) are not allowed', line: node.position?.start.line });
+      if (
+        node.type === 'mdxJsxFlowElement' ||
+        node.type === 'mdxJsxTextElement'
+      ) {
+        if (node.name === null)
+          return yield* Result.fail({
+            message: 'Fragments (<>...</>) are not allowed',
+            line: node.position?.start.line
+          });
 
         found.set(node, yield* props(node));
       }

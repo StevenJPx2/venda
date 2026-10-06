@@ -1,189 +1,315 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Slice 1 · Try Venda</title>
-  <link rel="stylesheet" href="/try.css">
-</head>
-<body>
-  <main>
-    <header>
-      <div>
-        <a class="crumb" href="/">← Try Venda</a>
-        <h1>Slice 1 · Content from files</h1>
-        <p class="lede">The <code>journal</code> collection is a folder of Markdown files with a <code>config.ts</code> model (<code>try/content/journal</code>). Sync reads them into the index and <code>/api/content</code> serves them through the Effect contract. Workers serves the folder bundled at build time; Node serves and watches <code>.try/node/content</code>, which you can edit here or in your editor.</p>
-      </div>
-      <div style="text-align:right">
-        <button class="primary" id="run-all">Run every check on both</button>
-      </div>
-    </header>
-    <div id="checks"></div>
-  </main>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Slice 1 · Try Venda</title>
+    <link rel="stylesheet" href="/try.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <a class="crumb" href="/">← Try Venda</a>
+          <h1>Slice 1 · Content from files</h1>
+          <p class="lede">
+            The <code>journal</code> collection is a folder of Markdown files
+            with a <code>config.ts</code> model
+            (<code>try/content/journal</code>). Sync reads them into the index
+            and <code>/api/content</code> serves them through the Effect
+            contract. Workers serves the folder bundled at build time; Node
+            serves and watches <code>.try/node/content</code>, which you can
+            edit here or in your editor.
+          </p>
+        </div>
+        <div style="text-align: right">
+          <button class="primary" id="run-all">Run every check on both</button>
+        </div>
+      </header>
+      <div id="checks"></div>
+    </main>
 
-  <script type="module">
-    import { call, mount, until } from '/harness.js';
+    <script type="module">
+      import { call, mount, until } from '/harness.js';
 
-    const readFile = name => call(null, 'GET', `/files/journal/${name}`);
-    const writeFile = (name, text) => call(null, 'PUT', `/files/journal/${name}`, { body: text });
+      const readFile = name => call(null, 'GET', `/files/journal/${name}`);
+      const writeFile = (name, text) =>
+        call(null, 'PUT', `/files/journal/${name}`, { body: text });
 
-    function collect(node, found = []) {
-      found.push(node.type, ...(node.marks ?? []).map(mark => mark.type));
+      function collect(node, found = []) {
+        found.push(node.type, ...(node.marks ?? []).map(mark => mark.type));
 
-      if (node.type === 'block') found.push(`<${node.attrs.name}>`);
+        if (node.type === 'block') found.push(`<${node.attrs.name}>`);
 
-      for (const child of node.content ?? []) collect(child, found);
+        for (const child of node.content ?? []) collect(child, found);
 
-      return found;
-    }
+        return found;
+      }
 
-    const SCRATCH = 'try-scratch.md';
+      const SCRATCH = 'try-scratch.md';
 
-    mount([
-      {
-        title: 'The server answers on both presets',
-        description: 'GET /api/health from the Effect contract. On first use each server applied drizzle-kit’s migrations (D1 on Workers, node:sqlite on Node) and synced the content folder.',
-        async run(runtime, { log }) {
-          const health = await call(runtime, 'GET', '/api/health');
+      mount([
+        {
+          title: 'The server answers on both presets',
+          description:
+            'GET /api/health from the Effect contract. On first use each server applied drizzle-kit’s migrations (D1 on Workers, node:sqlite on Node) and synced the content folder.',
+          async run(runtime, { log }) {
+            const health = await call(runtime, 'GET', '/api/health');
 
-          log(health.line, health.data);
+            log(health.line, health.data);
 
-          return { pass: health.ok && health.data?.ok === true, note: `version ${health.data?.version}` };
-        }
-      },
-      {
-        title: 'List a file collection',
-        description: 'GET /api/content/journal: published entries only, newest first. The draft (next-week.md) and the file without a title (missing-title.md) are left out.',
-        async run(runtime, { log }) {
-          const list = await call(runtime, 'GET', '/api/content/journal');
-          const slugs = Array.isArray(list.data) ? list.data.map(entry => entry.slug) : [];
-
-          log(list.line, list.data);
-
-          return { pass: list.ok && slugs.slice(0, 2).join() === 'files-are-the-truth,a-quiet-start' && !slugs.includes('next-week') && !slugs.includes('missing-title'), note: slugs.join(', ') || 'nothing listed' };
-        }
-      },
-      {
-        title: 'From Markdown to the editor document',
-        description: 'files-are-the-truth.md as written, then as the API serves it. Marks (bold, sub, sup, strike), the <Callout> block tag with data attributes, the table, task list and footnote all come through as document nodes.',
-        async run(runtime, { log }) {
-          const file = await readFile('files-are-the-truth.md');
-          const entry = await call(runtime, 'GET', '/api/content/journal/files-are-the-truth');
-
-          log('The file', file.data);
-          log(entry.line, entry.data);
-
-          const body = entry.data?.data?.body;
-          const seen = new Set(body ? collect(body) : []);
-          const callout = body?.content?.find(node => node.type === 'block');
-          const wanted = ['heading', 'bold', 'italic', 'subscript', 'superscript', 'strike', 'code', '<Callout>', 'table', 'taskList', 'footnoteDefinition'];
-          const missing = wanted.filter(type => !seen.has(type));
-          const props = JSON.stringify(callout?.attrs?.props);
-
-          return { pass: entry.ok && missing.length === 0 && props === '{"tone":"info","dismissible":true,"count":2}', note: missing.length ? `missing: ${missing.join(', ')}` : `all ${wanted.length} constructs present; Callout props ${props}` };
-        }
-      },
-      {
-        title: 'Drafts and broken files stay private',
-        description: 'The draft and the file missing its required title answer 404. On Node, the problems the sync recorded are listed with their file and reason.',
-        async run(runtime, { log }) {
-          const draft = await call(runtime, 'GET', '/api/content/journal/next-week');
-          const broken = await call(runtime, 'GET', '/api/content/journal/missing-title');
-
-          log(draft.line);
-          log(broken.line);
-
-          let recorded = true;
-
-          if (runtime === 'node') {
-            const problems = await call(null, 'GET', '/files/problems');
-
-            log('Problems in the index', problems.data);
-            recorded = Array.isArray(problems.data) && problems.data.some(problem => problem.path === 'journal/missing-title.md' && /title is required/.test(problem.message));
+            return {
+              pass: health.ok && health.data?.ok === true,
+              note: `version ${health.data?.version}`
+            };
           }
+        },
+        {
+          title: 'List a file collection',
+          description:
+            'GET /api/content/journal: published entries only, newest first. The draft (next-week.md) and the file without a title (missing-title.md) are left out.',
+          async run(runtime, { log }) {
+            const list = await call(runtime, 'GET', '/api/content/journal');
+            const slugs = Array.isArray(list.data)
+              ? list.data.map(entry => entry.slug)
+              : [];
 
-          return { pass: draft.status === 404 && broken.status === 404 && recorded, note: runtime === 'node' ? 'both hidden; missing-title.md recorded as a problem' : 'both hidden' };
-        }
-      },
-      {
-        title: 'Edit a file and see it live',
-        only: 'node',
-        description: 'Change a-quiet-start.md below (try the title) and save it to disk. Node’s watcher re-syncs and the API serves the change. Workers serves the folder bundled at build time, so there it needs a rebuild until the GitHub store arrives (slice 4).',
-        extra: `
+            log(list.line, list.data);
+
+            return {
+              pass:
+                list.ok &&
+                slugs.slice(0, 2).join() ===
+                  'files-are-the-truth,a-quiet-start' &&
+                !slugs.includes('next-week') &&
+                !slugs.includes('missing-title'),
+              note: slugs.join(', ') || 'nothing listed'
+            };
+          }
+        },
+        {
+          title: 'From Markdown to the editor document',
+          description:
+            'files-are-the-truth.md as written, then as the API serves it. Marks (bold, sub, sup, strike), the <Callout> block tag with data attributes, the table, task list and footnote all come through as document nodes.',
+          async run(runtime, { log }) {
+            const file = await readFile('files-are-the-truth.md');
+            const entry = await call(
+              runtime,
+              'GET',
+              '/api/content/journal/files-are-the-truth'
+            );
+
+            log('The file', file.data);
+            log(entry.line, entry.data);
+
+            const body = entry.data?.data?.body;
+            const seen = new Set(body ? collect(body) : []);
+            const callout = body?.content?.find(node => node.type === 'block');
+            const wanted = [
+              'heading',
+              'bold',
+              'italic',
+              'subscript',
+              'superscript',
+              'strike',
+              'code',
+              '<Callout>',
+              'table',
+              'taskList',
+              'footnoteDefinition'
+            ];
+            const missing = wanted.filter(type => !seen.has(type));
+            const props = JSON.stringify(callout?.attrs?.props);
+
+            return {
+              pass:
+                entry.ok &&
+                missing.length === 0 &&
+                props === '{"tone":"info","dismissible":true,"count":2}',
+              note: missing.length
+                ? `missing: ${missing.join(', ')}`
+                : `all ${wanted.length} constructs present; Callout props ${props}`
+            };
+          }
+        },
+        {
+          title: 'Drafts and broken files stay private',
+          description:
+            'The draft and the file missing its required title answer 404. On Node, the problems the sync recorded are listed with their file and reason.',
+          async run(runtime, { log }) {
+            const draft = await call(
+              runtime,
+              'GET',
+              '/api/content/journal/next-week'
+            );
+            const broken = await call(
+              runtime,
+              'GET',
+              '/api/content/journal/missing-title'
+            );
+
+            log(draft.line);
+            log(broken.line);
+
+            let recorded = true;
+
+            if (runtime === 'node') {
+              const problems = await call(null, 'GET', '/files/problems');
+
+              log('Problems in the index', problems.data);
+              recorded =
+                Array.isArray(problems.data) &&
+                problems.data.some(
+                  problem =>
+                    problem.path === 'journal/missing-title.md' &&
+                    /title is required/.test(problem.message)
+                );
+            }
+
+            return {
+              pass: draft.status === 404 && broken.status === 404 && recorded,
+              note:
+                runtime === 'node'
+                  ? 'both hidden; missing-title.md recorded as a problem'
+                  : 'both hidden'
+            };
+          }
+        },
+        {
+          title: 'Edit a file and see it live',
+          only: 'node',
+          description:
+            'Change a-quiet-start.md below (try the title) and save it to disk. Node’s watcher re-syncs and the API serves the change. Workers serves the folder bundled at build time, so there it needs a rebuild until the GitHub store arrives (slice 4).',
+          extra: `
           <div class="row"><span class="note" style="margin:0">.try/node/content/journal/a-quiet-start.md</span><button data-act="reload">Reload from disk</button></div>
           <textarea spellcheck="false"></textarea>`,
-        async setup(card) {
-          const area = card.querySelector('textarea');
-          const load = async () => { area.value = (await readFile('a-quiet-start.md')).data; };
+          async setup(card) {
+            const area = card.querySelector('textarea');
+            const load = async () => {
+              area.value = (await readFile('a-quiet-start.md')).data;
+            };
 
-          card.querySelector('[data-act="reload"]').addEventListener('click', load);
-          await load();
+            card
+              .querySelector('[data-act="reload"]')
+              .addEventListener('click', load);
+            await load();
+          },
+          async run(runtime, { log, card, note }) {
+            const area = card.querySelector('textarea');
+
+            if (!area.value.includes('title:'))
+              area.value = (await readFile('a-quiet-start.md')).data;
+
+            // Unchanged text still proves the round trip; a fresh title proves the watcher.
+            if (area.value === (await readFile('a-quiet-start.md')).data)
+              area.value = area.value.replace(
+                /^title: .*$/m,
+                `title: A quiet start, edited at ${new Date().toLocaleTimeString()}`
+              );
+
+            const title = /^title: (.*)$/m.exec(area.value)?.[1]?.trim();
+            const saved = await writeFile('a-quiet-start.md', area.value);
+
+            log(`${saved.line} (saved to disk)`);
+            note('Waiting for the watcher…');
+
+            const started = performance.now();
+            const read = await until(
+              () => call(runtime, 'GET', '/api/content/journal/a-quiet-start'),
+              result => result.data?.data?.title === title
+            );
+            const ms = Math.round(performance.now() - started);
+
+            log(read.line, read.data);
+
+            return {
+              pass: read.ok && read.data?.data?.title === title,
+              note: read.ok
+                ? `served “${read.data.data.title}” ${ms} ms after saving`
+                : `not served (${read.status}); fix the file and save again`
+            };
+          }
         },
-        async run(runtime, { log, card, note }) {
-          const area = card.querySelector('textarea');
+        {
+          title: 'Break a file, then fix it',
+          only: 'node',
+          description: `Writes ${SCRATCH} with a mood that is not one of the model’s options. Sync records the problem (with its line) and the entry is not served; then the file is fixed and the entry appears.`,
+          async run(runtime, { log, note }) {
+            const broken =
+              '---\ntitle: Scratch\nmood: furious\n---\n\nThis mood is not in config.ts.\n';
 
-          if (!area.value.includes('title:')) area.value = (await readFile('a-quiet-start.md')).data;
+            log(`PUT ${SCRATCH}`, broken);
+            await writeFile(SCRATCH, broken);
+            note('Waiting for the problem to be recorded…');
 
-          // Unchanged text still proves the round trip; a fresh title proves the watcher.
-          if (area.value === (await readFile('a-quiet-start.md')).data) area.value = area.value.replace(/^title: .*$/m, `title: A quiet start, edited at ${new Date().toLocaleTimeString()}`);
+            const problems = await until(
+              () => call(null, 'GET', '/files/problems'),
+              result =>
+                result.data?.some?.(
+                  problem => problem.path === `journal/${SCRATCH}`
+                )
+            );
+            const problem = problems.data?.find?.(
+              each => each.path === `journal/${SCRATCH}`
+            );
+            const hidden = await call(
+              runtime,
+              'GET',
+              '/api/content/journal/try-scratch'
+            );
 
-          const title = /^title: (.*)$/m.exec(area.value)?.[1]?.trim();
-          const saved = await writeFile('a-quiet-start.md', area.value);
+            log('Recorded problem', problem ?? 'none');
+            log(hidden.line);
 
-          log(`${saved.line} (saved to disk)`);
-          note('Waiting for the watcher…');
+            await writeFile(SCRATCH, broken.replace('furious', 'calm'));
+            log(`PUT ${SCRATCH} (mood: calm)`);
+            note('Waiting for the fixed entry…');
 
-          const started = performance.now();
-          const read = await until(() => call(runtime, 'GET', '/api/content/journal/a-quiet-start'), result => result.data?.data?.title === title);
-          const ms = Math.round(performance.now() - started);
+            const served = await until(
+              () => call(runtime, 'GET', '/api/content/journal/try-scratch'),
+              result => result.ok
+            );
+            const cleared = !(
+              await call(null, 'GET', '/files/problems')
+            ).data.some(each => each.path === `journal/${SCRATCH}`);
 
-          log(read.line, read.data);
+            log(served.line, served.data);
 
-          return { pass: read.ok && read.data?.data?.title === title, note: read.ok ? `served “${read.data.data.title}” ${ms} ms after saving` : `not served (${read.status}); fix the file and save again` };
+            return {
+              pass:
+                problem?.line === 3 &&
+                hidden.status === 404 &&
+                served.ok &&
+                cleared,
+              note: problem
+                ? `“${problem.message}” on line ${problem.line}; fixed and served`
+                : 'no problem was recorded'
+            };
+          }
+        },
+        {
+          title: 'Unknown collections are a typed 404',
+          description:
+            'A collection with no folder is not found, with the contract’s CollectionNotFound error naming it.',
+          async run(runtime, { log }) {
+            const missing = await call(
+              runtime,
+              'GET',
+              '/api/content/no-such-collection'
+            );
+
+            log(missing.line, missing.data);
+
+            return {
+              pass:
+                missing.status === 404 &&
+                missing.data?._tag === 'CollectionNotFound' &&
+                missing.data?.collection === 'no-such-collection',
+              note: `${missing.status} ${missing.data?._tag}`
+            };
+          }
         }
-      },
-      {
-        title: 'Break a file, then fix it',
-        only: 'node',
-        description: `Writes ${SCRATCH} with a mood that is not one of the model’s options. Sync records the problem (with its line) and the entry is not served; then the file is fixed and the entry appears.`,
-        async run(runtime, { log, note }) {
-          const broken = '---\ntitle: Scratch\nmood: furious\n---\n\nThis mood is not in config.ts.\n';
-
-          log(`PUT ${SCRATCH}`, broken);
-          await writeFile(SCRATCH, broken);
-          note('Waiting for the problem to be recorded…');
-
-          const problems = await until(() => call(null, 'GET', '/files/problems'), result => result.data?.some?.(problem => problem.path === `journal/${SCRATCH}`));
-          const problem = problems.data?.find?.(each => each.path === `journal/${SCRATCH}`);
-          const hidden = await call(runtime, 'GET', '/api/content/journal/try-scratch');
-
-          log('Recorded problem', problem ?? 'none');
-          log(hidden.line);
-
-          await writeFile(SCRATCH, broken.replace('furious', 'calm'));
-          log(`PUT ${SCRATCH} (mood: calm)`);
-          note('Waiting for the fixed entry…');
-
-          const served = await until(() => call(runtime, 'GET', '/api/content/journal/try-scratch'), result => result.ok);
-          const cleared = !(await call(null, 'GET', '/files/problems')).data.some(each => each.path === `journal/${SCRATCH}`);
-
-          log(served.line, served.data);
-
-          return { pass: problem?.line === 3 && hidden.status === 404 && served.ok && cleared, note: problem ? `“${problem.message}” on line ${problem.line}; fixed and served` : 'no problem was recorded' };
-        }
-      },
-      {
-        title: 'Unknown collections are a typed 404',
-        description: 'A collection with no folder is not found, with the contract’s CollectionNotFound error naming it.',
-        async run(runtime, { log }) {
-          const missing = await call(runtime, 'GET', '/api/content/no-such-collection');
-
-          log(missing.line, missing.data);
-
-          return { pass: missing.status === 404 && missing.data?._tag === 'CollectionNotFound' && missing.data?.collection === 'no-such-collection', note: `${missing.status} ${missing.data?._tag}` };
-        }
-      }
-    ]);
-  </script>
-</body>
+      ]);
+    </script>
+  </body>
 </html>
