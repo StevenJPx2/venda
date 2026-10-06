@@ -147,22 +147,12 @@ textarea {
   align-items: center;
   flex-wrap: wrap;
 }
-.runs {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  border-top: 1px solid var(--line);
-}
-.runs.single {
-  grid-template-columns: 1fr;
-}
 .run {
   padding: 12px 18px;
   min-height: 64px;
   background: var(--soft);
   min-width: 0;
-}
-.run + .run {
-  border-left: 1px solid var(--line);
+  border-top: 1px solid var(--line);
 }
 .run-label {
   font-size: 12px;
@@ -186,8 +176,7 @@ textarea {
 .verdict.fail {
   color: var(--fail);
 }
-.verdict.wait,
-.verdict.skip {
+.verdict.wait {
   color: var(--wait);
 }
 .note {
@@ -211,13 +200,4 @@ code {
     12px ui-monospace,
     SFMono-Regular,
     monospace;
-}
-@media (max-width: 720px) {
-  .runs {
-    grid-template-columns: 1fr;
-  }
-  .run + .run {
-    border-left: 0;
-    border-top: 1px solid var(--line);
-  }
 }

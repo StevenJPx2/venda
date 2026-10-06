@@ -16,9 +16,9 @@
             Signing in, people and roles, invitations and API tokens. The page
             acts as two people: the recovery owner
             (<code>owner@venda.local</code>) and Ann, whom the owner invites.
-            The try server keeps a separate cookie jar for each, per runtime.
-            Who may do what is enforced by capability proofs the core demands;
-            the last check shows the compiler refusing code that skips one.
+            The try server keeps a separate cookie jar for each. Who may do what
+            is enforced by capability proofs the core demands; the last check
+            shows the compiler refusing code that skips one.
           </p>
         </div>
         <div style="text-align: right">
@@ -33,19 +33,22 @@
 
       const OWNER = { email: 'owner@venda.local', password: 'try-venda-owner' };
       const ANN_PASSWORD = 'ann has a long password';
-      const people = {};
+      const annEmail = () => `ann-${Date.now()}@venda.local`;
+
+      // Ann, once invited: her email, and her id after she joins.
+      let ann = { email: annEmail() };
 
       const flags = setCookie =>
         ['HttpOnly', 'Secure', 'SameSite=Lax'].filter(flag =>
           new RegExp(flag, 'i').test(setCookie ?? '')
         );
 
-      async function ownerSignedIn(runtime, log) {
-        const me = await call(runtime, 'GET', '/api/auth/me', { as: 'owner' });
+      async function ownerSignedIn(log) {
+        const me = await call('GET', '/api/auth/me', { as: 'owner' });
 
         if (me.ok) return me.data;
 
-        const signedIn = await call(runtime, 'POST', '/api/auth/sign-in', {
+        const signedIn = await call('POST', '/api/auth/sign-in', {
           as: 'owner',
           body: OWNER
         });
@@ -55,31 +58,22 @@
         return signedIn.data;
       }
 
-      /** Ann on this runtime: invited by the owner, joined with the link, signed in. */
-      async function annSignedIn(runtime, log) {
-        people[runtime] ??= {
-          email: `ann-${runtime}-${Date.now()}@venda.local`
-        };
-
-        const ann = people[runtime];
-
+      /** Ann: invited by the owner, joined with the link, signed in. */
+      async function annSignedIn(log) {
         if (ann.id) {
-          const me = await call(runtime, 'GET', '/api/auth/me', { as: 'ann' });
+          const me = await call('GET', '/api/auth/me', { as: 'ann' });
 
           if (me.ok) return ann;
         } else {
-          await ownerSignedIn(runtime, log);
+          await ownerSignedIn(log);
 
-          const invited = await call(runtime, 'POST', '/api/invitations', {
+          const invited = await call('POST', '/api/invitations', {
             as: 'owner',
             body: { email: ann.email, role: 'author' }
           });
-          const joined = await call(
-            runtime,
-            'POST',
-            `/api/join/${invited.data.token}`,
-            { body: { name: 'Ann', password: ANN_PASSWORD } }
-          );
+          const joined = await call('POST', `/api/join/${invited.data.token}`, {
+            body: { name: 'Ann', password: ANN_PASSWORD }
+          });
 
           log(invited.line);
           log(joined.line);
@@ -88,7 +82,7 @@
 
         log(
           (
-            await call(runtime, 'POST', '/api/auth/sign-in', {
+            await call('POST', '/api/auth/sign-in', {
               as: 'ann',
               body: { email: ann.email, password: ANN_PASSWORD }
             })
@@ -103,13 +97,13 @@
           title: 'The owner signs in',
           description:
             'The recovery owner comes from the install’s secrets and always signs in as an administrator. The session cookie is HttpOnly (scripts cannot read it), Secure and SameSite=Lax; this page shows it because the try server echoes the Set-Cookie header.',
-          async run(runtime, { log }) {
-            const signedIn = await call(runtime, 'POST', '/api/auth/sign-in', {
+          async run({ log }) {
+            const signedIn = await call('POST', '/api/auth/sign-in', {
               as: 'owner',
               body: OWNER
             });
             const setCookie = signedIn.headers.get('x-try-set-cookie');
-            const me = await call(runtime, 'GET', '/api/auth/me', {
+            const me = await call('GET', '/api/auth/me', {
               as: 'owner'
             });
 
@@ -130,20 +124,20 @@
           title: 'Wrong passwords lock an email',
           description:
             'A wrong password says only “invalid credentials”, whether or not the email exists. Ten failures lock that email for fifteen minutes, even for the right password. (This uses a made-up email, so the owner is not locked out.)',
-          async run(runtime, { log }) {
+          async run({ log }) {
             const email = `nobody-${Date.now()}@venda.local`;
             const statuses = [];
 
             for (let attempt = 0; attempt < 11; attempt++)
               statuses.push(
                 (
-                  await call(runtime, 'POST', '/api/auth/sign-in', {
+                  await call('POST', '/api/auth/sign-in', {
                     body: { email, password: 'wrong' }
                   })
                 ).status
               );
 
-            const last = await call(runtime, 'POST', '/api/auth/sign-in', {
+            const last = await call('POST', '/api/auth/sign-in', {
               body: { email, password: 'wrong' }
             });
 
@@ -164,20 +158,20 @@
           title: 'Invite Ann, who joins with the link',
           description:
             'The owner invites Ann as an author. The join link’s secret is stored only as a hash; anyone holding the link sees what it is for and can accept it once.',
-          async run(runtime, { log }) {
-            await ownerSignedIn(runtime, log);
+          async run({ log }) {
+            await ownerSignedIn(log);
 
-            const email = `ann-${runtime}-${Date.now()}@venda.local`;
-            const invited = await call(runtime, 'POST', '/api/invitations', {
+            const email = annEmail();
+            const invited = await call('POST', '/api/invitations', {
               as: 'owner',
               body: { email, role: 'author' }
             });
             const link = `/api/join/${invited.data.token}`;
-            const preview = await call(runtime, 'GET', link);
-            const joined = await call(runtime, 'POST', link, {
+            const preview = await call('GET', link);
+            const joined = await call('POST', link, {
               body: { name: 'Ann', password: ANN_PASSWORD }
             });
-            const again = await call(runtime, 'POST', link, {
+            const again = await call('POST', link, {
               body: { name: 'Ann', password: ANN_PASSWORD }
             });
 
@@ -185,7 +179,7 @@
             log(preview.line, preview.data);
             log(joined.line, joined.data);
             log(`${again.line} (the same link again)`, again.data);
-            people[runtime] = { email, id: joined.data?.id };
+            ann = { email, id: joined.data?.id };
 
             return {
               pass:
@@ -200,13 +194,13 @@
           title: 'Roles decide who may do what',
           description:
             'Only administrators manage people. The core’s listUsers demands an IsAdministrator proof, which only proofs/is-administrator.ts can make, after reading the caller’s role from the database (not from their session).',
-          async run(runtime, { log }) {
-            await annSignedIn(runtime, log);
+          async run({ log }) {
+            await annSignedIn(log);
 
-            const asAnn = await call(runtime, 'GET', '/api/users', {
+            const asAnn = await call('GET', '/api/users', {
               as: 'ann'
             });
-            const asOwner = await call(runtime, 'GET', '/api/users', {
+            const asOwner = await call('GET', '/api/users', {
               as: 'owner'
             });
 
@@ -223,10 +217,10 @@
           title: 'Requests from other sites cannot use the cookie',
           description:
             'Browsers send cookies along with requests from other sites. A changing request whose Origin is another site is refused, even with a valid session. (The try server plays that Origin.)',
-          async run(runtime, { log }) {
-            await ownerSignedIn(runtime, log);
+          async run({ log }) {
+            await ownerSignedIn(log);
 
-            const forged = await call(runtime, 'POST', '/api/invitations', {
+            const forged = await call('POST', '/api/invitations', {
               as: 'owner',
               origin: 'https://evil.example',
               body: {
@@ -247,28 +241,27 @@
           title: 'API tokens for scripts',
           description:
             'A token acts as the person who made it, sent as Authorization: Bearer. Tokens are made only in a signed-in session, so a leaked token cannot make more; a revoked token stops working at once.',
-          async run(runtime, { log }) {
-            await ownerSignedIn(runtime, log);
+          async run({ log }) {
+            await ownerSignedIn(log);
 
-            const created = await call(runtime, 'POST', '/api/tokens', {
+            const created = await call('POST', '/api/tokens', {
               as: 'owner',
               body: { name: 'Try script' }
             });
             const secret = created.data?.secret;
-            const me = await call(runtime, 'GET', '/api/auth/me', {
+            const me = await call('GET', '/api/auth/me', {
               bearer: secret
             });
-            const more = await call(runtime, 'POST', '/api/tokens', {
+            const more = await call('POST', '/api/tokens', {
               bearer: secret,
               body: { name: 'Another' }
             });
             const revoked = await call(
-              runtime,
               'DELETE',
               `/api/tokens/${created.data?.token?.id}`,
               { as: 'owner' }
             );
-            const after = await call(runtime, 'GET', '/api/auth/me', {
+            const after = await call('GET', '/api/auth/me', {
               bearer: secret
             });
 
@@ -289,23 +282,19 @@
           title: 'Disabling someone ends their sessions',
           description:
             'Each request reads the person afresh, so a role or status change applies at once. The owner disables Ann; her next request is refused. Then she is re-enabled and signs in again.',
-          async run(runtime, { log }) {
-            const ann = await annSignedIn(runtime, log);
-            const disabled = await call(
-              runtime,
-              'PATCH',
-              `/api/users/${ann.id}`,
-              { as: 'owner', body: { status: 'disabled' } }
-            );
-            const after = await call(runtime, 'GET', '/api/auth/me', {
+          async run({ log }) {
+            const ann = await annSignedIn(log);
+            const disabled = await call('PATCH', `/api/users/${ann.id}`, {
+              as: 'owner',
+              body: { status: 'disabled' }
+            });
+            const after = await call('GET', '/api/auth/me', {
               as: 'ann'
             });
-            const enabled = await call(
-              runtime,
-              'PATCH',
-              `/api/users/${ann.id}`,
-              { as: 'owner', body: { status: 'active' } }
-            );
+            const enabled = await call('PATCH', `/api/users/${ann.id}`, {
+              as: 'owner',
+              body: { status: 'active' }
+            });
 
             for (const response of [disabled, after, enabled])
               log(response.line, response.data);
@@ -320,14 +309,12 @@
           title: 'There is always an administrator',
           description:
             'Demoting or disabling the last active administrator is refused. The check and the change are one database statement, so two administrators demoting each other at once cannot leave none.',
-          async run(runtime, { log }) {
-            const owner = await ownerSignedIn(runtime, log);
-            const demoted = await call(
-              runtime,
-              'PATCH',
-              `/api/users/${owner.id}`,
-              { as: 'owner', body: { role: 'editor' } }
-            );
+          async run({ log }) {
+            const owner = await ownerSignedIn(log);
+            const demoted = await call('PATCH', `/api/users/${owner.id}`, {
+              as: 'owner',
+              body: { role: 'editor' }
+            });
 
             log(demoted.line, demoted.data);
 
@@ -343,26 +330,26 @@
           title: 'Changing a password ends other sessions',
           description:
             'Ann is signed in on two devices. Changing her password needs her current one; afterwards the other device is signed out and this one gets a fresh session.',
-          async run(runtime, { log }) {
-            const ann = await annSignedIn(runtime, log);
+          async run({ log }) {
+            const ann = await annSignedIn(log);
 
-            await call(runtime, 'POST', '/api/auth/sign-in', {
+            await call('POST', '/api/auth/sign-in', {
               as: 'ann-laptop',
               body: { email: ann.email, password: ANN_PASSWORD }
             });
 
-            const wrong = await call(runtime, 'POST', '/api/auth/password', {
+            const wrong = await call('POST', '/api/auth/password', {
               as: 'ann',
               body: { current: 'not it', next: 'a brand new password' }
             });
-            const changed = await call(runtime, 'POST', '/api/auth/password', {
+            const changed = await call('POST', '/api/auth/password', {
               as: 'ann',
               body: { current: ANN_PASSWORD, next: ANN_PASSWORD }
             });
-            const here = await call(runtime, 'GET', '/api/auth/me', {
+            const here = await call('GET', '/api/auth/me', {
               as: 'ann'
             });
-            const laptop = await call(runtime, 'GET', '/api/auth/me', {
+            const laptop = await call('GET', '/api/auth/me', {
               as: 'ann-laptop'
             });
 
@@ -381,11 +368,10 @@
         },
         {
           title: 'Skipping a check does not compile',
-          only: 'page',
           description:
             'packages/core/test/mistakes.ts holds code that must not compile: listing people without an IsAdministrator proof, revoking a token with a proof about a different token, changing a password without confirming it, and more. This runs the type checker on that file with its @ts-expect-error markers removed (about ten seconds) and shows what it says.',
-          async run(_runtime, { log }) {
-            const errors = await call(null, 'POST', '/compile-mistakes');
+          async run({ log }) {
+            const errors = await call('POST', '/compile-mistakes');
 
             log(`${errors.data.length} compile errors`, errors.data.join('\n'));
 

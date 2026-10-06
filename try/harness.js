@@ -1,21 +1,14 @@
-// The try pages' check runner: one card per check, run against the server
-// (Cloudflare Workers on local workerd), showing pass or fail and every request
-// and response.
-export const RUNTIMES = { workers: 'Workers' };
-
+// The try pages' check runner: one card per check, showing pass or fail and
+// every request and response it made.
 export const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
- * Calls a runtime through the try proxy (`runtime` null for the page server
- * itself). `as` picks whose cookie jar the proxy uses; `origin` plays a
- * request from another site; `bearer` sends an API token.
+ * Calls the Venda server (paths under `/api/` and `/admin/`, through the try
+ * proxy) or the try page server itself (anything else). `as` picks whose cookie jar the
+ * proxy uses; `origin` plays a request from another site; `bearer` sends an
+ * API token.
  */
-export async function call(
-  runtime,
-  method,
-  path,
-  { body, as, origin, bearer } = {}
-) {
+export async function call(method, path, { body, as, origin, bearer } = {}) {
   // Content reads are cacheable for a minute; the page wants every change at once.
   const init = { method, headers: {}, cache: 'no-store' };
 
@@ -30,7 +23,7 @@ export async function call(
   if (origin) init.headers['x-try-origin'] = origin;
   if (bearer) init.headers.authorization = `Bearer ${bearer}`;
 
-  const response = await fetch(runtime ? `/${runtime}${path}` : path, init);
+  const response = await fetch(path, init);
   const text = await response.text();
   let data = text;
 
@@ -70,55 +63,32 @@ export async function until(read, test, seconds = 6) {
 
 function render(check) {
   const card = document.createElement('section');
-  const runtimes =
-    check.only === 'page'
-      ? ['page']
-      : check.only
-        ? [check.only]
-        : Object.keys(RUNTIMES);
-  const panes = check.only === 'page' ? { page: 'Result' } : RUNTIMES;
 
   card.className = 'check';
   card.innerHTML = `
     <div class="check-head">
       <div><h2>${check.title}</h2><p>${check.description}</p></div>
-      <div class="actions">${check.only === 'page' ? '<button data-on="page">Run</button>' : runtimes.map(key => `<button data-on="${key}">Run on ${RUNTIMES[key]}</button>`).join('')}${runtimes.length > 1 ? '<button data-on="both">Both</button>' : ''}</div>
+      <div class="actions"><button data-act="run">Run</button></div>
     </div>
     <div class="extra" ${check.extra ? '' : 'hidden'}>${check.extra ?? ''}</div>
-    <div class="runs ${check.only === 'page' ? 'single' : ''}">${Object.entries(
-      panes
-    )
-      .map(
-        ([key, label]) => `
-      <div class="run" data-runtime="${key}">
-        <div class="run-label">${label} <span class="verdict ${runtimes.includes(key) ? '' : 'skip'}">${runtimes.includes(key) ? '' : 'Not on this runtime'}</span></div>
-        <div class="note">${runtimes.includes(key) ? 'Not run yet.' : 'See the description.'}</div>
-        <pre hidden></pre>
-      </div>`
-      )
-      .join('')}
+    <div class="run">
+      <div class="run-label">Result <span class="verdict"></span></div>
+      <div class="note">Not run yet.</div>
+      <pre hidden></pre>
     </div>`;
   document.getElementById('checks').append(card);
-
-  for (const button of card.querySelectorAll('[data-on]')) {
-    button.addEventListener('click', () => {
-      const targets =
-        button.dataset.on === 'both' ? runtimes : [button.dataset.on];
-
-      targets.forEach(runtime => execute(check, card, runtime));
-    });
-  }
-
+  card
+    .querySelector('[data-act="run"]')
+    .addEventListener('click', () => execute(check, card));
   check.setup?.(card);
 
-  return { card, runtimes };
+  return card;
 }
 
-async function execute(check, card, runtime) {
-  const pane = card.querySelector(`[data-runtime="${runtime}"]`);
-  const verdict = pane.querySelector('.verdict');
-  const noteEl = pane.querySelector('.note');
-  const pre = pane.querySelector('pre');
+async function execute(check, card) {
+  const verdict = card.querySelector('.verdict');
+  const noteEl = card.querySelector('.run .note');
+  const pre = card.querySelector('.run pre');
   const lines = [];
 
   pre.hidden = false;
@@ -143,7 +113,7 @@ async function execute(check, card, runtime) {
   };
 
   try {
-    const result = await check.run(runtime, tools);
+    const result = await check.run(tools);
 
     verdict.className = `verdict ${result.pass ? 'pass' : 'fail'}`;
     verdict.textContent = result.pass ? '✓ Pass' : '✕ Fail';
@@ -163,8 +133,7 @@ export function mount(checks) {
   runAll.addEventListener('click', async () => {
     runAll.disabled = true;
 
-    for (const [check, { card, runtimes }] of cards)
-      await Promise.all(runtimes.map(runtime => execute(check, card, runtime)));
+    for (const [check, card] of cards) await execute(check, card);
 
     runAll.disabled = false;
   });

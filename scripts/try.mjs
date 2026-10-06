@@ -18,7 +18,7 @@ const STATE = join(ROOT, '.try');
 const CONTENT = join(ROOT, 'try/content');
 const LIVE_CONTENT = join(STATE, 'content');
 const CONTENT_FILE = /^\/files\/([a-z0-9-]+\/[a-z0-9-]+\.mdx?)$/;
-const PORTS = { page: 8794, workers: 8805, content: 8806 };
+const PORTS = { page: 8794, server: 8805, content: 8806 };
 // Its own build output, so `pnpm e2e` or a manual build cannot replace files this server is serving.
 const BUILD = join(STATE, 'build');
 // Throwaway local credentials for the recovery owner; wiped with .try/ on every start.
@@ -84,9 +84,9 @@ async function healthy(port) {
   throw new Error(`Nothing answered on port ${port}; see .try/*.log`);
 }
 
-// One cookie jar per runtime and person, kept here rather than in the browser,
-// so a single page can act as several people (`x-try-as: owner`). The browser
-// cannot read HttpOnly cookies, so the Set-Cookie the server sent is echoed in
+// One cookie jar per person, kept here rather than in the browser, so a single
+// page can act as several people (`x-try-as: owner`). The browser cannot read
+// HttpOnly cookies, so the Set-Cookie the server sent is echoed in
 // `x-try-set-cookie` for the page to show.
 const jars = new Map();
 
@@ -98,12 +98,12 @@ const TRY_HEADERS = new Set([
   'x-try-origin'
 ]);
 
-async function proxy(request, response, prefix, port) {
+async function proxy(request, response) {
   const chunks = [];
 
   for await (const chunk of request) chunks.push(chunk);
 
-  const jar = `${prefix}:${request.headers['x-try-as'] ?? 'anonymous'}`;
+  const jar = request.headers['x-try-as'] ?? 'anonymous';
   const headers = Object.fromEntries(
     Object.entries(request.headers).filter(([key]) => !TRY_HEADERS.has(key))
   );
@@ -118,7 +118,7 @@ async function proxy(request, response, prefix, port) {
     ? undefined
     : Buffer.concat(chunks);
   const upstream = await fetch(
-    `http://localhost:${port}${request.url.slice(prefix.length)}`,
+    `http://localhost:${PORTS.server}${request.url}`,
     { method: request.method, headers, body, redirect: 'manual' }
   );
   const out = {};
@@ -258,8 +258,9 @@ function startPageServer() {
         : path.startsWith('/files/')
           ? files(request, response, path)
           : page(path, response);
-    const handled = url.startsWith('/workers')
-      ? proxy(request, response, '/workers', PORTS.workers)
+    // The API and the admin belong to the Venda server; everything else is this page server.
+    const handled = /^\/(api|admin)\//.test(url)
+      ? proxy(request, response)
       : local();
 
     handled.catch(error => response.writeHead(502).end(String(error)));
@@ -285,7 +286,7 @@ process.on('uncaughtException', error => {
 });
 
 await rm(STATE, { recursive: true, force: true });
-await mkdir(join(STATE, 'workers'), { recursive: true });
+await mkdir(join(STATE, 'data'), { recursive: true });
 await cp(CONTENT, LIVE_CONTENT, { recursive: true });
 console.log('Venda try: building and starting the server');
 
@@ -301,29 +302,29 @@ const vars = Object.entries({
   VENDA_CONTENT_URL: `http://127.0.0.1:${PORTS.content}/`
 }).flatMap(([key, value]) => ['--var', `${key}:${value}`]);
 
-serve('workers', 'npx', [
+serve('server', 'npx', [
   'wrangler',
   'dev',
   '--local',
   '--persist-to',
-  join(STATE, 'workers'),
+  join(STATE, 'data'),
   '--config',
   join(BUILD, 'server/wrangler.json'),
   '--port',
-  String(PORTS.workers),
+  String(PORTS.server),
   ...vars
 ]);
 process.on('SIGINT', () => stopContent().finally(() => stopAll()));
 process.on('SIGTERM', () => stopContent().finally(() => stopAll()));
 
-await healthy(PORTS.workers);
+await healthy(PORTS.server);
 startPageServer();
 
 console.log(`
   Open http://localhost:${PORTS.page}
 
   Owner: ${OWNER_ENV.VENDA_OWNER_EMAIL} / ${OWNER_ENV.VENDA_OWNER_PASSWORD} (local only)
-  Admin: http://localhost:${PORTS.workers}/admin/
+  Admin: http://localhost:${PORTS.server}/admin/
   Server: Cloudflare Workers on local workerd, with local D1 and KV
   Content: .try/content, live. Edit any file; the next request serves it.
   Logs: .try/*.log · Ctrl-C to stop

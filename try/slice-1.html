@@ -32,18 +32,18 @@
     <script type="module">
       import { call, mount, until } from '/harness.js';
 
-      const readFile = name => call(null, 'GET', `/files/journal/${name}`);
+      const readFile = name => call('GET', `/files/journal/${name}`);
       const writeFile = (name, text) =>
-        call(null, 'PUT', `/files/journal/${name}`, { body: text });
+        call('PUT', `/files/journal/${name}`, { body: text });
 
       // The problems the sync recorded, as the owner sees them in the admin.
-      async function problems(runtime) {
-        await call(runtime, 'POST', '/api/auth/sign-in', {
+      async function problems() {
+        await call('POST', '/api/auth/sign-in', {
           as: 'owner',
           body: { email: 'owner@venda.local', password: 'try-venda-owner' }
         });
 
-        return call(runtime, 'GET', '/api/admin/content-problems', {
+        return call('GET', '/api/admin/content-problems', {
           as: 'owner'
         });
       }
@@ -65,8 +65,8 @@
           title: 'The server answers',
           description:
             'GET /api/health from the Effect contract. On first use the Worker applied drizzle-kit’s migrations to its local D1 and synced the content folder.',
-          async run(runtime, { log }) {
-            const health = await call(runtime, 'GET', '/api/health');
+          async run({ log }) {
+            const health = await call('GET', '/api/health');
 
             log(health.line, health.data);
 
@@ -80,8 +80,8 @@
           title: 'List a file collection',
           description:
             'GET /api/content/journal: published entries only, newest first. The draft (next-week.md) and the file without a title (missing-title.md) are left out.',
-          async run(runtime, { log }) {
-            const list = await call(runtime, 'GET', '/api/content/journal');
+          async run({ log }) {
+            const list = await call('GET', '/api/content/journal');
             const slugs = Array.isArray(list.data)
               ? list.data.map(entry => entry.slug)
               : [];
@@ -103,10 +103,9 @@
           title: 'From Markdown to the editor document',
           description:
             'files-are-the-truth.md as written, then as the API serves it. Marks (bold, sub, sup, strike), the <Callout> block tag with data attributes, the table, task list and footnote all come through as document nodes.',
-          async run(runtime, { log }) {
+          async run({ log }) {
             const file = await readFile('files-are-the-truth.md');
             const entry = await call(
-              runtime,
               'GET',
               '/api/content/journal/files-are-the-truth'
             );
@@ -148,14 +147,9 @@
           title: 'Drafts and broken files stay private',
           description:
             'The draft and the file missing its required title answer 404. The problems the sync recorded are listed with their file and reason, for administrators only.',
-          async run(runtime, { log }) {
-            const draft = await call(
-              runtime,
-              'GET',
-              '/api/content/journal/next-week'
-            );
+          async run({ log }) {
+            const draft = await call('GET', '/api/content/journal/next-week');
             const broken = await call(
-              runtime,
               'GET',
               '/api/content/journal/missing-title'
             );
@@ -163,7 +157,7 @@
             log(draft.line);
             log(broken.line);
 
-            const recorded = await problems(runtime);
+            const recorded = await problems();
 
             log(recorded.line, recorded.data);
 
@@ -198,7 +192,7 @@
               .addEventListener('click', load);
             await load();
           },
-          async run(runtime, { log, card, note }) {
+          async run({ log, card, note }) {
             const area = card.querySelector('textarea');
 
             if (!area.value.includes('title:'))
@@ -219,7 +213,7 @@
 
             const started = performance.now();
             const read = await until(
-              () => call(runtime, 'GET', '/api/content/journal/a-quiet-start'),
+              () => call('GET', '/api/content/journal/a-quiet-start'),
               result => result.data?.data?.title === title
             );
             const ms = Math.round(performance.now() - started);
@@ -237,7 +231,7 @@
         {
           title: 'Break a file, then fix it',
           description: `Writes ${SCRATCH} with a mood that is not one of the model’s options. Sync records the problem (with its line) and the entry is not served; then the file is fixed and the entry appears.`,
-          async run(runtime, { log, note }) {
+          async run({ log, note }) {
             const broken =
               '---\ntitle: Scratch\nmood: furious\n---\n\nThis mood is not in config.ts.\n';
 
@@ -246,7 +240,7 @@
             note('Waiting for the problem to be recorded…');
 
             const recorded = await until(
-              () => problems(runtime),
+              () => problems(),
               result =>
                 result.data?.some?.(
                   problem => problem.path === `journal/${SCRATCH}`
@@ -256,7 +250,6 @@
               each => each.path === `journal/${SCRATCH}`
             );
             const hidden = await call(
-              runtime,
               'GET',
               '/api/content/journal/try-scratch'
             );
@@ -269,10 +262,10 @@
             note('Waiting for the fixed entry…');
 
             const served = await until(
-              () => call(runtime, 'GET', '/api/content/journal/try-scratch'),
+              () => call('GET', '/api/content/journal/try-scratch'),
               result => result.ok
             );
-            const cleared = !(await problems(runtime)).data?.some?.(
+            const cleared = !(await problems()).data?.some?.(
               each => each.path === `journal/${SCRATCH}`
             );
 
@@ -294,9 +287,8 @@
           title: 'Unknown collections are a typed 404',
           description:
             'A collection with no folder is not found, with the contract’s CollectionNotFound error naming it.',
-          async run(runtime, { log }) {
+          async run({ log }) {
             const missing = await call(
-              runtime,
               'GET',
               '/api/content/no-such-collection'
             );

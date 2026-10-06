@@ -84,8 +84,8 @@
 
       const OWNER = { email: 'owner@venda.local', password: 'try-venda-owner' };
 
-      async function signIn(runtime) {
-        const result = await call(runtime, 'POST', '/api/auth/sign-in', {
+      async function signIn() {
+        const result = await call('POST', '/api/auth/sign-in', {
           as: 'admin-catchup',
           body: OWNER
         });
@@ -98,13 +98,9 @@
           title: 'The shell and deep links are served',
           description:
             'GET /admin/settings/people returns the static Nuxt shell. A missing JavaScript file stays a 404 rather than being replaced with HTML.',
-          async run(runtime, { log }) {
-            const shell = await call(runtime, 'GET', '/admin/settings/people');
-            const missing = await call(
-              runtime,
-              'GET',
-              '/admin/_nuxt/no-such-file.js'
-            );
+          async run({ log }) {
+            const shell = await call('GET', '/admin/settings/people');
+            const missing = await call('GET', '/admin/_nuxt/no-such-file.js');
 
             log(shell.line);
             log(missing.line);
@@ -122,24 +118,17 @@
           title: 'Authenticated reads power the content plugin',
           description:
             'The administrator can read models, indexed entries (including drafts) and file problems. These are protected contract endpoints, not the try server reading the database.',
-          async run(runtime, { log }) {
-            await signIn(runtime);
+          async run({ log }) {
+            await signIn();
 
             const options = { as: 'admin-catchup' };
-            const models = await call(
-              runtime,
-              'GET',
-              '/api/admin/collections',
-              options
-            );
+            const models = await call('GET', '/api/admin/collections', options);
             const entries = await call(
-              runtime,
               'GET',
               '/api/admin/collections/journal/entries',
               options
             );
             const problems = await call(
-              runtime,
               'GET',
               '/api/admin/content-problems',
               options
