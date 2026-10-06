@@ -17,8 +17,9 @@ import {
   WORKERS
 } from './support.mjs';
 
-// Signs in with Enter from the email field, as people do, after checking that
-// Enter with the password missing asks for it rather than doing nothing.
+// Signs in with Enter, as people do: first with the password missing, which
+// must ask for it, then with the password filled the way a password manager
+// fills it (no input events) and Enter pressed in the password field.
 async function signIn(page, base, label) {
   await page.goto(`${base}/admin/content`);
 
@@ -32,8 +33,10 @@ async function signIn(page, base, label) {
     `${label}: Enter with the password missing focuses it and asks for it`,
     await password.evaluate(input => input === document.activeElement)
   );
-  await password.fill(OWNER.password);
-  await email.press('Enter');
+  await password.evaluate((input, value) => {
+    input.value = value;
+  }, OWNER.password);
+  await password.press('Enter');
 
   const signedIn = await page
     .getByRole('heading', { name: 'Content', exact: true })
@@ -43,7 +46,10 @@ async function signIn(page, base, label) {
       () => false
     );
 
-  check(`${label}: Enter in any sign-in field signs in`, signedIn);
+  check(
+    `${label}: Enter in the password field signs in, even after autofill`,
+    signedIn
+  );
 }
 
 async function contentChecks(page, label, base, screenshots) {
