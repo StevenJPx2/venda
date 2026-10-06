@@ -77,6 +77,8 @@ describe('accounts over HTTP: sessions', () => {
     });
     expect(set).toMatch(/HttpOnly/i);
     expect(set).toMatch(/SameSite=Lax/i);
+    // The browser keeps the cookie as long as the session lasts: 30 days, in seconds.
+    expect(set).toMatch(/Max-Age=2592000(;|$)/);
     expect(
       (await call(app, '/auth/me', { cookie: signedIn.cookie })).status
     ).toBe(200);

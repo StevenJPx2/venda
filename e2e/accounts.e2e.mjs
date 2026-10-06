@@ -50,11 +50,12 @@ async function accountChecks(label, base) {
   });
 
   check(
-    `${label}: the owner signs in with an HttpOnly, SameSite=Lax, Secure cookie`,
+    `${label}: the owner signs in with an HttpOnly, SameSite=Lax, Secure cookie kept for 30 days`,
     signedIn.status === 200 &&
       /HttpOnly/i.test(signedIn.setCookie) &&
       /SameSite=Lax/i.test(signedIn.setCookie) &&
-      /Secure/i.test(signedIn.setCookie),
+      /Secure/i.test(signedIn.setCookie) &&
+      /Max-Age=2592000(;|$)/.test(signedIn.setCookie),
     signedIn.setCookie
   );
   check(

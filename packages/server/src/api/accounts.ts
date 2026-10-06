@@ -34,7 +34,7 @@ import {
   signIn,
   updateUser
 } from '@venda/core/auth';
-import { Effect, Layer, Redacted } from 'effect';
+import { Duration, Effect, Layer, Redacted } from 'effect';
 import { HttpServerRequest } from 'effect/http';
 import { HttpApiBuilder } from 'effect/http-api';
 import { domainRunner } from '../infrastructure';
@@ -90,11 +90,13 @@ export const AuthenticationLive = Layer.effect(
   })
 );
 
+// The browser keeps the cookie as long as the session lasts. `maxAge` is a
+// Duration: a bare number would be read as milliseconds.
 const setSession = (secret: string) =>
   HttpApiBuilder.securitySetCookie(SessionCookie, secret, {
     sameSite: 'lax',
     path: '/',
-    maxAge: SESSION_TTL_SECONDS
+    maxAge: Duration.seconds(SESSION_TTL_SECONDS)
   });
 
 const clearSession = HttpApiBuilder.securitySetCookie(SessionCookie, '', {
