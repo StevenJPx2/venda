@@ -27,7 +27,10 @@ body { font-size: 14px; line-height: 1.45; -webkit-font-smoothing: antialiased; 
 /* Shell */
 .admin-shell { min-height: 100dvh; }
 .admin-sidebar { position: fixed; inset: 0 auto 0 0; width: 232px; padding: 8px 16px 16px; border-right: 1px solid var(--ui-border); background: var(--ui-bg-muted); display: flex; flex-direction: column; }
-.admin-main { margin-left: 232px; padding: 48px 56px 80px; max-width: 1360px; }
+.admin-main { margin-left: 232px; padding: 48px 56px 80px; }
+
+/* One centred column beside the sidebar: a laptop fills it, a large screen keeps lines and rows a readable length. */
+.admin-page { max-width: 1120px; margin-inline: auto; }
 .admin-sidebar .admin-nav { display: flex; flex-direction: column; }
 .admin-sidebar .nav-section:last-child { margin-top: auto; }
 .nav-section { margin: 24px 0; }

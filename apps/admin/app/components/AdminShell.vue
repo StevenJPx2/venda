@@ -41,7 +41,9 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
     </USlideover>
 
     <main id="main-content" class="admin-main">
-      <slot />
+      <div class="admin-page">
+        <slot />
+      </div>
     </main>
   </div>
 </template>
