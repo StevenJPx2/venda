@@ -65,18 +65,41 @@ describe('the server app', () => {
     ).toBe('podcasts');
   });
 
-  it('picks up changed files', async () => {
+  it('re-indexes a changed file before answering the next request', async () => {
     const { app, files, changed } = await setup();
-
-    await files.setItemRaw('blog/hello.md', '---\ntitle: Changed\n---\n');
-    changed();
-
     const title = async () =>
       Schema.decodeUnknownSync(PublicEntry)(
         await (await app.fetch(request('/api/content/blog/hello'))).json()
       ).data.title;
 
-    await expect.poll(title).toBe('Changed');
+    await files.setItemRaw('blog/hello.md', '---\ntitle: Changed\n---\n');
+
+    expect(await title()).toBe('Hello');
+
+    changed();
+
+    expect(await title()).toBe('Changed');
+  });
+
+  it('lets concurrent requests wait for the same re-index', async () => {
+    const { app, files, changed } = await setup();
+
+    await files.setItemRaw('blog/hello.md', '---\ntitle: Changed\n---\n');
+    changed();
+
+    const answers = await Promise.all(
+      [1, 2, 3].map(async () =>
+        Schema.decodeUnknownSync(PublicEntry)(
+          await (await app.fetch(request('/api/content/blog/hello'))).json()
+        )
+      )
+    );
+
+    expect(answers.map(entry => entry.data.title)).toEqual([
+      'Changed',
+      'Changed',
+      'Changed'
+    ]);
   });
 });
 

@@ -1,11 +1,11 @@
-// node:sqlite through Drizzle, with real transactions. The Node target opens it
-// in `.data/`; the server's tests open the same driver in memory.
+// node:sqlite through Drizzle, with real transactions: the database behind the
+// server's tests, opened in memory.
 import type { SqliteClient } from '@effect/sql-sqlite-node';
 import { Database } from '@venda/core/database';
 import * as SqliteDrizzle from 'drizzle-orm/effect-sqlite-node';
 import { Effect, Layer } from 'effect';
 import { SqlClient } from 'effect/sql';
-import type { DatabaseDriver } from '../target';
+import type { DatabaseDriver } from '../src/target';
 
 export const sqliteDatabase = (
   client: ReturnType<typeof SqliteClient.layer>

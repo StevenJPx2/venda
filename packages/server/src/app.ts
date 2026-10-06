@@ -1,6 +1,7 @@
-// Composition root: one Venda app per isolate or process. On first use it
-// migrates the database, syncs the content files into the index and starts
-// watching them where they can change; every request goes to the Effect API.
+// Composition root: one Venda app per isolate. On first use it migrates the
+// database and syncs the content files into the index; where the files can
+// change while it runs, every request first re-indexes any change. Requests go
+// to the Effect API.
 import { Owner } from '@venda/core/auth';
 import { Effect, Layer, ManagedRuntime, Redacted } from 'effect';
 import { BuildInfo, toApiHandler } from './api';
@@ -8,6 +9,7 @@ import { contentStoreLayer, contentSync } from './content';
 import { decodeServerEnv, type RawEnv } from './env';
 import type { DomainServices } from './infrastructure';
 import { keyValueLayer, type KeyValueMount } from './key-value';
+import { localContent } from './local-content';
 import { migrate, type MigrationFiles, readMigrations } from './migrations';
 import type { Target } from './target';
 
@@ -19,7 +21,7 @@ export interface Mounts {
 
 export interface VendaApp {
   fetch(request: Request): Promise<Response>;
-  /** Stops watching files and closes the database. */
+  /** Closes the database. */
   close(): Promise<void>;
 }
 
@@ -31,9 +33,15 @@ async function build(
   mounts: Mounts,
   env: RawEnv
 ): Promise<VendaApp> {
-  const { VENDA_VERSION, VENDA_OWNER_EMAIL, VENDA_OWNER_PASSWORD } =
-    decodeServerEnv(env);
-  const content = target.content();
+  const {
+    VENDA_VERSION,
+    VENDA_OWNER_EMAIL,
+    VENDA_OWNER_PASSWORD,
+    VENDA_CONTENT_URL
+  } = decodeServerEnv(env);
+  const content = VENDA_CONTENT_URL
+    ? localContent(VENDA_CONTENT_URL)
+    : target.content();
   const owner = Layer.succeed(Owner, {
     email: VENDA_OWNER_EMAIL,
     password: Redacted.make(VENDA_OWNER_PASSWORD)
@@ -53,9 +61,16 @@ async function build(
 
   const sync = contentSync(effect => runtime.runPromise(effect));
 
-  await sync();
+  // Records where the files stand, so the first request does not sync again.
+  await content.changed?.();
+  await sync.run();
 
-  const unwatch = await content.watch?.(() => void sync());
+  // Requests wait for a re-index in progress, so none answers from a stale index.
+  const freshen = async () => {
+    if (await content.changed?.()) void sync.run();
+
+    await sync.settled();
+  };
 
   const domain = await runtime.runPromise(Effect.context<DomainServices>());
   const services = Layer.mergeAll(
@@ -66,6 +81,8 @@ async function build(
 
   return {
     async fetch(request) {
+      await freshen();
+
       const response = await api.handler(request);
 
       if (
@@ -77,7 +94,6 @@ async function build(
       return response;
     },
     async close() {
-      await unwatch?.();
       await Promise.all([runtime.dispose(), api.dispose()]);
     }
   };

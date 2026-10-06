@@ -1,4 +1,4 @@
-// The core's KeyValue over the `kv` storage mount: Workers KV, or files on Node.
+// The core's KeyValue over the `kv` storage mount: Workers KV (memory in tests).
 import { KeyValue, KeyValueError } from '@venda/core/auth';
 import { Clock, Effect, Layer, Option, Predicate, Schema } from 'effect';
 

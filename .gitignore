@@ -1,6 +1,5 @@
 node_modules
 .output
-.output-node
 .nuxt
 .data
 # `pnpm try` state and logs, and its temporary copy of the core's mistakes file

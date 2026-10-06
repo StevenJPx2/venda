@@ -1,18 +1,16 @@
-// The server on two Nitro presets: Cloudflare Workers (local workerd and D1,
-// content bundled at build time) and Node (node:sqlite, the content folder
-// watched in its working directory). Same checks on both.
+// The server on local workerd and D1: first as deployed, with the content
+// built in; then reading a live folder, as `pnpm try` does, where an edit on
+// disk is served by the next request.
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
-  buildNode,
+  buildWorkers,
   check,
-  NODE,
-  nodeDirectory,
-  startNode,
+  liveContent,
   startWorkers,
-  stop,
   suite,
-  WORKERS
+  WORKERS,
+  workersState
 } from './support.mjs';
 
 /** The read path: published entries only, drafts and broken files never served. */
@@ -70,33 +68,37 @@ async function poll(url, test, seconds = 5) {
 }
 
 await suite('server', async () => {
-  await startWorkers();
-  await contentChecks('Workers', WORKERS);
+  const state = await workersState();
+  const live = await liveContent();
 
-  await buildNode();
+  await buildWorkers();
 
-  const dir = await nodeDirectory();
-  let node = await startNode(dir);
+  let stopWorkers = await startWorkers(state);
 
-  await contentChecks('Node', NODE);
+  await contentChecks('Built-in content', WORKERS);
+  await stopWorkers();
+
+  // The same database again: migrations already applied must not run twice.
+  stopWorkers = await startWorkers(state, live);
+  await contentChecks('Live folder', WORKERS);
 
   await writeFile(
-    join(dir, 'content/field-notes/unfinished.md'),
+    join(live, 'field-notes/unfinished.md'),
     '---\ntitle: Finished after all\n---\n\nDone.\n'
   );
-  check(
-    'Node: an edited file is live within seconds',
-    await poll(
-      `${NODE}/api/content/field-notes/unfinished`,
-      response => response.ok
-    )
+
+  const started = Date.now();
+  const served = await poll(
+    `${WORKERS}/api/content/field-notes/unfinished`,
+    response => response.ok,
+    2
   );
 
-  check('Node: shuts down cleanly on SIGTERM', await stop(node));
-  node = await startNode(dir);
   check(
-    'Node: the index survives a restart and migrations are not re-applied',
-    (await fetch(`${NODE}/api/content/field-notes/unfinished`)).ok
+    'Live folder: an edit on disk is served without a rebuild or restart',
+    served,
+    `not served within 2s`
   );
-  await stop(node);
+  console.log(`  (served ${Date.now() - started} ms after saving)`);
+  await stopWorkers();
 });

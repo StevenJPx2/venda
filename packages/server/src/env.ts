@@ -7,7 +7,10 @@ const ServerEnv = Schema.Struct({
   VENDA_OWNER_EMAIL: Schema.NonEmptyString,
   VENDA_OWNER_PASSWORD: Schema.String.pipe(
     Schema.check(Schema.isMinLength(12, { expected: 'at least 12 characters' }))
-  )
+  ),
+  // Local development: read content from this folder server (scripts/content-server.mjs)
+  // instead of the copy built into the Worker, and re-index whenever it changes.
+  VENDA_CONTENT_URL: Schema.optional(Schema.URLFromString)
 });
 
 /** The environment as the host hands it over (`process.env`), before decoding. */

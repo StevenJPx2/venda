@@ -1,10 +1,11 @@
 // Shared harness for live end-to-end checks: builds and starts the real
-// server (on local workerd, or on Node) and reports named checks.
+// server on local workerd, and reports named checks.
 import { spawn } from 'node:child_process';
 import { cp, mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { serveContent } from '../scripts/content-server.mjs';
 
 export const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 
@@ -26,9 +27,10 @@ const OWNER_ENV = {
 
 export const WORKERS = 'http://localhost:8795';
 
-export const NODE = 'http://localhost:8797';
+const CONTENT_PORT = 8796;
 
 const children = [];
+const closers = [];
 const results = [];
 const logs = new Map();
 
@@ -112,19 +114,41 @@ export const stop = (child, seconds = 10) =>
     process.kill(-child.pid, 'SIGTERM');
   });
 
-/** Builds the Workers preset with the fixture content and starts it on local workerd with a fresh D1 and KV. */
-export async function startWorkers() {
-  await run('pnpm', ['exec', 'nitro', 'build'], {
+/** Builds the Worker with the fixture content built in. */
+export const buildWorkers = () =>
+  run('pnpm', ['exec', 'nitro', 'build'], {
     VENDA_CONTENT_DIR: CONTENT_FIXTURES
   });
 
-  const state = await mkdtemp(join(tmpdir(), 'venda-e2e-'));
-  const vars = Object.entries(OWNER_ENV).flatMap(([key, value]) => [
+/** A fresh folder of local D1 and KV state; pass it to `startWorkers` again to restart on the same data. */
+export const workersState = () => mkdtemp(join(tmpdir(), 'venda-e2e-'));
+
+/** An editable copy of the fixture content, for a Worker started with `live`. */
+export async function liveContent() {
+  const dir = await mkdtemp(join(tmpdir(), 'venda-content-'));
+
+  await cp(CONTENT_FIXTURES, dir, { recursive: true });
+
+  return dir;
+}
+
+/**
+ * Starts the built Worker on local workerd over `state`. With `live`, it reads
+ * that folder through the content server, as `pnpm try` does, instead of the
+ * built-in copy. Resolves to a function that stops both.
+ */
+export async function startWorkers(state, live) {
+  const stopContent = live
+    ? await serveContent(live, CONTENT_PORT)
+    : async () => {};
+  const env = live
+    ? { ...OWNER_ENV, VENDA_CONTENT_URL: `http://127.0.0.1:${CONTENT_PORT}/` }
+    : OWNER_ENV;
+  const vars = Object.entries(env).flatMap(([key, value]) => [
     '--var',
     `${key}:${value}`
   ]);
-
-  start('workers', 'npx', [
+  const child = start('workers', 'npx', [
     'wrangler',
     'dev',
     '--local',
@@ -136,33 +160,14 @@ export async function startWorkers() {
     '8795',
     ...vars
   ]);
+  const stopBoth = async () => {
+    await Promise.all([stop(child), stopContent()]);
+  };
+
+  closers.push(stopContent);
   await waitFor(`${WORKERS}/api/health`, 'Workers');
-}
 
-/** Builds the Node preset; `startNode(dir)` then runs it with `dir` as its working directory. */
-export const buildNode = () =>
-  run('pnpm', ['exec', 'nitro', 'build'], { NITRO_PRESET: 'node' });
-
-/** A fresh working directory for the Node server, with the fixture content in `content/`. */
-export async function nodeDirectory() {
-  const dir = await mkdtemp(join(tmpdir(), 'venda-node-'));
-
-  await cp(CONTENT_FIXTURES, join(dir, 'content'), { recursive: true });
-
-  return dir;
-}
-
-export async function startNode(dir) {
-  const child = start(
-    'node',
-    'node',
-    [join(ROOT, 'packages/server/.output-node/server/index.mjs')],
-    { cwd: dir, env: { PORT: '8797', ...OWNER_ENV } }
-  );
-
-  await waitFor(`${NODE}/api/health`, 'Node');
-
-  return child;
+  return stopBoth;
 }
 
 /** Runs a suite, always stopping servers and printing results. */
@@ -189,6 +194,8 @@ export async function suite(name, body) {
         /* already exited */
       }
     }
+
+    await Promise.allSettled(closers.map(close => close()));
 
     console.log(
       `# ${name} (${Math.round((Date.now() - started) / 1000)}s)\n${results.join('\n')}`

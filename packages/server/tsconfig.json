@@ -12,7 +12,6 @@
     "types": ["node", "@cloudflare/workers-types"],
     "skipLibCheck": true,
     "noEmit": true,
-    "paths": { "#venda/target": ["./src/targets/node.ts"] },
     "plugins": [{ "name": "@effect/language-service" }]
   },
   "include": ["src", "server", "test", "nitro.config.ts"]

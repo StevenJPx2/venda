@@ -71,11 +71,14 @@ export type RunContent = <A, E>(
 const describe = (report: SyncReport) =>
   `indexed ${report.indexed}, removed ${report.removed}, ${report.problems} with problems`;
 
-/**
- * Syncs the files into the index on demand. Runs never overlap: a request
- * during a run queues one more run after it, so no change is missed.
- */
-export function contentSync(run: RunContent): () => Promise<void> {
+export interface ContentSync {
+  /** Syncs the files into the index. Runs never overlap: a call during a run queues one more after it, so no change is missed. */
+  readonly run: () => Promise<void>;
+  /** Resolves once no run is in progress. */
+  readonly settled: () => Promise<void>;
+}
+
+export function contentSync(run: RunContent): ContentSync {
   let running: Promise<void> | undefined;
   let again = false;
 
@@ -97,11 +100,14 @@ export function contentSync(run: RunContent): () => Promise<void> {
     running = undefined;
   };
 
-  return () => {
-    if (running) again = true;
+  return {
+    run: () => {
+      if (running) again = true;
 
-    running ??= loop();
+      running ??= loop();
 
-    return running;
+      return running;
+    },
+    settled: () => running ?? Promise.resolve()
   };
 }

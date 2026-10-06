@@ -1,6 +1,7 @@
-// The try pages' check runner: one card per check, run on each runtime the
-// check touches, showing pass or fail and every request and response.
-export const RUNTIMES = { workers: 'Workers', node: 'Node' };
+// The try pages' check runner: one card per check, run against the server
+// (Cloudflare Workers on local workerd), showing pass or fail and every request
+// and response.
+export const RUNTIMES = { workers: 'Workers' };
 
 export const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -154,7 +155,7 @@ async function execute(check, card, runtime) {
   }
 }
 
-/** Renders the checks and wires the "run every check" button; checks run top to bottom, both runtimes together. */
+/** Renders the checks and wires the "run every check" button; checks run top to bottom. */
 export function mount(checks) {
   const cards = checks.map(check => [check, render(check)]);
   const runAll = document.getElementById('run-all');

@@ -27,8 +27,8 @@ capability check.
 Status: `[ ]` not started · `[~]` partial · `[x]` done.
 
 ### 1. Core and runtime
-- [x] Server on any Nitro preset; Cloudflare Workers by default, Node built and tested
-- [~] Databases: D1 and node:sqlite done; libSQL/Turso and Durable Object SQLite through Drizzle's drivers to do
+- [x] Server on Cloudflare Workers, run locally on workerd with hot reload of content edits (a Node target existed until slice 2b and was dropped)
+- [~] Databases: D1 done; Durable Object SQLite through Drizzle's driver to do
 - [ ] Storage and cache through Nitro storage mounts (R2, KV, filesystem, S3-compatible, Redis)
 - [x] Versioned migrations from drizzle-kit, applied atomically at startup on every database
 - [ ] Object cache with invalidation on writes (menus, settings, taxonomies too)
@@ -96,7 +96,7 @@ Status: `[ ]` not started · `[~]` partial · `[x]` done.
 - [ ] Plugin API: lifecycle hooks, API routes, storage, settings
 - [ ] Admin extensions: pages, dashboard widgets, custom fields, custom blocks
 - [ ] Capability manifest approved at install time
-- [ ] Sandboxed execution (Worker isolates on Cloudflare, workerd process on Node)
+- [ ] Sandboxed execution (Worker isolates)
 - [ ] Plugin CLI: scaffold, test, bundle, publish
 - [ ] Plugin registry and installation from the admin
 

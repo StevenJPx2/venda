@@ -5,4 +5,4 @@ mood: calm
 publishedAt: 2026-09-28T07:30:00Z
 ---
 
-Edit this file from the try page (or in your editor, under `.try/node/content/journal/`) and watch Node serve the change.
+Edit this file from the try page (or in your editor, under `.try/content/journal/`) and the next request serves the change.

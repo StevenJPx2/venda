@@ -22,7 +22,7 @@ developers and agents edit the files. Both paths meet in git.
    `@venda/contract`. The server, admin, Nuxt module, CLI and MCP server all
    use it; no package re-declares an `Entry` type.
 4. **The core knows nothing about its host.** Domain logic depends on Effect
-   services. Nitro, Cloudflare, Node and GitHub appear only in adapters.
+   services. Nitro, Cloudflare and GitHub appear only in adapters.
 5. **The admin is a shell; almost everything else is a plugin.** Editors
    (including the Ghost-style writer), blocks, fields, browse views, pages
    and settings sections ship as a default preset built through the same API
@@ -141,8 +141,10 @@ For three years every page on our site was rendered in a single region.
    keeps a tombstone with its last SHA, so it can be restored for 30 days.
 6. **Edit a model.** The admin rewrites `config.ts` and commits it. Entries
    are not rewritten; entries that no longer fit are listed in the admin.
-7. **Local development.** The local content store reads and writes the
-   working tree and watches it; the developer commits as usual.
+7. **Local development.** The Worker runs on local workerd and reads the
+   working tree through the local content server, re-indexing whenever a file
+   changes; writing back to it arrives with the write path. The developer
+   commits as usual.
 8. **Rebuild.** `venda sync --full` (or the admin) rebuilds the whole index
    from the files; the index is disposable.
 
@@ -159,7 +161,7 @@ retries and then reports the outage.
 | `@venda/richtext` | Rich-text document types, validation, HTML rendering with block renderers. | none |
 | `@venda/content` | The file format: `config.ts` reader and printer, field definitions, frontmatter, Markdown/MDX to and from documents, block specs. | `@venda/richtext` |
 | `@venda/core` | Domain logic in Effect: content sync and reads today; auth, collections, entries, lifecycle, media and search as their slices land. The index schema is Drizzle (`src/content/schema.ts`), migrations come from `drizzle-kit generate`. | contract, content, `effect`, `drizzle-orm` |
-| `@venda/server` | Nitro host: the contract's routes, the admin as static assets, any Nitro preset (Cloudflare Workers by default). | core, `nitro`, `@effect/sql-*` |
+| `@venda/server` | Nitro host on Cloudflare Workers: the contract's routes and the admin as static assets. | core, `nitro`, `@effect/sql-d1` |
 | `@venda/admin` | The browser SDK: the plugin contract, registration and route/access checks, a typed Effect API client and the injected runtime with async screen primitives. | contract |
 | `apps/admin` (`@venda/admin-app`) | The Nuxt 4.6 static shell: sign-in, identity, routing, navigation, theme and shared primitives; chooses a preset and loads a plugin screen only when it is opened. | admin SDK, preset |
 | `@venda/preset-default` | The default plugins below, as one install. | the plugins |
@@ -181,8 +183,8 @@ Vue or a Cloudflare type; Fallow boundary rules enforce it.
 
 | Service | Production | Local and tests |
 | --- | --- | --- |
-| `ContentStore`: read, list, commit with base SHA, changes since a cursor | GitHub App | working tree (with watcher); in-memory |
-| `IndexDb`: a Drizzle SQLite database with Effect queries | D1 (`drizzle-orm/effect-d1` over `@effect/sql-d1`) | node:sqlite (`@effect/sql-sqlite-node`); libSQL or Durable Object SQLite through their Drizzle drivers |
+| `ContentStore`: read, list, commit with base SHA, changes since a cursor | GitHub App | a local folder served to the Worker over HTTP; in-memory |
+| `IndexDb`: a Drizzle SQLite database with Effect queries | D1 (`drizzle-orm/effect-d1` over `@effect/sql-d1`) | local D1 under `wrangler dev`; node:sqlite (`@effect/sql-sqlite-node`) in the tests |
 | `ObjectStore` | R2 through a Nitro storage mount | filesystem; memory |
 | `KeyValue` | KV through a Nitro storage mount | memory |
 | `Mailer` | provider adapter | captured in memory |
@@ -215,25 +217,34 @@ its per-run batch limits; request bodies are capped at 1 MB for entries and
 
 ## Server (Nitro)
 
-`@venda/server` is a Nitro app used only for hosting, and Nitro supplies the
-platform: presets choose the runtime (`cloudflare_module` by default; `node` is
-built and tested too), storage mounts and server assets give file access, and
-the `close` hook releases resources. There is no per-platform server code
-beyond one module per preset family behind the `#venda/target` alias, which
-names the SQL client for the Drizzle index (D1 or node:sqlite) and where
-content comes from:
+`@venda/server` is a Nitro app used only for hosting, and it runs on one
+platform: Cloudflare Workers (`cloudflare_module`), in production and locally
+on workerd through `wrangler dev`, with local D1 and KV. Nitro supplies the
+bindings, storage mounts and server assets; `src/cloudflare.ts` names the D1
+client for the Drizzle index and where content comes from:
 
-- **Workers:** the content folder is bundled as server assets at build time
+- **Deployed:** the content folder is built into the Worker as server assets
   (until the GitHub store), so it is read-only.
-- **Node:** `content/` and `.data/venda.sqlite` live in the working
-  directory, Nitro's convention; the folder is watched through its storage
-  mount (Nitro's fs driver uses chokidar).
+- **Local development:** a Worker cannot read the disk, so
+  `scripts/content-server.mjs` serves a content folder over HTTP on
+  127.0.0.1, and `VENDA_CONTENT_URL` points the Worker at it
+  (`src/local-content.ts`). Before each request the app asks the server for
+  its version, which moves whenever a file changes; if it moved, the request
+  waits for a re-index first, so an edit on disk is served by the next
+  request, with no rebuild or restart. An unreachable server keeps the last
+  index serving. This is the shape the GitHub store takes in slice 4: content
+  over HTTP, re-indexed when its source says it changed.
+
+A Node target was built and tested until slice 2b and then removed: local
+workerd already gives a faithful local runtime, and Venda deploys only to
+Cloudflare. Nitro's own `nitro dev` for Cloudflare (its Miniflare runner) was
+tried for hot reload and rejected: it needs Miniflare 4 where Wrangler ships 5,
+and its module runner could not load the unified/unist ESM packages.
 
 On first use the app applies pending drizzle-kit migrations (each one atomic:
-a transaction on SQLite, a batch on D1, which has no transactions), syncs the
-content into the index, then serves the contract. Recurring work will use
-Nitro's `scheduledTasks` (a Cron Trigger on Workers, croner elsewhere) when a
-slice needs it.
+a batch on D1, which has no transactions; a transaction on the tests'
+SQLite), syncs the content into the index, then serves the contract. Recurring work will use
+Nitro's `scheduledTasks` (a Cron Trigger on Workers) when a slice needs it.
 
 ## Admin and plugins
 
@@ -326,8 +337,9 @@ site component. An unknown block renders its text content, never raw markup.
 5. Vitest, including contract tests for each adapter.
 6. Fallow audit, including package boundaries.
 
-`pnpm e2e` builds and runs the real server on two presets (Workers on local
-workerd, and Node), and drives the admin and site once they talk to it; it is
+`pnpm e2e` builds the real Worker and runs it on local workerd, both as
+deployed (content built in) and over a live folder (hot reload, a thousand
+entries), and drives the admin and site once they talk to it; it is
 required before every commit that changes behaviour.
 
 Oxlint with anti-slop (vendored in `tools/oxlint/anti-slop`, provenance in its
@@ -464,8 +476,7 @@ Production:
 | `acorn` | 8.18.0 | content | Reading `config.ts` as data without executing it |
 | `nitro` | 3.0.260903-beta | server | Hosting and presets (see risks) |
 | `drizzle-orm` | 1.0.0-rc.5-5935859 | core, server | Index schema and typed Effect queries (rc.4 calls an Effect beta API renamed in 4.0.0) |
-| `@effect/sql-d1`, `@effect/sql-sqlite-node` | 4.0.1 | server | The SQL clients behind Drizzle's Effect drivers |
-| `chokidar` | 5.0.0 | server | Required by Nitro's fs storage driver to watch the content folder |
+| `@effect/sql-d1` | 4.0.1 | server | The SQL client behind Drizzle's D1 driver (`@effect/sql-sqlite-node` for the tests) |
 | `@gdp-ts/core` | 0.1.0 | core, server | Capability checks as compile-time proofs, and its Oxlint preset |
 | `nuxt`, `@nuxt/kit`, `@nuxt/schema` | 4.6.0 | admin, landing, nuxt | Exact pins, for the portable `nuxt/server` API and its CLI |
 

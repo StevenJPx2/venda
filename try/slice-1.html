@@ -17,13 +17,13 @@
             with a <code>config.ts</code> model
             (<code>try/content/journal</code>). Sync reads them into the index
             and <code>/api/content</code> serves them through the Effect
-            contract. Workers serves the folder bundled at build time; Node
-            serves and watches <code>.try/node/content</code>, which you can
-            edit here or in your editor.
+            contract. The server runs on local workerd and reads a live copy,
+            <code>.try/content</code>, which you can edit here or in your
+            editor: the next request serves the change.
           </p>
         </div>
         <div style="text-align: right">
-          <button class="primary" id="run-all">Run every check on both</button>
+          <button class="primary" id="run-all">Run every check</button>
         </div>
       </header>
       <div id="checks"></div>
@@ -35,6 +35,18 @@
       const readFile = name => call(null, 'GET', `/files/journal/${name}`);
       const writeFile = (name, text) =>
         call(null, 'PUT', `/files/journal/${name}`, { body: text });
+
+      // The problems the sync recorded, as the owner sees them in the admin.
+      async function problems(runtime) {
+        await call(runtime, 'POST', '/api/auth/sign-in', {
+          as: 'owner',
+          body: { email: 'owner@venda.local', password: 'try-venda-owner' }
+        });
+
+        return call(runtime, 'GET', '/api/admin/content-problems', {
+          as: 'owner'
+        });
+      }
 
       function collect(node, found = []) {
         found.push(node.type, ...(node.marks ?? []).map(mark => mark.type));
@@ -50,9 +62,9 @@
 
       mount([
         {
-          title: 'The server answers on both presets',
+          title: 'The server answers',
           description:
-            'GET /api/health from the Effect contract. On first use each server applied drizzle-kit’s migrations (D1 on Workers, node:sqlite on Node) and synced the content folder.',
+            'GET /api/health from the Effect contract. On first use the Worker applied drizzle-kit’s migrations to its local D1 and synced the content folder.',
           async run(runtime, { log }) {
             const health = await call(runtime, 'GET', '/api/health');
 
@@ -135,7 +147,7 @@
         {
           title: 'Drafts and broken files stay private',
           description:
-            'The draft and the file missing its required title answer 404. On Node, the problems the sync recorded are listed with their file and reason.',
+            'The draft and the file missing its required title answer 404. The problems the sync recorded are listed with their file and reason, for administrators only.',
           async run(runtime, { log }) {
             const draft = await call(
               runtime,
@@ -151,37 +163,29 @@
             log(draft.line);
             log(broken.line);
 
-            let recorded = true;
+            const recorded = await problems(runtime);
 
-            if (runtime === 'node') {
-              const problems = await call(null, 'GET', '/files/problems');
+            log(recorded.line, recorded.data);
 
-              log('Problems in the index', problems.data);
-              recorded =
-                Array.isArray(problems.data) &&
-                problems.data.some(
+            return {
+              pass:
+                draft.status === 404 &&
+                broken.status === 404 &&
+                recorded.data?.some?.(
                   problem =>
                     problem.path === 'journal/missing-title.md' &&
                     /title is required/.test(problem.message)
-                );
-            }
-
-            return {
-              pass: draft.status === 404 && broken.status === 404 && recorded,
-              note:
-                runtime === 'node'
-                  ? 'both hidden; missing-title.md recorded as a problem'
-                  : 'both hidden'
+                ),
+              note: 'both hidden; missing-title.md recorded as a problem'
             };
           }
         },
         {
           title: 'Edit a file and see it live',
-          only: 'node',
           description:
-            'Change a-quiet-start.md below (try the title) and save it to disk. Node’s watcher re-syncs and the API serves the change. Workers serves the folder bundled at build time, so there it needs a rebuild until the GitHub store arrives (slice 4).',
+            'Change a-quiet-start.md below (try the title) and save it to disk. The content server notices, and the next request re-indexes before it answers: no rebuild, no restart.',
           extra: `
-          <div class="row"><span class="note" style="margin:0">.try/node/content/journal/a-quiet-start.md</span><button data-act="reload">Reload from disk</button></div>
+          <div class="row"><span class="note" style="margin:0">.try/content/journal/a-quiet-start.md</span><button data-act="reload">Reload from disk</button></div>
           <textarea spellcheck="false"></textarea>`,
           async setup(card) {
             const area = card.querySelector('textarea');
@@ -200,7 +204,7 @@
             if (!area.value.includes('title:'))
               area.value = (await readFile('a-quiet-start.md')).data;
 
-            // Unchanged text still proves the round trip; a fresh title proves the watcher.
+            // Unchanged text still proves the round trip; a fresh title proves the reload.
             if (area.value === (await readFile('a-quiet-start.md')).data)
               area.value = area.value.replace(
                 /^title: .*$/m,
@@ -211,7 +215,7 @@
             const saved = await writeFile('a-quiet-start.md', area.value);
 
             log(`${saved.line} (saved to disk)`);
-            note('Waiting for the watcher…');
+            note('Waiting for the change…');
 
             const started = performance.now();
             const read = await until(
@@ -232,7 +236,6 @@
         },
         {
           title: 'Break a file, then fix it',
-          only: 'node',
           description: `Writes ${SCRATCH} with a mood that is not one of the model’s options. Sync records the problem (with its line) and the entry is not served; then the file is fixed and the entry appears.`,
           async run(runtime, { log, note }) {
             const broken =
@@ -242,14 +245,14 @@
             await writeFile(SCRATCH, broken);
             note('Waiting for the problem to be recorded…');
 
-            const problems = await until(
-              () => call(null, 'GET', '/files/problems'),
+            const recorded = await until(
+              () => problems(runtime),
               result =>
                 result.data?.some?.(
                   problem => problem.path === `journal/${SCRATCH}`
                 )
             );
-            const problem = problems.data?.find?.(
+            const problem = recorded.data?.find?.(
               each => each.path === `journal/${SCRATCH}`
             );
             const hidden = await call(
@@ -269,9 +272,9 @@
               () => call(runtime, 'GET', '/api/content/journal/try-scratch'),
               result => result.ok
             );
-            const cleared = !(
-              await call(null, 'GET', '/files/problems')
-            ).data.some(each => each.path === `journal/${SCRATCH}`);
+            const cleared = !(await problems(runtime)).data?.some?.(
+              each => each.path === `journal/${SCRATCH}`
+            );
 
             log(served.line, served.data);
 

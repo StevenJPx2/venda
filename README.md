@@ -7,7 +7,7 @@ Venda is a file-first, Cloudflare-native CMS. Content and data models live as fi
 - `packages/content`: **`@venda/content`**, the file format: `config.ts` collection models read as data (never run), frontmatter, and Markdown with block tags to and from rich-text documents.
 - `packages/contract`: **`@venda/contract`**, the HTTP API in Effect Schema (`HttpApi`), shared by the server and every client.
 - `packages/core`: **`@venda/core`**, the domain in Effect: content sync into the index and the public reads (`/content`), and accounts (`/auth`), over one Drizzle database (`/database`; migrations in `packages/core/drizzle` from `pnpm --filter @venda/core db:generate`). Capability checks are compile-time proofs ([gdp-ts](https://github.com/rauchg/gdp-ts)) minted only in `src/auth/proofs/`; `test/mistakes.ts` lists code that must not compile.
-- `packages/server`: **`@venda/server`**, the Nitro 3 host. `pnpm --filter @venda/server build` targets Cloudflare Workers (D1, content bundled from `VENDA_CONTENT_DIR`, default `./content`); `NITRO_PRESET=node` builds a Node server that keeps `content/` and `.data/venda.sqlite` in its working directory and watches the content folder. Migrations apply at startup.
+- `packages/server`: **`@venda/server`**, the Nitro 3 host. `pnpm --filter @venda/server build` builds the Cloudflare Worker (D1, KV, content built in from `VENDA_CONTENT_DIR`, default `./content`). Locally it runs on workerd through `wrangler dev`; with `VENDA_CONTENT_URL` pointing at `scripts/content-server.mjs`, it reads a live folder instead and serves each edit on the next request. Migrations apply at startup.
 - `packages/richtext`: **`@venda/richtext`**, the rich-text document format: validation, a safe HTML renderer and plain-text helpers.
 - `packages/nuxt`: **`@venda/nuxt`**, a Nuxt module any Nuxt 4 site can install to read Venda content (`useVendaCollection`, `useVendaEntry`, `<VendaContent>`). See [its README](packages/nuxt/README.md).
 - `packages/admin`: **`@venda/admin`**, the browser SDK and the provisional plugin contract, with a typed client built from `VendaApi`.
@@ -50,19 +50,23 @@ Entries come back as `{ collection, slug, publishedAt, data }`, with the rich-te
 
 ## Try the admin
 
-Run `pnpm try`, open `http://localhost:8794/slice-2b` and choose Workers or Node.
+Run `pnpm try`, open `http://localhost:8794/slice-2b` and open the admin.
 Sign in as `owner@venda.local` / `try-venda-owner` (local only). Browse content
 and file problems, invite someone, manage people, change your password, and
 create or revoke API tokens. Content is read-only until slice 3. Each screen is
 a lazy plugin, and permissions stay enforced on the API.
 
-`pnpm e2e admin` drives that same UI in a browser on both presets, including an
-invited author in a private context and 390px screens.
+The Worker reads `.try/content`, a live copy of `try/content`: edit any file
+there and the next request serves the change, with no rebuild or restart.
+
+`pnpm e2e admin` drives that same UI in a browser, including an invited author
+in a private context, 390px screens and a thousand-entry collection.
 
 ## Configuration
 
 - `VENDA_OWNER_EMAIL`, `VENDA_OWNER_PASSWORD` (required, at least 12 characters): the recovery owner, who always signs in as an active administrator. Rotate the password to recover access.
 - `VENDA_VERSION` (optional): reported by `/api/health`.
+- `VENDA_CONTENT_URL` (local development only): read content from a running `scripts/content-server.mjs` instead of the copy built into the Worker, and re-index on every change. `pnpm try` sets it.
 - Workers bindings: `VENDA_DB` (D1) and `VENDA_KV` (KV, sessions).
 
 ## Checks
@@ -75,8 +79,8 @@ pnpm test
 pnpm build
 pnpm fallow     # dead code, complexity and duplication in the gated packages
 pnpm check      # lint + typecheck + test + fallow in one go
-pnpm e2e        # live suites: the server built and run on Workers (local workerd) and Node
-pnpm try        # start both and open http://localhost:8794 to try each slice by hand
+pnpm e2e        # live suites: the Worker built and run on local workerd, deployed shape and live folder
+pnpm try        # start it with live content and open http://localhost:8794 to try each slice by hand
 ```
 
 Prettier formats everything (`.prettierrc.json`, 80 columns); Markdown, content fixtures and generated files keep their authored shape (`.prettierignore`). Linting uses ESLint flat config for the blank-line rhythm and code rules, with `eslint-config-prettier` so the two never disagree. Shared rules live in `eslint.config.shared.mjs`; the Nuxt apps extend `@nuxt/eslint`'s `withNuxt()`, and the other packages use `typescript-eslint`. Packages listed in `tools/new-architecture.json` also get Oxlint's vendored anti-slop and Effect rules and the Fallow gate. Run `pnpm lint:fix` to format and auto-fix in one pass.

@@ -1,29 +1,26 @@
-// `pnpm try`: builds the server for two Nitro presets, starts them, and serves
-// the slice try pages (try/*.html) on one origin. Ctrl-C stops everything.
-// State lives in .try/ and is wiped on every start.
+// `pnpm try`: builds the server, runs it on local workerd with an editable
+// copy of the content served live, and serves the slice try pages (try/*.html)
+// on one origin. Ctrl-C stops everything. State lives in .try/ and is wiped on
+// every start.
 import { spawn } from 'node:child_process';
 import { createWriteStream } from 'node:fs';
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { join, resolve } from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
+import { serveContent } from './content-server.mjs';
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const SERVER = join(ROOT, 'packages/server');
 const STATE = join(ROOT, '.try');
-// Bundled into the Workers build; Node runs in .try/node and serves (and
-// watches) an editable copy in its working directory, with its data beside it.
+// Built into the Worker as its fallback; the Worker reads the editable copy in
+// .try/content through the content server, so an edit shows on the next request.
 const CONTENT = join(ROOT, 'try/content');
-const NODE_DIR = join(STATE, 'node');
-const LIVE_CONTENT = join(NODE_DIR, 'content');
+const LIVE_CONTENT = join(STATE, 'content');
 const CONTENT_FILE = /^\/files\/([a-z0-9-]+\/[a-z0-9-]+\.mdx?)$/;
-const PORTS = { page: 8794, workers: 8805, node: 8807 };
-// Own build outputs, so `pnpm e2e` or a manual build cannot replace files these servers are serving.
-const BUILDS = {
-  workers: join(STATE, 'build/workers'),
-  node: join(STATE, 'build/node')
-};
+const PORTS = { page: 8794, workers: 8805, content: 8806 };
+// Its own build output, so `pnpm e2e` or a manual build cannot replace files this server is serving.
+const BUILD = join(STATE, 'build');
 // Throwaway local credentials for the recovery owner; wiped with .try/ on every start.
 const OWNER_ENV = {
   VENDA_OWNER_EMAIL: 'owner@venda.local',
@@ -224,24 +221,8 @@ async function readBody(request) {
   return Buffer.concat(chunks).toString('utf8');
 }
 
-// Local-only helpers for the slice 1 page: read and write Node's content
-// files, and list the problems its sync recorded (straight from its SQLite).
+// A local-only helper for the slice 1 page: read and write the live content files.
 async function files(request, response, path) {
-  if (path === '/files/problems') {
-    const db = new DatabaseSync(join(NODE_DIR, '.data/venda.sqlite'), {
-      readOnly: true
-    });
-    const problems = db
-      .prepare('SELECT path, message, line FROM content_problems ORDER BY path')
-      .all();
-
-    db.close();
-    response
-      .writeHead(200, { 'content-type': 'application/json' })
-      .end(JSON.stringify(problems));
-    return;
-  }
-
   const file = CONTENT_FILE.exec(path)?.[1];
 
   if (!file) {
@@ -271,19 +252,14 @@ function startPageServer() {
   createServer((request, response) => {
     const url = request.url ?? '/';
     const path = url.split('?')[0];
-    const route = url.startsWith('/workers')
-      ? ['/workers', PORTS.workers]
-      : url.startsWith('/node')
-        ? ['/node', PORTS.node]
-        : null;
     const local = () =>
       path === '/compile-mistakes'
         ? compileMistakes(response)
         : path.startsWith('/files/')
           ? files(request, response, path)
           : page(path, response);
-    const handled = route
-      ? proxy(request, response, route[0], route[1])
+    const handled = url.startsWith('/workers')
+      ? proxy(request, response, '/workers', PORTS.workers)
       : local();
 
     handled.catch(error => response.writeHead(502).end(String(error)));
@@ -311,22 +287,19 @@ process.on('uncaughtException', error => {
 await rm(STATE, { recursive: true, force: true });
 await mkdir(join(STATE, 'workers'), { recursive: true });
 await cp(CONTENT, LIVE_CONTENT, { recursive: true });
-console.log('Venda try: building and starting both runtimes');
+console.log('Venda try: building and starting the server');
 
 await step('build admin', 'pnpm', ['--filter', '@venda/admin-app', 'build']);
-await step('build for Workers', 'pnpm', ['exec', 'nitro', 'build'], {
+await step('build the Worker', 'pnpm', ['exec', 'nitro', 'build'], {
   VENDA_CONTENT_DIR: CONTENT,
-  VENDA_OUTPUT_DIR: BUILDS.workers
-});
-await step('build for Node', 'pnpm', ['exec', 'nitro', 'build'], {
-  NITRO_PRESET: 'node',
-  VENDA_OUTPUT_DIR: BUILDS.node
+  VENDA_OUTPUT_DIR: BUILD
 });
 
-const vars = Object.entries(OWNER_ENV).flatMap(([key, value]) => [
-  '--var',
-  `${key}:${value}`
-]);
+const stopContent = await serveContent(LIVE_CONTENT, PORTS.content);
+const vars = Object.entries({
+  ...OWNER_ENV,
+  VENDA_CONTENT_URL: `http://127.0.0.1:${PORTS.content}/`
+}).flatMap(([key, value]) => ['--var', `${key}:${value}`]);
 
 serve('workers', 'npx', [
   'wrangler',
@@ -335,27 +308,23 @@ serve('workers', 'npx', [
   '--persist-to',
   join(STATE, 'workers'),
   '--config',
-  join(BUILDS.workers, 'server/wrangler.json'),
+  join(BUILD, 'server/wrangler.json'),
   '--port',
   String(PORTS.workers),
   ...vars
 ]);
-serve('node', 'node', [join(BUILDS.node, 'server/index.mjs')], {
-  cwd: NODE_DIR,
-  env: { PORT: String(PORTS.node), ...OWNER_ENV }
-});
-process.on('SIGINT', () => stopAll());
-process.on('SIGTERM', () => stopAll());
+process.on('SIGINT', () => stopContent().finally(() => stopAll()));
+process.on('SIGTERM', () => stopContent().finally(() => stopAll()));
 
-await Promise.all([healthy(PORTS.workers), healthy(PORTS.node)]);
+await healthy(PORTS.workers);
 startPageServer();
 
 console.log(`
   Open http://localhost:${PORTS.page}
 
   Owner: ${OWNER_ENV.VENDA_OWNER_EMAIL} / ${OWNER_ENV.VENDA_OWNER_PASSWORD} (local only)
-  Admin: http://localhost:${PORTS.workers}/admin/ or http://localhost:${PORTS.node}/admin/
-  Workers (workerd + local D1/KV): http://localhost:${PORTS.workers}, content from try/content, bundled
-  Node (node:sqlite + files):   http://localhost:${PORTS.node}, content from .try/node/content (edit freely)
+  Admin: http://localhost:${PORTS.workers}/admin/
+  Server: Cloudflare Workers on local workerd, with local D1 and KV
+  Content: .try/content, live. Edit any file; the next request serves it.
   Logs: .try/*.log · Ctrl-C to stop
 `);

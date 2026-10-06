@@ -25,7 +25,6 @@ export default defineConfig({
     '.opencode/**',
     'tools/oxlint/anti-slop/**',
     '**/.output/**',
-    '**/.output-node/**',
     '**/.try/**',
     '**/.wrangler/**',
     '**/node_modules/**'

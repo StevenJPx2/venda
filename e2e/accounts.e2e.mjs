@@ -1,17 +1,13 @@
-// Accounts on both presets: signing in with a cookie, roles, invitations and
-// API tokens, through the real server (KV and D1 on Workers, files and
-// node:sqlite on Node).
+// Accounts: signing in with a cookie, roles, invitations and API tokens,
+// through the real server on local workerd, with KV sessions and D1.
 import {
-  buildNode,
+  buildWorkers,
   check,
-  NODE,
-  nodeDirectory,
   OWNER,
-  startNode,
   startWorkers,
-  stop,
   suite,
-  WORKERS
+  WORKERS,
+  workersState
 } from './support.mjs';
 
 /** A client that keeps the session cookie, like a browser on the server's own origin. */
@@ -149,21 +145,19 @@ async function accountChecks(label, base) {
 }
 
 await suite('accounts', async () => {
-  await startWorkers();
-  await accountChecks('Workers', WORKERS);
+  const state = await workersState();
 
-  await buildNode();
+  await buildWorkers();
 
-  const dir = await nodeDirectory();
-  let node = await startNode(dir);
-  const owner = await accountChecks('Node', NODE);
+  let stopWorkers = await startWorkers(state);
+  const owner = await accountChecks('Workers', WORKERS);
 
-  await stop(node);
-  node = await startNode(dir);
+  await stopWorkers();
+  stopWorkers = await startWorkers(state);
   check(
-    'Node: sessions and accounts survive a restart',
+    'Workers: sessions and accounts survive a restart',
     (await owner('/auth/me')).status === 200 &&
       (await owner('/users')).json?.length === 2
   );
-  await stop(node);
+  await stopWorkers();
 });

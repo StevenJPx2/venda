@@ -1,12 +1,13 @@
-// Cloudflare presets: the D1 binding named in nitro.config.ts, and the content
-// folder bundled at build time (read-only, so nothing to watch).
+// Cloudflare Workers: the D1 binding named in nitro.config.ts, and the content
+// folder built into the Worker (read-only; local development replaces it with
+// VENDA_CONTENT_URL).
 import { D1Client } from '@effect/sql-d1';
 import { Database } from '@venda/core/database';
 import { env } from 'cloudflare:workers';
 import * as D1Drizzle from 'drizzle-orm/effect-d1';
 import { Effect, Layer, Predicate, Schema } from 'effect';
 import { useStorage } from 'nitro/storage';
-import type { Target } from '../target';
+import type { Target } from './target';
 
 const D1Binding = Schema.declare(
   (value: unknown): value is D1Database =>
@@ -37,5 +38,5 @@ export const target: Target = {
         Effect.asVoid(d1.batch(statements))
       )
   },
-  content: () => ({ files: useStorage('assets:content'), watch: undefined })
+  content: () => ({ files: useStorage('assets:content'), changed: undefined })
 };

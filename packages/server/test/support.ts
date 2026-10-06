@@ -8,7 +8,7 @@ import { onTestFinished } from 'vitest';
 import { appLoader } from '../src/app';
 import type { MigrationFiles } from '../src/migrations';
 import type { Target } from '../src/target';
-import { sqliteDatabase } from '../src/targets/sqlite';
+import { sqliteDatabase } from './sqlite';
 
 const DRIZZLE = new URL('../../core/drizzle/', import.meta.url);
 
@@ -24,25 +24,30 @@ export const OWNER = {
   password: 'recovery-password'
 };
 
-/** A target in memory; `changed()` plays the file watcher. */
+/** A target in memory; `changed()` plays the local content server reporting an edit. */
 export function memoryTarget(files: Storage) {
-  let onChange = () => {};
+  let dirty = false;
 
   const target: Target = {
     database: sqliteDatabase(SqliteClient.layer({ filename: ':memory:' })),
     content: () => ({
       files,
-      watch: async listener => {
-        onChange = listener;
+      changed: async () => {
+        const was = dirty;
 
-        return async () => {
-          onChange = () => {};
-        };
+        dirty = false;
+
+        return was;
       }
     })
   };
 
-  return { target, changed: () => onChange() };
+  return {
+    target,
+    changed: () => {
+      dirty = true;
+    }
+  };
 }
 
 /** Starts the app; it is closed when the test finishes. */

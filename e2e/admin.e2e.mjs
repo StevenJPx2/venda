@@ -1,20 +1,19 @@
-// The actual static admin, served with the API from the same Nitro host, on
-// both presets. Browser contexts are separate people, not mocked credentials.
+// The actual static admin, served with the API from the same Worker on local
+// workerd, over a live content folder with a thousand extra entries. Browser
+// contexts are separate people, not mocked credentials.
 import { chromium } from 'playwright';
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
-  buildNode,
+  buildWorkers,
   check,
-  NODE,
-  nodeDirectory,
+  liveContent,
   OWNER,
-  startNode,
   startWorkers,
-  stop,
   suite,
-  WORKERS
+  WORKERS,
+  workersState
 } from './support.mjs';
 
 // Signs in with Enter, as people do: first with the password missing, which
@@ -370,11 +369,7 @@ await suite('admin', async () => {
   console.log(`Screenshots: ${screenshots}`);
 
   try {
-    await startWorkers();
-    await uiChecks(browser, 'Workers', WORKERS, screenshots);
-    await buildNode();
-
-    const dir = await nodeDirectory();
+    const live = await liveContent();
 
     // Real files exercise bounded sync, paging and long unbroken/non-Latin titles.
     for (let index = 0; index < 1001; index++) {
@@ -383,18 +378,20 @@ await suite('admin', async () => {
 
       await writeFile(
         join(
-          dir,
-          'content/field-notes',
+          live,
+          'field-notes',
           `zz-stress-${String(index).padStart(4, '0')}.md`
         ),
         `---\ntitle: ${title}\n---\n\nContent.\n`
       );
     }
 
-    const node = await startNode(dir);
+    await buildWorkers();
 
-    await uiChecks(browser, 'Node', NODE, screenshots);
-    await stop(node);
+    const stopWorkers = await startWorkers(await workersState(), live);
+
+    await uiChecks(browser, 'Workers', WORKERS, screenshots);
+    await stopWorkers();
   } finally {
     await browser.close();
   }
