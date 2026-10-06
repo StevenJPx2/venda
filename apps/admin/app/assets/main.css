@@ -74,7 +74,8 @@ input[type='search']::-webkit-search-cancel-button { -webkit-appearance: none; a
 
 /* Entry: the writing canvas, and beside it a panel holding everything that is not the words. */
 .entry-layout { display: grid; grid-template-columns: minmax(0, 1fr) 288px; gap: 56px; align-items: start; margin-top: 24px; }
-.entry-preview { width: 100%; max-width: 680px; margin: 0 auto 48px; }
+/* Starts on the same edge as the back link above it; the spare width goes to the gap before the panel. */
+.entry-preview { width: 100%; max-width: 680px; margin: 0 0 48px; }
 .entry-panel { position: sticky; top: 32px; padding-left: 24px; border-left: 1px solid var(--ui-border); }
 .entry-details-toggle { display: none; }
 .entry-details dl { display: grid; gap: 18px; }
