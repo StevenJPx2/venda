@@ -17,6 +17,11 @@ export function fieldText(value: IndexedEntry['data'][string]): string {
   return JSON.stringify(value);
 }
 
+/** A publish date in the reader's locale and time zone, or a plain statement when there is none. */
+export const dateText = (iso: IndexedEntry['publishedAt'], locale?: string): string => iso === null
+  ? 'No date set'
+  : new Date(iso).toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' });
+
 const STATE_LABELS: Record<IndexedEntry['state'], string> = { published: 'Published', draft: 'Draft', future: 'Future dated' };
 
 /** The status text beside an entry's dot. */

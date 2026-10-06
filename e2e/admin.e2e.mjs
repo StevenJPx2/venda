@@ -6,16 +6,28 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { buildNode, check, NODE, nodeDirectory, OWNER, startNode, startWorkers, stop, suite, WORKERS } from './support.mjs';
 
-async function signIn(page, base) {
+// Signs in with Enter from the email field, as people do, after checking that
+// Enter with the password missing asks for it rather than doing nothing.
+async function signIn(page, base, label) {
   await page.goto(`${base}/admin/content`);
-  await page.getByRole('textbox', { name: /^Email/ }).fill(OWNER.email);
-  await page.locator('input[name="password"]').fill(OWNER.password);
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-  await page.getByRole('heading', { name: 'Content', exact: true }).waitFor();
+
+  const email = page.getByRole('textbox', { name: /^Email/ });
+  const password = page.locator('input[name="password"]');
+
+  await email.fill(OWNER.email);
+  await email.press('Enter');
+  await page.getByText('Enter your password.', { exact: true }).waitFor();
+  check(`${label}: Enter with the password missing focuses it and asks for it`, await password.evaluate(input => input === document.activeElement));
+  await password.fill(OWNER.password);
+  await email.press('Enter');
+
+  const signedIn = await page.getByRole('heading', { name: 'Content', exact: true }).waitFor({ timeout: 10_000 }).then(() => true, () => false);
+
+  check(`${label}: Enter in any sign-in field signs in`, signedIn);
 }
 
 async function contentChecks(page, label, base, screenshots) {
-  await signIn(page, base);
+  await signIn(page, base, label);
   await page.getByRole('link').filter({ hasText: 'Field notes' }).click();
   await page.getByRole('link').filter({ hasText: 'First light' }).waitFor();
   check(`${label}: content lists published and draft files`, await page.getByRole('link').filter({ hasText: 'Unfinished' }).count() === 1);
@@ -44,6 +56,11 @@ async function contentChecks(page, label, base, screenshots) {
   await page.getByRole('link').filter({ hasText: 'First light' }).click();
   await page.getByRole('heading', { name: 'First light', exact: true }).waitFor();
   check(`${label}: entry preview renders safe rich text`, await page.locator('.preview-prose strong').innerText() === '6:12');
+
+  const panel = await page.getByRole('complementary', { name: 'Entry details' }).innerText();
+
+  check(`${label}: tags and the file live in the right-hand details panel`, panel.includes('dawn, hills') && panel.includes('content/field-notes/first-light') && !(await page.locator('article').innerText()).includes('dawn, hills'));
+  await page.screenshot({ path: join(screenshots, `${label}-entry.png`) });
   await page.getByRole('link', { name: 'Field notes', exact: true }).click();
   await page.getByRole('heading', { name: 'Field notes', exact: true }).waitFor();
   check(`${label}: the back link is named for, and returns to, the collection`, page.url().endsWith('/admin/content/field-notes'));
@@ -123,6 +140,13 @@ async function mobileChecks(page, label, screenshots) {
   await page.getByRole('link').filter({ hasText: 'First light' }).waitFor();
   check(`${label}: entry rows fit on a narrow screen`, await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   await page.screenshot({ path: join(screenshots, `${label}-mobile.png`) });
+  await page.getByRole('link').filter({ hasText: 'First light' }).click();
+  await page.getByRole('button', { name: 'Entry details', exact: true }).click();
+
+  const sheet = await page.getByRole('dialog', { name: 'Entry details' }).innerText();
+
+  check(`${label}: on a phone the details panel opens as a sheet`, sheet.includes('dawn, hills'));
+  await page.screenshot({ path: join(screenshots, `${label}-mobile-details.png`) });
 }
 
 async function uiChecks(browser, label, base, screenshots) {

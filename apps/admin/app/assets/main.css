@@ -69,8 +69,15 @@ input[type='search']::-webkit-search-cancel-button { -webkit-appearance: none; a
 .admin-loading { animation: admin-appear 150ms var(--ease-out) 300ms both; }
 @keyframes admin-appear { from { opacity: 0; } }
 
-/* Entry preview */
-.entry-preview { max-width: 680px; margin: 32px auto 48px; }
+/* Entry: the writing canvas, and beside it a panel holding everything that is not the words. */
+.entry-layout { display: grid; grid-template-columns: minmax(0, 1fr) 288px; gap: 56px; align-items: start; margin-top: 24px; }
+.entry-preview { width: 100%; max-width: 680px; margin: 0 auto 48px; }
+.entry-panel { position: sticky; top: 32px; padding-left: 24px; border-left: 1px solid var(--ui-border); }
+.entry-details-toggle { display: none; }
+.entry-details dl { display: grid; gap: 18px; }
+.entry-details dt { margin-bottom: 4px; font-size: 12px; color: var(--ui-text-muted); }
+.entry-details dd { font-size: 13px; line-height: 1.5; color: var(--ui-text-highlighted); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.details-heading { margin: 24px 0 18px; padding-top: 24px; border-top: 1px solid var(--ui-border); font-size: 11px; font-weight: 500; letter-spacing: 0.04em; color: var(--ui-text-muted); }
 .preview-title { font-family: Georgia, serif; font-size: clamp(30px, 4vw, 42px); line-height: 1.15; letter-spacing: -0.025em; margin: 20px 0 32px; color: var(--ui-text-highlighted); overflow-wrap: anywhere; }
 .preview-prose { font-family: Georgia, serif; font-size: 18px; line-height: 1.8; overflow-wrap: anywhere; }
 .preview-prose p { margin: 1em 0; }
@@ -92,6 +99,13 @@ a:focus-visible { outline: 2px solid var(--ui-primary); outline-offset: 3px; }
   a.content-row:hover { background: var(--ui-bg-muted); }
   a.content-row:active { background: var(--ui-bg-elevated); }
   .nav-link:hover, .back-link:hover { color: var(--ui-text-highlighted); }
+}
+
+/* Too narrow for canvas and panel side by side: the panel becomes a sheet behind a button. */
+@media (max-width: 1180px) {
+  .entry-layout { grid-template-columns: minmax(0, 1fr); }
+  .entry-panel { display: none; }
+  .entry-details-toggle { display: inline-flex; }
 }
 
 @media (max-width: 900px) {

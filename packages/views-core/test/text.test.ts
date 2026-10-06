@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { entryTitle, fieldText, stateLabel } from '../src/text';
+import { dateText, entryTitle, fieldText, stateLabel } from '../src/text';
 
 it('uses the model field and falls back to the filename for missing, blank or non-text titles', () => {
   expect(entryTitle({ slug: 'filename', data: { heading: 'Hello' } }, 'heading')).toBe('Hello');
@@ -13,6 +13,11 @@ it('shows text fields as written and other values as JSON', () => {
   expect(fieldText(['news', 'notes'])).toBe('news, notes');
   expect(fieldText([1, 'two'])).toBe('[1,"two"]');
   expect(fieldText(true)).toBe('true');
+});
+
+it('reads a publish date in the reader\'s locale, and says so when there is none', () => {
+  expect(dateText(null)).toBe('No date set');
+  expect(dateText('2026-09-28T07:30:00.000Z', 'en-GB')).toMatch(/^28 Sept? 2026, \d{2}:\d{2}$/);
 });
 
 it('names every state as a sentence-case status', () => {
