@@ -6,6 +6,7 @@ import stylistic from '@stylistic/eslint-plugin';
 export const sharedIgnores = [
   '**/.nuxt/**',
   '**/.output/**',
+  '**/.try/**',
   '**/.wrangler/**',
   '**/dist/**',
   '**/node_modules/**'

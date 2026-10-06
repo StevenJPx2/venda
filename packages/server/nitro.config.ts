@@ -32,7 +32,8 @@ export default defineConfig({
   compatibilityDate: '2026-09-22',
   serverDir: './server',
   // Separate outputs, so building for Node never replaces a Workers build in use.
-  output: { dir: onCloudflare ? '.output' : '.output-node' },
+  // VENDA_OUTPUT_DIR gives a long-running caller (`pnpm try`) its own, so another build cannot pull files from under it.
+  output: { dir: process.env.VENDA_OUTPUT_DIR ?? (onCloudflare ? '.output' : '.output-node') },
   alias: aliases(),
   // Nuxt's build is already based at /admin/. Unmatched deep links reach the shell handler.
   publicAssets: [{ dir: here('../../apps/admin/dist'), baseURL: '/admin', fallthrough: true }],

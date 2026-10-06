@@ -26,6 +26,7 @@ export default defineConfig({
     'tools/oxlint/anti-slop/**',
     '**/.output/**',
     '**/.output-node/**',
+    '**/.try/**',
     '**/.wrangler/**',
     '**/node_modules/**'
   ],

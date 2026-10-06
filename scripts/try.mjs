@@ -19,6 +19,8 @@ const NODE_DIR = join(STATE, 'node');
 const LIVE_CONTENT = join(NODE_DIR, 'content');
 const CONTENT_FILE = /^\/files\/([a-z0-9-]+\/[a-z0-9-]+\.mdx?)$/;
 const PORTS = { page: 8794, workers: 8805, node: 8807 };
+// Own build outputs, so `pnpm e2e` or a manual build cannot replace files these servers are serving.
+const BUILDS = { workers: join(STATE, 'build/workers'), node: join(STATE, 'build/node') };
 // Throwaway local credentials for the recovery owner; wiped with .try/ on every start.
 const OWNER_ENV = { VENDA_OWNER_EMAIL: 'owner@venda.local', VENDA_OWNER_PASSWORD: 'try-venda-owner' };
 const children = [];
@@ -215,13 +217,13 @@ await cp(CONTENT, LIVE_CONTENT, { recursive: true });
 console.log('Venda try: building and starting both runtimes');
 
 await step('build admin', 'pnpm', ['--filter', '@venda/admin-app', 'build']);
-await step('build for Workers', 'pnpm', ['exec', 'nitro', 'build'], { VENDA_CONTENT_DIR: CONTENT });
-await step('build for Node', 'pnpm', ['exec', 'nitro', 'build'], { NITRO_PRESET: 'node' });
+await step('build for Workers', 'pnpm', ['exec', 'nitro', 'build'], { VENDA_CONTENT_DIR: CONTENT, VENDA_OUTPUT_DIR: BUILDS.workers });
+await step('build for Node', 'pnpm', ['exec', 'nitro', 'build'], { NITRO_PRESET: 'node', VENDA_OUTPUT_DIR: BUILDS.node });
 
 const vars = Object.entries(OWNER_ENV).flatMap(([key, value]) => ['--var', `${key}:${value}`]);
 
-serve('workers', 'npx', ['wrangler', 'dev', '--local', '--persist-to', join(STATE, 'workers'), '--config', '.output/server/wrangler.json', '--port', String(PORTS.workers), ...vars]);
-serve('node', 'node', [join(SERVER, '.output-node/server/index.mjs')], { cwd: NODE_DIR, env: { PORT: String(PORTS.node), ...OWNER_ENV } });
+serve('workers', 'npx', ['wrangler', 'dev', '--local', '--persist-to', join(STATE, 'workers'), '--config', join(BUILDS.workers, 'server/wrangler.json'), '--port', String(PORTS.workers), ...vars]);
+serve('node', 'node', [join(BUILDS.node, 'server/index.mjs')], { cwd: NODE_DIR, env: { PORT: String(PORTS.node), ...OWNER_ENV } });
 process.on('SIGINT', () => stopAll());
 process.on('SIGTERM', () => stopAll());
 
