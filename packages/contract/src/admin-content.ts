@@ -3,6 +3,15 @@ import { HttpApiEndpoint, HttpApiGroup } from 'effect/http-api';
 import { Authentication } from './auth';
 import { CollectionNotFound, EntryNotFound } from './content';
 
+/** One field of a collection's model, as the admin lays it out. */
+export class CollectionField extends Schema.Class<CollectionField>(
+  'venda/contract/CollectionField'
+)({
+  key: Schema.String,
+  type: Schema.String,
+  label: Schema.NullOr(Schema.String)
+}) {}
+
 export class CollectionSummary extends Schema.Class<CollectionSummary>(
   'venda/contract/CollectionSummary'
 )({
@@ -11,8 +20,13 @@ export class CollectionSummary extends Schema.Class<CollectionSummary>(
   /** The collection's own description from its config.ts, if it has one. */
   description: Schema.NullOr(Schema.String),
   kind: Schema.Literals(['posts', 'pages', 'single', 'records']),
+  /** Admin plugins the collection names instead of its kind's defaults. */
+  view: Schema.NullOr(Schema.String),
+  editor: Schema.NullOr(Schema.String),
   titleField: Schema.NullOr(Schema.String),
-  bodyField: Schema.NullOr(Schema.String)
+  bodyField: Schema.NullOr(Schema.String),
+  /** The model's fields in config.ts order. */
+  fields: Schema.Array(CollectionField)
 }) {}
 
 export class IndexedEntry extends Schema.Class<IndexedEntry>(

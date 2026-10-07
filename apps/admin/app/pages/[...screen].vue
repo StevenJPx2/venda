@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { canOpen, resolvePage, useAdmin } from '@venda/admin';
-import { adminPages } from '~/utils/plugins';
+import { registry } from '~/utils/plugins';
 
 const admin = useAdmin();
 const route = useRoute();
-const resolved = computed(() => resolvePage(adminPages, route.path));
+const resolved = computed(() => resolvePage(registry.pages, route.path));
 const allowed = computed(
   () => resolved.value && canOpen(resolved.value.page, admin.user.value?.role)
 );

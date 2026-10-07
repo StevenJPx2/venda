@@ -3,6 +3,7 @@ import { Effect, Predicate, Result } from 'effect';
 import { FetchHttpClient } from 'effect/http';
 import { HttpApiClient } from 'effect/http-api';
 import { inject, ref, type InjectionKey, type Ref } from 'vue';
+import type { AdminRegistry } from './plugin';
 
 const MESSAGES = new Map([
   ['InvalidCredentials', 'The email or password is incorrect.'],
@@ -103,6 +104,20 @@ export function useAdmin(): AdminRuntime {
     throw new Error('An admin plugin must run inside the Venda shell');
 
   return runtime;
+}
+
+export const AdminRegistryKey: InjectionKey<AdminRegistry> = Symbol(
+  'venda/admin/registry'
+);
+
+/** The installed plugins' pages, views and editors, as the shell registered them. */
+export function useAdminRegistry(): AdminRegistry {
+  const registry = inject(AdminRegistryKey);
+
+  if (!registry)
+    throw new Error('An admin plugin must run inside the Venda shell');
+
+  return registry;
 }
 
 const failure = (cause: unknown) =>

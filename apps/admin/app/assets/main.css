@@ -239,6 +239,71 @@ input[type='search']::-webkit-search-cancel-button {
   appearance: none;
 }
 
+/* Records: a quiet table that scrolls sideways on narrow screens instead of breaking the page. */
+.table-surface {
+  margin-inline: -12px;
+  overflow-x: auto;
+  border-top: 1px solid var(--ui-border);
+  transition: opacity 150ms var(--ease-out);
+}
+.table-surface[aria-busy='true'] {
+  opacity: 0.55;
+  transition-delay: 150ms;
+}
+.records-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.records-table th,
+.records-table td {
+  padding: 12px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--ui-border);
+  overflow-wrap: anywhere;
+}
+.records-table thead th {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ui-text-muted);
+  white-space: nowrap;
+}
+.records-table tbody th {
+  font-weight: 500;
+  min-width: 160px;
+}
+.records-table td {
+  color: var(--ui-text-muted);
+}
+.records-link {
+  color: var(--ui-text-highlighted);
+}
+
+/* The form editor: one column at the writer's measure. */
+.entry-form {
+  display: grid;
+  gap: 20px;
+  max-width: 680px;
+  margin-top: 8px;
+}
+.form-richtext {
+  padding: 4px 16px;
+  border: 1px solid var(--ui-border);
+  border-radius: 6px;
+}
+.entry-tools {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* A view or editor the collection asks for is not installed. */
+.slot-notice {
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: var(--ui-text-muted);
+}
+
 /* Fast answers never flash a loading line; slow ones fade it in. */
 .admin-loading {
   animation: admin-appear 150ms var(--ease-out) 300ms both;
@@ -371,7 +436,8 @@ a:focus-visible {
 }
 
 @media (hover: hover) and (pointer: fine) {
-  a.content-row:hover {
+  a.content-row:hover,
+  .records-table tbody tr:hover {
     background: var(--ui-bg-muted);
   }
   a.content-row:active {

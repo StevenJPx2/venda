@@ -13,6 +13,7 @@ export default defineCollection({
   name: 'Blog',
   description: 'Notes and announcements, newest first.',
   kind: 'posts',
+  view: 'acme.timeline',
   previewUrl: \`https://example.com/blog/{slug}?preview={token}\`,
   fields: {
     title: { type: 'text', required: true, max: 120 },
@@ -44,6 +45,7 @@ describe('readCollectionConfig: accepted configs', () => {
       name: 'Blog',
       description: 'Notes and announcements, newest first.',
       kind: 'posts',
+      view: 'acme.timeline',
       titleField: 'title',
       bodyField: 'body',
       previewUrl: 'https://example.com/blog/{slug}?preview={token}'

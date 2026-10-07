@@ -7,6 +7,9 @@ export default defineCollection({
   titleField: 'name',
   fields: {
     name: { type: 'text', required: true },
-    role: { type: 'text' }
+    role: { type: 'text' },
+    website: { type: 'url' },
+    staff: { type: 'boolean', label: 'On staff' },
+    bio: { type: 'textarea', max: 300 }
   }
 });

@@ -234,6 +234,48 @@ async function contentChecks(page, label, base, screenshots) {
   );
 }
 
+// Each kind of collection is shown by its own view and opened by its own editor.
+async function kindChecks(page, label) {
+  const main = page.locator('#main-content');
+
+  await sidebarLink(page, 'Authors').click();
+  await main.getByRole('link', { name: 'Ann Lee', exact: true }).waitFor();
+  check(
+    `${label}: records are a table with their fields as columns`,
+    (await main.getByRole('columnheader').allInnerTexts()).join('|') ===
+      'Name|Role|On staff' &&
+      (await main.getByRole('cell').allInnerTexts()).join('|') === 'Editor|Yes'
+  );
+  await main.getByRole('link', { name: 'Ann Lee', exact: true }).click();
+  await main.getByRole('textbox', { name: 'Role' }).waitFor();
+  check(
+    `${label}: a record opens as a form`,
+    (await main.getByRole('textbox', { name: 'Role' }).inputValue()) ===
+      'Editor' &&
+      (await main.getByRole('switch', { name: 'On staff' }).isChecked())
+  );
+
+  await sidebarLink(page, 'Home').click();
+  await main.getByRole('textbox', { name: 'Introduction' }).waitFor();
+  check(
+    `${label}: a single collection opens straight into its one entry`,
+    (await main.getByRole('textbox', { name: 'Introduction' }).inputValue()) ===
+      'Notes, maps and the people who make them.'
+  );
+
+  await sidebarLink(page, 'Changes').click();
+  await main
+    .getByRole('link')
+    .filter({ hasText: 'The first change' })
+    .waitFor();
+  check(
+    `${label}: a view the config names but nothing installs is reported, with the default in its place`,
+    (await main.getByRole('status').innerText()).includes(
+      '“acme.timeline”, which is not installed, so List shows it instead'
+    )
+  );
+}
+
 async function inviteAndJoin(owner, ann, label, base) {
   await openSettings(owner, 'Invitations');
   await owner
@@ -440,6 +482,7 @@ async function uiChecks(browser, label, base, screenshots) {
 
   try {
     await contentChecks(owner, label, base, screenshots);
+    await kindChecks(owner, label);
     await inviteAndJoin(owner, ann, label, base);
     await tokenChecks(owner, label, base);
     await peopleChecks(owner, ann, label);

@@ -49,6 +49,12 @@
               draft state.
             </li>
             <li>
+              Open one collection of each kind. Journal and Pages are lists,
+              Authors is a table that opens a record as a form, and Home opens
+              straight into its one entry. Releases is a posts collection whose
+              <code>config.ts</code> names the table view.
+            </li>
+            <li>
               Open Content problems. The missing-title file is recorded here.
             </li>
             <li>
@@ -146,6 +152,34 @@
                   item => item.path === 'journal/missing-title.md'
                 ),
               note: 'Models, drafts and problems available to the admin'
+            };
+          }
+        },
+        {
+          title: 'Every kind of collection, each with its fields',
+          description:
+            'The models include posts, pages, a single and records. Each carries its fields in config.ts order, and Releases names the table view in place of its kind’s list.',
+          async run({ log }) {
+            await signIn();
+
+            const models = await call('GET', '/api/admin/collections', {
+              as: 'admin-catchup'
+            });
+            const items = models.data ?? [];
+            const kinds = new Set(items.map(item => item.kind));
+            const releases = items.find(item => item.slug === 'releases');
+            const authors = items.find(item => item.slug === 'authors');
+
+            log(models.line, items);
+
+            return {
+              pass:
+                ['posts', 'pages', 'single', 'records'].every(kind =>
+                  kinds.has(kind)
+                ) &&
+                releases?.view === 'venda.table' &&
+                authors?.fields?.[0]?.key === 'name',
+              note: 'Four kinds; Releases chooses the table view'
             };
           }
         }

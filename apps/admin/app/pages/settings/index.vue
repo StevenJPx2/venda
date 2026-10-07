@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { listed, useAdmin } from '@venda/admin';
-import { adminPages } from '~/utils/plugins';
+import { registry } from '~/utils/plugins';
 
 const admin = useAdmin();
 
 // Every settings section any plugin contributes and this role may open.
 const sections = computed(() =>
-  listed(adminPages, 'settings', admin.user.value?.role)
+  listed(registry.pages, 'settings', admin.user.value?.role)
 );
 
 useHead({ title: 'Settings · Venda' });

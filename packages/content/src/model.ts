@@ -48,6 +48,10 @@ const ModelInput = Schema.Struct({
     )
   ),
   kind: Schema.Literals(KINDS),
+  // Admin plugins that show this collection instead of its kind's defaults:
+  // the view browses it, the editor opens an entry (docs/architecture.md).
+  view: Schema.optional(Schema.NonEmptyString),
+  editor: Schema.optional(Schema.NonEmptyString),
   titleField: Schema.optional(Schema.String),
   previewUrl: Schema.optional(Schema.String),
   fields: Schema.Record(Schema.String, FieldSchema)

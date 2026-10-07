@@ -1,15 +1,21 @@
 <script setup lang="ts">
-import { AdminRuntimeKey, createAdminRuntime, resolvePage } from '@venda/admin';
-import { adminPages } from '~/utils/plugins';
+import {
+  AdminRegistryKey,
+  AdminRuntimeKey,
+  createAdminRuntime,
+  resolvePage
+} from '@venda/admin';
+import { registry } from '~/utils/plugins';
 import { provide } from 'vue';
 
 const admin = await createAdminRuntime(window.location.origin);
 provide(AdminRuntimeKey, admin);
+provide(AdminRegistryKey, registry);
 const route = useRoute();
 const ready = ref(false);
 const error = ref('');
 const publicPage = computed(
-  () => resolvePage(adminPages, route.path)?.page.access === 'public'
+  () => resolvePage(registry.pages, route.path)?.page.access === 'public'
 );
 const prototype = computed(() => route.path.startsWith('/prototypes/'));
 
@@ -40,7 +46,7 @@ await identify();
 
   <AdminSignIn v-else-if="!admin.user.value" />
 
-  <AdminShell v-else :pages="adminPages">
+  <AdminShell v-else :pages="registry.pages">
     <NuxtPage />
   </AdminShell>
 </template>

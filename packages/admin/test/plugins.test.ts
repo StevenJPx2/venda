@@ -1,10 +1,12 @@
 import { expect, it } from 'vitest';
 import {
   canOpen,
+  choose,
   listed,
   registerPlugins,
   resolvePage,
-  type AdminPage
+  type AdminPage,
+  type AdminView
 } from '../src/plugin';
 
 const page: AdminPage = {
@@ -17,7 +19,7 @@ const page: AdminPage = {
 };
 
 it('resolves lazy pages without loading their screens and enforces access', () => {
-  const pages = registerPlugins([{ id: 'content', pages: [page] }]);
+  const { pages } = registerPlugins([{ id: 'content', pages: [page] }]);
 
   expect(resolvePage(pages, '/content/blog')?.params).toEqual({
     collection: 'blog'
@@ -77,4 +79,41 @@ it('rejects duplicate plugin ids and equivalent parameterised paths', () => {
       { id: 'x', pages: [] }
     ])
   ).toThrow('Duplicate');
+});
+
+const view = (id: string, kinds: AdminView['kinds']): AdminView => ({
+  id,
+  label: id,
+  kinds,
+  load: async () => ({ default: {} })
+});
+
+it('shows a collection with the view its config names, else the last for its kind', () => {
+  const { views } = registerPlugins([
+    { id: 'preset', views: [view('venda.list', ['posts', 'pages'])] },
+    { id: 'site', views: [view('acme.timeline', ['posts'])] }
+  ]);
+
+  // A site plugin listed after the preset replaces the default for posts only.
+  expect(choose(views, 'posts', null).slot?.id).toBe('acme.timeline');
+  expect(choose(views, 'pages', null).slot?.id).toBe('venda.list');
+
+  // A collection may name any installed view, whatever its kind.
+  expect(choose(views, 'posts', 'venda.list').slot?.id).toBe('venda.list');
+
+  // A name nothing provides falls back to the default, and says so.
+  expect(choose(views, 'posts', 'acme.missing')).toMatchObject({
+    slot: { id: 'acme.timeline' },
+    missing: 'acme.missing'
+  });
+  expect(choose(views, 'records', null).slot).toBeUndefined();
+});
+
+it('rejects a view or editor id another contribution already uses', () => {
+  expect(() =>
+    registerPlugins([
+      { id: 'a', views: [view('shared', ['posts'])] },
+      { id: 'b', editors: [view('shared', ['posts'])] }
+    ])
+  ).toThrow('Duplicate admin editor: shared');
 });

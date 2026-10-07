@@ -21,6 +21,17 @@ export function fieldText(value: IndexedEntry['data'][string]): string {
   return JSON.stringify(value);
 }
 
+/** A value in a table cell or text input: blank when left out, yes or no for a switch. */
+export function cellText(
+  value: IndexedEntry['data'][string] | undefined
+): string {
+  if (Predicate.isNullish(value)) return '';
+
+  if (Predicate.isBoolean(value)) return value ? 'Yes' : 'No';
+
+  return fieldText(value);
+}
+
 /** A publish date in the reader's locale and time zone, or a plain statement when there is none. */
 export const dateText = (
   iso: IndexedEntry['publishedAt'],
@@ -31,6 +42,19 @@ export const dateText = (
     : new Date(iso).toLocaleString(locale, {
         dateStyle: 'medium',
         timeStyle: 'short'
+      });
+
+/** A short day for list rows ("1 Sept 2026"), or nothing for an undated entry. */
+export const dayText = (
+  iso: IndexedEntry['publishedAt'],
+  locale?: string
+): string =>
+  iso === null
+    ? ''
+    : new Date(iso).toLocaleDateString(locale, {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
       });
 
 const STATE_LABELS: Record<IndexedEntry['state'], string> = {

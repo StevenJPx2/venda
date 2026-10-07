@@ -1,5 +1,6 @@
 import type { Named } from '@gdp-ts/core';
 import {
+  CollectionField,
   CollectionNotFound,
   CollectionSummary,
   ContentProblem,
@@ -39,8 +40,18 @@ export const listCollections = <U>(_access: CanBrowseContent<U>) =>
         name: model.name,
         description: model.description ?? null,
         kind: model.kind,
+        view: model.view ?? null,
+        editor: model.editor ?? null,
         titleField: model.titleField ?? null,
-        bodyField: model.bodyField ?? null
+        bodyField: model.bodyField ?? null,
+        fields: Object.entries(model.fields).map(
+          ([key, field]) =>
+            new CollectionField({
+              key,
+              type: field.type,
+              label: field.label ?? null
+            })
+        )
       });
     });
   });

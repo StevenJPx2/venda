@@ -83,6 +83,10 @@ export default defineCollection({
   holds, in the owner's words. The admin shows it under the collection's name
   and on its row in Content; without one it shows nothing in its place, never
   text of its own.
+- `view` and `editor` (optional) name the admin plugins that browse the
+  collection and open its entries, in place of its kind's defaults (see
+  "Admin and plugins"). For example, `view: 'venda.table'` shows posts as a
+  table.
 - A collection has at most one `richtext` field. It is stored as the file
   body; every other field is frontmatter.
 
@@ -319,7 +323,7 @@ Rules for plugins:
 
 In detail:
 
-- **Page (today's whole surface):** each plugin has an id and pages, each with
+- **Page:** each plugin has an id and pages, each with
   an id, a path of named segments, a title, access (`public`, `signed-in`,
   `administrator`), a section (`content`, `settings`, `account`, `public`), an
   optional navigation entry (label, icon, description) and a lazy `load()`.
@@ -338,11 +342,30 @@ In detail:
   are none. `apps/admin/app/utils/plugins.ts` selects `@venda/preset-default`, which
   composes `@venda/views-core` and `@venda/pages-core`. Duplicate ids and
   equivalent route patterns are rejected at registration. The SDK is
-  provisional: the editor, block and field slots arrive only with the slices
-  that use them, and slice 6 finishes and freezes the API.
-- **Editor:** the screen for a collection kind. `posts` and `pages` default to
-  the writer, `single` and `records` to the form editor; a collection may name
-  another with `editor:`.
+  provisional: the block, field, panel and action slots arrive only with the
+  slices that use them, and slice 6 finishes and freezes the API.
+- **View and editor:** a plugin lists `views` and `editors` beside its pages.
+  Each has an id, a label, the kinds it serves and a lazy `load()`. A view's
+  component receives `collection`; an editor's receives `collection` and
+  `entry`. Which one shows a collection:
+  - The one its `config.ts` names with `view:` or `editor:`, whatever its
+    kinds.
+  - Otherwise the last registered one serving the collection's kind, so a
+    site plugin listed after the default preset replaces a default.
+  - A name no installed plugin provides is reported on the screen, and the
+    kind's default shows the collection instead.
+
+  The default preset's views and editors:
+  - `venda.list` (posts, pages): rows with title, status and, when dated, the
+    day.
+  - `venda.table` (records): the title column, then the next three fields in
+    `config.ts` order, leaving out the rich-text body.
+  - `venda.single` (single): opens the collection's one entry straight away,
+    in its editor.
+  - `venda.writer` (posts, pages): the canvas with the details panel beside
+    it. Read-only until slice 3.
+  - `venda.form` (single, records): each field in `config.ts` order, as a
+    control that fits its type. Read-only until slice 3.
 - **Block:** a framework-free spec (`defineBlock`: name, which is also its MDX
   tag; attribute Schema; whether it holds inline text, blocks or nothing; an
   HTML renderer) plus an admin part (TipTap node, Vue node view, its entry in

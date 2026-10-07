@@ -11,8 +11,11 @@ const collection = (
     name,
     description: null,
     kind,
+    view: null,
+    editor: null,
     titleField: null,
-    bodyField: null
+    bodyField: null,
+    fields: []
   });
 
 it('heads a collection with its own name and description, inventing none', () => {
