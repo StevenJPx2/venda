@@ -27,6 +27,18 @@ export const KIND_ICON: Record<Kind, string> = {
   records: 'i-lucide-table-2'
 };
 
+/**
+ * A collection screen's heading: its own name and description from its
+ * config.ts. Before the models load, and with no description, nothing is made up.
+ */
+export const collectionHeading = (
+  collection: CollectionSummary | undefined
+) => ({
+  title: collection?.name ?? 'Content',
+  back: { to: '/content', label: 'Content' },
+  description: collection?.description ?? undefined
+});
+
 export const byKind = (collections: ReadonlyArray<CollectionSummary>) =>
   [...collections].sort(
     (a, b) =>

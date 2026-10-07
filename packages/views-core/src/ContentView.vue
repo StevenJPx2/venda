@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useAdmin, useAdminAction, useAdminResource } from '@venda/admin';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { byKind, KIND_ICON } from './collections';
+import { byKind, collectionHeading, KIND_ICON } from './collections';
 import { entryTitle, stateLabel } from './text';
 
 const props = defineProps<{ params: Record<string, string> }>();
@@ -29,23 +29,23 @@ const entries = useAdminResource(() =>
 const collection = computed(() =>
   collections.data.value?.find(item => item.slug === collectionSlug)
 );
-// The same order and icons as the sidebar.
-const ordered = computed(() => byKind(collections.data.value ?? []));
+// The same order and icons as the sidebar. A row says what the collection
+// holds in its own words, or where its files are when it has no description.
+const ordered = computed(() =>
+  byKind(collections.data.value ?? []).map(item => ({
+    ...item,
+    note: item.description ?? `content/${item.slug}/`
+  }))
+);
+
+const OVERVIEW = {
+  title: 'Content',
+  back: undefined,
+  description: 'Writing, pages and structured content from your repository.'
+};
 
 const heading = computed(() =>
-  collectionSlug
-    ? {
-        title: collection.value?.name ?? 'Content',
-        back: { to: '/content', label: 'Content' },
-        description:
-          'Your content files. Editing and publishing arrive with the write path.'
-      }
-    : {
-        title: 'Content',
-        back: undefined,
-        description:
-          'Writing, pages and structured content from your repository.'
-      }
+  collectionSlug ? collectionHeading(collection.value) : OVERVIEW
 );
 
 // A collection's name is unknown until the models answer; hold its space blank until then.
@@ -151,8 +151,8 @@ async function more() {
           item.name
         }}</span>
 
-        <p class="text-xs text-muted mt-1 break-all">
-          content/{{ item.slug }}/
+        <p class="text-xs text-muted mt-1 [overflow-wrap:anywhere]">
+          {{ item.note }}
         </p>
       </div>
 

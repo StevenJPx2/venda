@@ -98,6 +98,14 @@ async function contentChecks(page, label, base, screenshots) {
       (await sidebarLink(page, 'Field notes').getAttribute('aria-current')) ===
         'page'
   );
+
+  const header = await page.locator('.screen-heading').innerText();
+
+  check(
+    `${label}: a collection shows the description from its config.ts`,
+    header.includes('Short dispatches from the hills, written on the day.') &&
+      !header.includes('write path')
+  );
   check(
     `${label}: content lists published and draft files`,
     (await page.getByRole('link').filter({ hasText: 'Unfinished' }).count()) ===

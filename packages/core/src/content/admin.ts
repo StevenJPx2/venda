@@ -37,6 +37,7 @@ export const listCollections = <U>(_access: CanBrowseContent<U>) =>
       return new CollectionSummary({
         slug: row.slug,
         name: model.name,
+        description: model.description ?? null,
         kind: model.kind,
         titleField: model.titleField ?? null,
         bodyField: model.bodyField ?? null

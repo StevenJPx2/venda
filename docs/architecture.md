@@ -54,6 +54,7 @@ import { defineCollection } from 'venda';
 
 export default defineCollection({
   name: 'Blog',
+  description: 'Notes and announcements, newest first.',
   kind: 'posts',
   previewUrl: 'https://example.com/blog/{slug}?preview={token}',
   fields: {
@@ -78,6 +79,10 @@ export default defineCollection({
   Comments inside the object are not preserved.
 - `kind` is `posts`, `pages`, `single` or `records` (see redesign.md). A
   `single` collection has exactly one entry, `index.md`.
+- `description` (optional, at most 300 characters) says what the collection
+  holds, in the owner's words. The admin shows it under the collection's name
+  and on its row in Content; without one it shows nothing in its place, never
+  text of its own.
 - A collection has at most one `richtext` field. It is stored as the file
   body; every other field is frontmatter.
 

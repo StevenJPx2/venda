@@ -90,6 +90,7 @@ it('protects file drafts and problems, and pages entries', async () => {
 
   expect(models[0]).toMatchObject({
     name: 'Blog',
+    description: null,
     titleField: 'title',
     bodyField: 'body'
   });

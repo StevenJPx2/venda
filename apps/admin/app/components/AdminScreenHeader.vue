@@ -2,7 +2,7 @@
 // `pending` holds the title's space blank until the real one arrives, instead of swapping a placeholder for it.
 const props = defineProps<{
   title: string;
-  description?: string;
+  description?: string | undefined;
   back?: { to: string; label: string } | undefined;
   pending?: boolean;
 }>();

@@ -39,6 +39,14 @@ export const KINDS = ['posts', 'pages', 'single', 'records'] as const;
 
 const ModelInput = Schema.Struct({
   name: Schema.NonEmptyString,
+  // What the collection holds, in the owner's words; the admin shows it under the name.
+  description: Schema.optional(
+    Schema.NonEmptyString.pipe(
+      Schema.check(
+        Schema.isMaxLength(300, { expected: 'at most 300 characters' })
+      )
+    )
+  ),
   kind: Schema.Literals(KINDS),
   titleField: Schema.optional(Schema.String),
   previewUrl: Schema.optional(Schema.String),

@@ -8,6 +8,8 @@ export class CollectionSummary extends Schema.Class<CollectionSummary>(
 )({
   slug: Schema.String,
   name: Schema.String,
+  /** The collection's own description from its config.ts, if it has one. */
+  description: Schema.NullOr(Schema.String),
   kind: Schema.Literals(['posts', 'pages', 'single', 'records']),
   titleField: Schema.NullOr(Schema.String),
   bodyField: Schema.NullOr(Schema.String)

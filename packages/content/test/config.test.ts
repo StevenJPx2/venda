@@ -11,6 +11,7 @@ const BLOG = `import { defineCollection } from 'venda';
 
 export default defineCollection({
   name: 'Blog',
+  description: 'Notes and announcements, newest first.',
   kind: 'posts',
   previewUrl: \`https://example.com/blog/{slug}?preview={token}\`,
   fields: {
@@ -41,6 +42,7 @@ describe('readCollectionConfig: accepted configs', () => {
 
     expect(result.success).toMatchObject({
       name: 'Blog',
+      description: 'Notes and announcements, newest first.',
       kind: 'posts',
       titleField: 'title',
       bodyField: 'body',
@@ -126,6 +128,11 @@ describe('readCollectionConfig: rejected field rules', () => {
       'a title that is not text',
       "titleField: 'count', fields: { count: { type: 'number' } }",
       /titleField/
+    ],
+    [
+      'a description longer than 300 characters',
+      `description: '${'x'.repeat(301)}', fields: {}`,
+      /300 characters/
     ]
   ])('rejects %s', (_name, body, message) => {
     expect(
