@@ -210,6 +210,16 @@ type EntryState =
   | { _tag: 'Trashed'; deletedAt: DateTime.Utc; lastSha: string | null };
 ```
 
+**Order:** the public API serves a collection newest first. The admin orders
+entries by the collection's kind (`src/content/order.ts`):
+- Posts: drafts first, then the newest publish date, then undated entries.
+- Pages, single and records: A to Z by title, untitled entries last.
+
+Sync stores that order as each entry's `sort_key`, so the admin pages by
+`(sort_key, slug)` with an opaque cursor, and search keeps the same order.
+Changing a collection's kind or title field re-reads its entries, which
+rewrites their keys.
+
 **Bounds:** sync takes at most 200 files per run; GitHub calls retry with an
 exponential `Schedule` of at most 3 attempts within 10 seconds; the tick keeps
 its per-run batch limits; request bodies are capped at 1 MB for entries and
@@ -309,7 +319,11 @@ In detail:
   `administrator`), a section (`content`, `settings`, `account`, `public`), an
   optional navigation entry (label, icon, description) and a lazy `load()`.
   The section decides where the shell lists a page:
-  - Content pages: the sidebar.
+  - Content pages: the sidebar. A page whose entry has `items` becomes a
+    sidebar heading with those links beneath it, loaded on each navigation:
+    Content lists one link per collection, grouped by kind (posts and pages,
+    then single, then records) and A to Z by name within a group, with a gap
+    between groups. The Content page lists collections in the same order.
   - Settings pages: the Settings page, a single link at the foot of the
     sidebar, with their descriptions. Each section page leads back to it.
   - Account pages: the account menu, which collapses your name and role into

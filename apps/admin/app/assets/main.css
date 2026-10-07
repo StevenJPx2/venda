@@ -79,6 +79,18 @@ body {
 .nav-section {
   margin-top: 8px;
 }
+.nav-label {
+  padding: 8px 12px 6px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--ui-text-muted);
+}
+
+/* A quiet gap between kinds: writing, single, records. */
+.nav-gap {
+  margin-top: 12px;
+}
 .admin-sidebar .nav-settings {
   margin-top: auto;
 }

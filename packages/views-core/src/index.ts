@@ -1,4 +1,5 @@
 import type { AdminPlugin } from '@venda/admin';
+import { collectionLinks } from './collections';
 
 export default {
   id: 'venda.content',
@@ -10,7 +11,7 @@ export default {
       section: 'content',
       access: 'signed-in',
       load: () => import('./ContentView.vue'),
-      nav: { label: 'Content', icon: 'i-lucide-files' }
+      nav: { label: 'Content', icon: 'i-lucide-files', items: collectionLinks }
     },
     {
       id: 'content.collection',

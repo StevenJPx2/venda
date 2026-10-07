@@ -1,5 +1,15 @@
 import type { Role } from '@venda/contract';
 import type { Component } from 'vue';
+import type { AdminRuntime } from './runtime';
+
+/** A link a page lists beneath its heading in the sidebar. */
+export interface NavItem {
+  readonly label: string;
+  readonly icon: string;
+  readonly to: string;
+  /** Items of one group sit together; the sidebar leaves a gap between groups. */
+  readonly group: string;
+}
 
 /** Build-time contributions, never fetched as executable code at runtime. */
 export interface AdminPage {
@@ -19,6 +29,12 @@ export interface AdminPage {
     readonly label: string;
     readonly icon: string;
     readonly description?: string;
+    /**
+     * Links listed beneath the label, which then becomes a sidebar heading
+     * (Content, with each collection under it). Loaded when the sidebar
+     * shows, and again on every navigation, so new data appears.
+     */
+    readonly items?: (admin: AdminRuntime) => Promise<ReadonlyArray<NavItem>>;
   };
 }
 

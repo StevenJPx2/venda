@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useAdmin, useAdminAction, useAdminResource } from '@venda/admin';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { byKind, KIND_ICON } from './collections';
 import { entryTitle, stateLabel } from './text';
 
 const props = defineProps<{ params: Record<string, string> }>();
@@ -28,6 +29,8 @@ const entries = useAdminResource(() =>
 const collection = computed(() =>
   collections.data.value?.find(item => item.slug === collectionSlug)
 );
+// The same order and icons as the sidebar.
+const ordered = computed(() => byKind(collections.data.value ?? []));
 
 const heading = computed(() =>
   collectionSlug
@@ -136,11 +139,13 @@ async function more() {
 
   <div v-if="!collectionSlug" class="list-surface">
     <NuxtLink
-      v-for="item in collections.data.value"
+      v-for="item in ordered"
       :key="item.slug"
       :to="`/content/${encodeURIComponent(item.slug)}`"
       class="content-row"
     >
+      <UIcon :name="KIND_ICON[item.kind]" class="size-5 shrink-0 text-muted" />
+
       <div class="min-w-0 flex-1">
         <span class="font-medium text-highlighted break-words">{{
           item.name

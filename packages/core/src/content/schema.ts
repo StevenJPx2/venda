@@ -24,7 +24,9 @@ export const contentEntries = sqliteTable(
     draft: integer({ mode: 'boolean' }).notNull(),
     publishedAt: text('published_at'),
     dataJson: text('data_json').notNull(),
-    sha: text().notNull()
+    sha: text().notNull(),
+    // The admin's order for the collection's kind (order.ts), then the slug.
+    sortKey: text('sort_key').notNull().default('')
   },
   table => [
     primaryKey({ columns: [table.collection, table.slug] }),
@@ -32,6 +34,11 @@ export const contentEntries = sqliteTable(
       table.collection,
       table.draft,
       table.publishedAt
+    ),
+    index('content_entries_admin_order').on(
+      table.collection,
+      table.sortKey,
+      table.slug
     )
   ]
 );

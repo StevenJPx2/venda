@@ -10,7 +10,7 @@ import {
 } from '@venda/contract';
 import { modelFrom } from '@venda/content';
 import { and, asc, eq, gt, isNull, lte, or, sql } from 'drizzle-orm';
-import { DateTime, Effect, Result, Schema } from 'effect';
+import { DateTime, Effect, Option, Result, Schema } from 'effect';
 import type { CanBrowseContent } from '../auth/proofs/can-browse-content';
 import type { IsAdministrator } from '../auth/proofs/is-administrator';
 import { Database } from '../database';
@@ -91,7 +91,29 @@ const collectionScope = <U>(collection: string, access: CanBrowseContent<U>) =>
     return { db, now, filter };
   });
 
-/** Bounded, cursor-paged reads. The proof's kind selects what is visible. */
+// A page ends at an entry's (sort key, slug); the next page starts after it.
+const Cursor = Schema.fromJsonString(
+  Schema.Tuple([Schema.String, Schema.String])
+);
+const encodeCursor = Schema.encodeSync(Cursor);
+const decodeCursor = Schema.decodeUnknownOption(Cursor);
+
+// Entries after the cursor in (sort key, slug) order. A cursor that does not
+// decode starts from the top: it can only have been tampered with.
+const after = (cursor: string | undefined) =>
+  Option.match(cursor === undefined ? Option.none() : decodeCursor(cursor), {
+    onNone: () => undefined,
+    onSome: ([key, slug]) =>
+      or(
+        gt(contentEntries.sortKey, key),
+        and(eq(contentEntries.sortKey, key), gt(contentEntries.slug, slug))
+      )
+  });
+
+/**
+ * Bounded, cursor-paged reads in the order the collection's kind reads best
+ * (order.ts). The proof's kind selects what is visible.
+ */
 export const listIndexedEntries = <U>(
   _user: Named<U, UserId>,
   collection: string,
@@ -105,7 +127,7 @@ export const listIndexedEntries = <U>(
 
     const conditions = and(
       filter,
-      query.cursor ? gt(contentEntries.slug, query.cursor) : undefined,
+      after(query.cursor),
       search
         ? or(
             sql`instr(lower(${contentEntries.slug}), ${search}) > 0`,
@@ -118,13 +140,17 @@ export const listIndexedEntries = <U>(
       .select()
       .from(contentEntries)
       .where(conditions)
-      .orderBy(asc(contentEntries.slug))
+      .orderBy(asc(contentEntries.sortKey), asc(contentEntries.slug))
       .limit(PAGE_SIZE + 1);
-    const items = rows.slice(0, PAGE_SIZE).map(row => indexedEntry(row, now));
+    const page = rows.slice(0, PAGE_SIZE);
+    const last = page.at(-1);
 
     return new EntryPage({
-      items,
-      nextCursor: rows.length > PAGE_SIZE ? (items.at(-1)?.slug ?? null) : null
+      items: page.map(row => indexedEntry(row, now)),
+      nextCursor:
+        rows.length > PAGE_SIZE && last
+          ? encodeCursor([last.sortKey, last.slug])
+          : null
     });
   });
 

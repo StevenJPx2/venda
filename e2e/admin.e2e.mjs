@@ -78,10 +78,26 @@ async function openSettings(page, section) {
   await page.getByRole('link', { name: new RegExp(`^${section}`) }).click();
 }
 
+/** A collection's link in the sidebar, under the Content heading. */
+const sidebarLink = (page, name) =>
+  page
+    .getByRole('navigation', { name: 'Main navigation' })
+    .getByRole('link', { name, exact: true });
+
 async function contentChecks(page, label, base, screenshots) {
   await signIn(page, base, label);
-  await page.getByRole('link').filter({ hasText: 'Field notes' }).click();
+  await sidebarLink(page, 'Field notes').click();
   await page.getByRole('link').filter({ hasText: 'First light' }).waitFor();
+  check(
+    `${label}: each collection is listed under Content in the sidebar, marked when open`,
+    (
+      await page
+        .getByRole('navigation', { name: 'Main navigation' })
+        .innerText()
+    ).includes('Content') &&
+      (await sidebarLink(page, 'Field notes').getAttribute('aria-current')) ===
+        'page'
+  );
   check(
     `${label}: content lists published and draft files`,
     (await page.getByRole('link').filter({ hasText: 'Unfinished' }).count()) ===
@@ -156,7 +172,10 @@ async function contentChecks(page, label, base, screenshots) {
       !(await page.locator('article').innerText()).includes('dawn, hills')
   );
   await page.screenshot({ path: join(screenshots, `${label}-entry.png`) });
-  await page.getByRole('link', { name: 'Field notes', exact: true }).click();
+  await page
+    .locator('#main-content')
+    .getByRole('link', { name: 'Field notes', exact: true })
+    .click();
   await page
     .getByRole('heading', { name: 'Field notes', exact: true })
     .waitFor();
@@ -250,8 +269,7 @@ async function inviteAndJoin(owner, ann, label, base) {
     (await ann.getByRole('link', { name: /^People/ }).count()) === 0 &&
       (await ann.getByRole('link', { name: /^API tokens/ }).count()) === 1
   );
-  await ann.getByRole('link', { name: 'Content', exact: true }).click();
-  await ann.getByRole('link').filter({ hasText: 'Field notes' }).click();
+  await sidebarLink(ann, 'Field notes').click();
   await ann.getByRole('link').filter({ hasText: 'First light' }).waitFor();
   check(
     `${label}: authors see published content, not file drafts`,
@@ -321,8 +339,11 @@ async function peopleChecks(owner, ann, label) {
     .getByRole('button', { name: 'Save changes', exact: true })
     .click();
   await owner.getByRole('dialog').waitFor({ state: 'hidden' });
-  // Her next request is the tokens list, which sends her back to sign-in.
-  await openSettings(ann, 'API tokens');
+  // Her next navigation reloads the sidebar's collections; that request sends her back to sign-in.
+  await ann
+    .getByRole('navigation', { name: 'Main navigation' })
+    .getByRole('link', { name: 'Settings', exact: true })
+    .click();
   await ann
     .getByRole('heading', { name: 'Welcome back', exact: true })
     .waitFor();
@@ -341,9 +362,11 @@ async function mobileChecks(page, label, screenshots) {
     .click();
   await page
     .getByRole('dialog')
-    .getByRole('link', { name: 'Content', exact: true })
+    .getByRole('link', { name: 'Field notes', exact: true })
     .click();
-  await page.getByRole('heading', { name: 'Content', exact: true }).waitFor();
+  await page
+    .getByRole('heading', { name: 'Field notes', exact: true })
+    .waitFor();
   await page.getByRole('dialog').waitFor({ state: 'hidden' });
   check(
     `${label}: mobile navigation closes after a page change`,
@@ -355,7 +378,6 @@ async function mobileChecks(page, label, screenshots) {
       () => document.documentElement.scrollWidth <= innerWidth
     )
   );
-  await page.getByRole('link').filter({ hasText: 'Field notes' }).click();
   await page.getByRole('link').filter({ hasText: 'First light' }).waitFor();
   check(
     `${label}: entry rows fit on a narrow screen`,

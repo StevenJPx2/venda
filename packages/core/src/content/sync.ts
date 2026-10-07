@@ -125,7 +125,7 @@ const indexEntry = Effect.fnUntraced(function* (file: StoredFile) {
       )
     );
 
-  yield* saveEntry(file.path, file.sha, entry.success);
+  yield* saveEntry(file.path, file.sha, entry.success, model.value);
 
   return yield* done(file);
 });

@@ -8,6 +8,7 @@ import {
   contentFiles,
   contentProblems
 } from './schema';
+import { sortKey } from './order';
 import { Database } from '../database';
 
 const decodeModel = Schema.decodeUnknownOption(
@@ -149,14 +150,21 @@ const utc = (value: string | undefined) =>
     )
   );
 
-export const saveEntry = (path: string, sha: string, entry: Entry) =>
+export const saveEntry = (
+  path: string,
+  sha: string,
+  entry: Entry,
+  model: CollectionModel
+) =>
   Effect.flatMap(Database, db => {
+    const publishedAt = utc(entry.publishedAt);
     const values = {
       slug: entry.slug,
       draft: entry.draft,
-      publishedAt: utc(entry.publishedAt),
+      publishedAt,
       dataJson: JSON.stringify(entry.data),
-      sha
+      sha,
+      sortKey: sortKey(model, entry, publishedAt)
     };
 
     return db

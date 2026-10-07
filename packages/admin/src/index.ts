@@ -4,7 +4,8 @@ export {
   registerPlugins,
   resolvePage,
   type AdminPage,
-  type AdminPlugin
+  type AdminPlugin,
+  type NavItem
 } from './plugin';
 
 export {

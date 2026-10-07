@@ -1,0 +1,620 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "id": "7f820e1b-7aa4-46b2-9513-ecd5d2faf292",
+  "prevIds": [
+    "4643b064-f899-47df-a11c-e005bffbbc2d"
+  ],
+  "ddl": [
+    {
+      "name": "api_tokens",
+      "entityType": "tables"
+    },
+    {
+      "name": "invitations",
+      "entityType": "tables"
+    },
+    {
+      "name": "users",
+      "entityType": "tables"
+    },
+    {
+      "name": "content_collections",
+      "entityType": "tables"
+    },
+    {
+      "name": "content_entries",
+      "entityType": "tables"
+    },
+    {
+      "name": "content_files",
+      "entityType": "tables"
+    },
+    {
+      "name": "content_problems",
+      "entityType": "tables"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "api_tokens"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "user_id",
+      "entityType": "columns",
+      "table": "api_tokens"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "name",
+      "entityType": "columns",
+      "table": "api_tokens"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "secret_hash",
+      "entityType": "columns",
+      "table": "api_tokens"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "api_tokens"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "last_used_at",
+      "entityType": "columns",
+      "table": "api_tokens"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "invitations"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "email",
+      "entityType": "columns",
+      "table": "invitations"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "role",
+      "entityType": "columns",
+      "table": "invitations"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "token_hash",
+      "entityType": "columns",
+      "table": "invitations"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "invited_by",
+      "entityType": "columns",
+      "table": "invitations"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "expires_at",
+      "entityType": "columns",
+      "table": "invitations"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "accepted_at",
+      "entityType": "columns",
+      "table": "invitations"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "users"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "email",
+      "entityType": "columns",
+      "table": "users"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "name",
+      "entityType": "columns",
+      "table": "users"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "role",
+      "entityType": "columns",
+      "table": "users"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "status",
+      "entityType": "columns",
+      "table": "users"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "password_hash",
+      "entityType": "columns",
+      "table": "users"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "session_epoch",
+      "entityType": "columns",
+      "table": "users"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "users"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "slug",
+      "entityType": "columns",
+      "table": "content_collections"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "path",
+      "entityType": "columns",
+      "table": "content_collections"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "model_json",
+      "entityType": "columns",
+      "table": "content_collections"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "collection",
+      "entityType": "columns",
+      "table": "content_entries"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "slug",
+      "entityType": "columns",
+      "table": "content_entries"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "path",
+      "entityType": "columns",
+      "table": "content_entries"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "draft",
+      "entityType": "columns",
+      "table": "content_entries"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "published_at",
+      "entityType": "columns",
+      "table": "content_entries"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "data_json",
+      "entityType": "columns",
+      "table": "content_entries"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "sha",
+      "entityType": "columns",
+      "table": "content_entries"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "''",
+      "generated": null,
+      "name": "sort_key",
+      "entityType": "columns",
+      "table": "content_entries"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "path",
+      "entityType": "columns",
+      "table": "content_files"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "sha",
+      "entityType": "columns",
+      "table": "content_files"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "path",
+      "entityType": "columns",
+      "table": "content_problems"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "message",
+      "entityType": "columns",
+      "table": "content_problems"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "line",
+      "entityType": "columns",
+      "table": "content_problems"
+    },
+    {
+      "columns": [
+        "user_id"
+      ],
+      "tableTo": "users",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_api_tokens_user_id_users_id_fk",
+      "entityType": "fks",
+      "table": "api_tokens"
+    },
+    {
+      "columns": [
+        "invited_by"
+      ],
+      "tableTo": "users",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "nameExplicit": false,
+      "name": "fk_invitations_invited_by_users_id_fk",
+      "entityType": "fks",
+      "table": "invitations"
+    },
+    {
+      "columns": [
+        "collection",
+        "slug"
+      ],
+      "nameExplicit": false,
+      "name": "content_entries_pk",
+      "entityType": "pks",
+      "table": "content_entries"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "api_tokens_pk",
+      "table": "api_tokens",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "invitations_pk",
+      "table": "invitations",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "users_pk",
+      "table": "users",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "slug"
+      ],
+      "nameExplicit": false,
+      "name": "content_collections_pk",
+      "table": "content_collections",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "path"
+      ],
+      "nameExplicit": false,
+      "name": "content_files_pk",
+      "table": "content_files",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "path"
+      ],
+      "nameExplicit": false,
+      "name": "content_problems_pk",
+      "table": "content_problems",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        {
+          "value": "user_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "api_tokens_user",
+      "entityType": "indexes",
+      "table": "api_tokens"
+    },
+    {
+      "columns": [
+        {
+          "value": "email",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "invitations_email",
+      "entityType": "indexes",
+      "table": "invitations"
+    },
+    {
+      "columns": [
+        {
+          "value": "collection",
+          "isExpression": false
+        },
+        {
+          "value": "draft",
+          "isExpression": false
+        },
+        {
+          "value": "published_at",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "content_entries_published",
+      "entityType": "indexes",
+      "table": "content_entries"
+    },
+    {
+      "columns": [
+        {
+          "value": "collection",
+          "isExpression": false
+        },
+        {
+          "value": "sort_key",
+          "isExpression": false
+        },
+        {
+          "value": "slug",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "content_entries_admin_order",
+      "entityType": "indexes",
+      "table": "content_entries"
+    },
+    {
+      "columns": [
+        "secret_hash"
+      ],
+      "nameExplicit": false,
+      "name": "api_tokens_secret_hash_unique",
+      "entityType": "uniques",
+      "table": "api_tokens"
+    },
+    {
+      "columns": [
+        "token_hash"
+      ],
+      "nameExplicit": false,
+      "name": "invitations_token_hash_unique",
+      "entityType": "uniques",
+      "table": "invitations"
+    },
+    {
+      "columns": [
+        "email"
+      ],
+      "nameExplicit": false,
+      "name": "users_email_unique",
+      "entityType": "uniques",
+      "table": "users"
+    },
+    {
+      "columns": [
+        "path"
+      ],
+      "nameExplicit": false,
+      "name": "content_collections_path_unique",
+      "entityType": "uniques",
+      "table": "content_collections"
+    },
+    {
+      "columns": [
+        "path"
+      ],
+      "nameExplicit": false,
+      "name": "content_entries_path_unique",
+      "entityType": "uniques",
+      "table": "content_entries"
+    }
+  ],
+  "renames": []
+}
