@@ -51,6 +51,23 @@ async function signIn(page, base, label) {
   );
 }
 
+/** Icons on the page that draw nothing: no inline SVG and no image in their CSS. */
+const blankIcons = page =>
+  page.$$eval('.iconify', icons =>
+    icons
+      .filter(icon => {
+        const style = getComputedStyle(icon);
+        const drawn = [
+          style.maskImage,
+          style.webkitMaskImage,
+          style.backgroundImage
+        ].some(value => value?.includes('url('));
+
+        return !drawn && !icon.querySelector('svg');
+      })
+      .map(icon => icon.className)
+  );
+
 // Settings live on their own page, reached from the foot of the navigation.
 async function openSettings(page, section) {
   await page
@@ -155,13 +172,28 @@ async function contentChecks(page, label, base, screenshots) {
       'title is required'
     )
   );
+  await page
+    .locator('#main-content')
+    .getByRole('link', { name: 'Settings', exact: true })
+    .click();
+  await page.getByRole('heading', { name: 'Settings', exact: true }).waitFor();
   check(
     `${label}: a settings section leads back to Settings`,
-    (await page
-      .locator('#main-content')
-      .getByRole('link', { name: 'Settings', exact: true })
-      .count()) === 1
+    new URL(page.url()).pathname.replace(/\/$/, '') === '/admin/settings'
   );
+
+  // The Settings page shows icons from the shell, the plugins and Nuxt UI.
+  const blank = await blankIcons(page);
+
+  check(
+    `${label}: every icon on the page draws`,
+    blank.length === 0,
+    [...new Set(blank)].join(', ')
+  );
+  await page.goBack();
+  await page
+    .getByRole('heading', { name: 'Content problems', exact: true })
+    .waitFor();
   await page.reload();
   await page
     .getByRole('heading', { name: 'Content problems', exact: true })

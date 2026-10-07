@@ -17,13 +17,14 @@
     "@venda/admin": "workspace:*",
     "@venda/contract": "workspace:*",
     "@venda/preset-default": "workspace:*",
+    "@venda/richtext": "workspace:*",
     "@vue/shared": "3.5.43",
     "nuxt": "4.6.0",
     "tailwindcss": "4.3.3",
-    "vue": "latest",
-    "@venda/richtext": "workspace:*"
+    "vue": "latest"
   },
   "devDependencies": {
+    "@iconify-json/lucide": "1.2.140",
     "@nuxt/eslint": "^1.17.0",
     "@tiptap/vue-3": "3.31.3",
     "@types/node": "latest",
