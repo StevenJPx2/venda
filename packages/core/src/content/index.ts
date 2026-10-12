@@ -11,6 +11,8 @@ export {
   type StoredFile
 } from './services';
 
+export { getSite, siteSettings } from './site';
+
 export { syncAll, syncContent, type SyncReport } from './sync';
 
 export {

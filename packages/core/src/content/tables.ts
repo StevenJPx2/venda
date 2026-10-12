@@ -11,7 +11,8 @@ import {
 import { sortKey } from './order';
 import { Database } from '../database';
 
-const decodeModel = Schema.decodeUnknownOption(
+/** JSON the index stored, read back. */
+export const decodeJson = Schema.decodeUnknownOption(
   Schema.fromJsonString(Schema.Json)
 );
 
@@ -65,7 +66,7 @@ export const modelOf = (collection: string) =>
       .where(eq(contentCollections.slug, collection));
 
     return Option.flatMap(Option.fromNullishOr(row), ({ modelJson }) =>
-      Option.flatMap(decodeModel(modelJson), json =>
+      Option.flatMap(decodeJson(modelJson), json =>
         Result.getSuccess(modelFrom(json))
       )
     );

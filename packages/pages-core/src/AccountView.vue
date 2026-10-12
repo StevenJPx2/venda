@@ -34,10 +34,7 @@ async function save() {
 </script>
 
 <template>
-  <AdminScreenHeader
-    title="Your account"
-    description="Your identity and sign-in details."
-  />
+  <AdminScreenHeader title="Your account" />
 
   <div class="max-w-md">
     <dl class="grid grid-cols-[5rem_1fr] gap-x-4 gap-y-3 text-sm mb-10">

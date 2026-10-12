@@ -276,6 +276,43 @@ async function kindChecks(page, label) {
   );
 }
 
+// content/site.ts names the site and words its screens; an empty string hides one.
+async function siteChecks(page, label, base) {
+  const heading = page.locator('.screen-heading');
+
+  await page.goto(`${base}/admin/content`);
+  await heading.getByText('Every note and map from the hills.').waitFor();
+  check(
+    `${label}: site.ts names the site in the sidebar and the window title`,
+    (await page
+      .getByRole('navigation', { name: 'Main navigation' })
+      .locator('xpath=..')
+      .getByRole('link', { name: 'Hill Notes', exact: true })
+      .count()) === 1 && (await page.title()) === 'Content · Hill Notes'
+  );
+
+  await page.goto(`${base}/admin/account`);
+  await page.getByRole('heading', { name: 'Your account' }).waitFor();
+  check(
+    `${label}: an empty description in site.ts hides the screen's own`,
+    (await heading.locator('p').count()) === 0
+  );
+
+  await openSettings(page, 'General');
+  await page.getByRole('heading', { name: 'General', exact: true }).waitFor();
+
+  const general = await page.locator('#main-content').innerText();
+
+  check(
+    `${label}: General shows the site's settings and where each screen's words come from`,
+    (await page.getByRole('textbox', { name: 'Site name' }).inputValue()) ===
+      'Hill Notes' &&
+      general.includes('content.index') &&
+      general.includes('From site.ts') &&
+      general.includes('Hidden by site.ts')
+  );
+}
+
 async function inviteAndJoin(owner, ann, label, base) {
   await openSettings(owner, 'Invitations');
   await owner
@@ -483,6 +520,7 @@ async function uiChecks(browser, label, base, screenshots) {
   try {
     await contentChecks(owner, label, base, screenshots);
     await kindChecks(owner, label);
+    await siteChecks(owner, label, base);
     await inviteAndJoin(owner, ann, label, base);
     await tokenChecks(owner, label, base);
     await peopleChecks(owner, ann, label);

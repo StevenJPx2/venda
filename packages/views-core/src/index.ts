@@ -14,6 +14,8 @@ export default {
       section: 'content',
       access: 'signed-in',
       load: () => import('./ContentView.vue'),
+      description:
+        'Writing, pages and structured content from your repository.',
       nav: { label: 'Content', icon: 'i-lucide-files', items: collectionLinks }
     },
     {
@@ -33,17 +35,26 @@ export default {
       load: () => import('./EntryScreen.vue')
     },
     {
+      id: 'site.general',
+      path: 'settings/general',
+      title: 'General',
+      section: 'settings',
+      access: 'administrator',
+      load: () => import('./GeneralView.vue'),
+      description:
+        "The site's name and address, and the words each screen opens with.",
+      nav: { label: 'General', icon: 'i-lucide-sliders-horizontal' }
+    },
+    {
       id: 'content.problems',
       path: 'settings/content-problems',
       title: 'Content problems',
       section: 'settings',
       access: 'administrator',
       load: () => import('./ProblemsView.vue'),
-      nav: {
-        label: 'Content problems',
-        icon: 'i-lucide-file-warning',
-        description: 'Files that do not fit their collection, with the reason.'
-      }
+      description:
+        'Files that could not be indexed. Fix the file in your repository; the next sync checks it again.',
+      nav: { label: 'Content problems', icon: 'i-lucide-file-warning' }
     }
   ],
   views: [

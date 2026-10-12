@@ -21,14 +21,17 @@ export interface AdminPage {
   readonly access: 'public' | 'signed-in' | 'administrator';
   readonly load: () => Promise<{ default: Component }>;
   /**
+   * What the screen is for, under its title and beside its link on the
+   * Settings page. The site's `content/site.ts` may replace it by page id.
+   */
+  readonly description?: string;
+  /**
    * Where the page is listed: content pages in the sidebar, settings pages on
-   * the Settings page (with their description), account pages in the account
-   * menu.
+   * the Settings page, account pages in the account menu.
    */
   readonly nav?: {
     readonly label: string;
     readonly icon: string;
-    readonly description?: string;
     /**
      * Links listed beneath the label, which then becomes a sidebar heading
      * (Content, with each collection under it). Loaded when the sidebar

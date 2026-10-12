@@ -43,6 +43,12 @@ export const contentEntries = sqliteTable(
   ]
 );
 
+// The site's own settings from `site.ts`: one row while that file is valid.
+export const contentSite = sqliteTable('content_site', {
+  path: text().primaryKey(),
+  settingsJson: text('settings_json').notNull()
+});
+
 // Every file the index has looked at, valid or not, so unchanged files are skipped.
 export const contentFiles = sqliteTable('content_files', {
   path: text().primaryKey(),

@@ -55,6 +55,11 @@
               <code>config.ts</code> names the table view.
             </li>
             <li>
+              Open Settings, then General. The site name, address and each
+              screen's description come from <code>.try/content/site.ts</code>.
+              Change one there and open another page: the admin uses your words.
+            </li>
+            <li>
               Open Content problems. The missing-title file is recorded here.
             </li>
             <li>
@@ -180,6 +185,23 @@
                 releases?.view === 'venda.table' &&
                 authors?.fields?.[0]?.key === 'name',
               note: 'Four kinds; Releases chooses the table view'
+            };
+          }
+        },
+        {
+          title: 'The site describes itself in site.ts',
+          description:
+            'GET /api/site serves the name, address and screen descriptions read from content/site.ts, without signing in.',
+          async run({ log }) {
+            const site = await call('GET', '/api/site');
+
+            log(site.line, site.data);
+
+            return {
+              pass:
+                site.data?.name === 'Field Journal' &&
+                Boolean(site.data?.screens?.['content.index']),
+              note: 'Name and screen words from site.ts'
             };
           }
         }

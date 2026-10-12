@@ -1,10 +1,16 @@
 <script setup lang="ts">
-import { canOpen, resolvePage, useAdmin } from '@venda/admin';
+import { canOpen, resolvePage, useAdmin, windowTitle } from '@venda/admin';
 import { registry } from '~/utils/plugins';
+import { ScreenKey } from '~/utils/screen';
 
 const admin = useAdmin();
 const route = useRoute();
 const resolved = computed(() => resolvePage(registry.pages, route.path));
+
+provide(
+  ScreenKey,
+  computed(() => resolved.value?.page)
+);
 const allowed = computed(
   () => resolved.value && canOpen(resolved.value.page, admin.user.value?.role)
 );
@@ -13,7 +19,8 @@ const component = computed(() =>
 );
 
 useHead({
-  title: () => `${resolved.value?.page.title ?? 'Not found'} · Venda`
+  title: () =>
+    windowTitle(admin.site.value, resolved.value?.page.title ?? 'Not found')
 });
 </script>
 

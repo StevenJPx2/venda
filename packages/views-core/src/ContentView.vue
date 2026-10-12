@@ -23,10 +23,7 @@ onMounted(collections.reload);
 </script>
 
 <template>
-  <AdminScreenHeader
-    title="Content"
-    description="Writing, pages and structured content from your repository."
-  />
+  <AdminScreenHeader title="Content" />
 
   <AdminFeedback
     :busy="collections.busy.value"

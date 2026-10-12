@@ -12,10 +12,7 @@ onMounted(problems.reload);
 </script>
 
 <template>
-  <AdminScreenHeader
-    title="Content problems"
-    description="Files that could not be indexed. Fix the file in your repository; the next sync checks it again."
-  >
+  <AdminScreenHeader title="Content problems">
     <UButton
       label="Refresh"
       icon="i-lucide-refresh-cw"

@@ -36,6 +36,13 @@ body {
 .brand-mark span {
   color: var(--ui-primary);
 }
+/* A site's own name can run to 60 characters, so it is set smaller and may wrap. */
+.brand-mark.brand-name {
+  font-size: 18px;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
 .auth-screen {
   min-height: 100dvh;
   display: grid;
@@ -498,6 +505,9 @@ a:focus-visible {
   }
   .mobile-bar .brand-mark {
     font-size: 22px;
+  }
+  .mobile-bar .brand-mark.brand-name {
+    font-size: 17px;
   }
   .admin-main {
     margin-left: 0;

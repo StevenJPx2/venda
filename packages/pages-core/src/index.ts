@@ -10,11 +10,8 @@ export default {
       section: 'settings',
       access: 'administrator',
       load: () => import('./PeopleView.vue'),
-      nav: {
-        label: 'People',
-        icon: 'i-lucide-users',
-        description: 'Who can sign in, their roles, and who is disabled.'
-      }
+      description: 'Who can sign in, their roles, and who is disabled.',
+      nav: { label: 'People', icon: 'i-lucide-users' }
     },
     {
       id: 'accounts.invitations',
@@ -23,11 +20,9 @@ export default {
       section: 'settings',
       access: 'administrator',
       load: () => import('./InvitationsView.vue'),
-      nav: {
-        label: 'Invitations',
-        icon: 'i-lucide-mail',
-        description: 'Invite someone with a private link, and revoke open ones.'
-      }
+      description:
+        'Invite someone with a private link. Links expire after seven days and can be used once.',
+      nav: { label: 'Invitations', icon: 'i-lucide-mail' }
     },
     {
       id: 'accounts.tokens',
@@ -36,11 +31,9 @@ export default {
       section: 'settings',
       access: 'signed-in',
       load: () => import('./TokensView.vue'),
-      nav: {
-        label: 'API tokens',
-        icon: 'i-lucide-key-round',
-        description: 'Keys for scripts and sites that read or write as you.'
-      }
+      description:
+        'Private credentials for scripts and CI. Each token has your permissions; keep it out of source code.',
+      nav: { label: 'API tokens', icon: 'i-lucide-key-round' }
     },
     {
       id: 'accounts.profile',
@@ -49,12 +42,13 @@ export default {
       section: 'account',
       access: 'signed-in',
       load: () => import('./AccountView.vue'),
+      description: 'Your identity and sign-in details.',
       nav: { label: 'Your account', icon: 'i-lucide-circle-user' }
     },
     {
       id: 'accounts.join',
       path: 'join/:token',
-      title: 'Join Venda',
+      title: 'Join',
       section: 'public',
       access: 'public',
       load: () => import('./JoinView.vue')

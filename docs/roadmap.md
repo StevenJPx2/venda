@@ -41,7 +41,7 @@ Status: `[ ]` not started · `[~]` partial · `[x]` done.
 - [x] Field types in models: text, textarea, rich text, number, boolean, date, datetime, tags, image, URL, select, relation, JSON
 - [ ] More field types: slug, email, URL, color, multi-select, file, repeater/list, group, blocks
 - [ ] Relations/references between collections (e.g. post → author), both directions
-- [ ] Singletons (single-entry collections such as a home page)
+- [~] Singletons (single-entry collections such as a home page): the `single` kind opens straight into its entry; editing with the write path
 - [ ] Internationalization: locales, translated entries, translated taxonomies
 - [ ] TypeScript type generation from the live schema (CLI)
 
@@ -62,7 +62,7 @@ Status: `[ ]` not started · `[~]` partial · `[x]` done.
 - [ ] Widget areas and widgets
 - [ ] Sections (reusable content blocks)
 - [ ] Page layouts and a block library for page building
-- [ ] Site settings (title, logo, social links, custom settings)
+- [~] Site settings (title, logo, social links, custom settings): name, address and admin copy in `content/site.ts`
 - [ ] Redirects manager
 - [ ] SEO: per-entry meta, Open Graph, canonical URLs, sitemap.xml, robots.txt
 - [ ] Dark-mode and theming hooks for frontends

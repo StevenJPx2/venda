@@ -57,10 +57,7 @@ async function save() {
 </script>
 
 <template>
-  <AdminScreenHeader
-    title="People"
-    description="The people who write and manage this site."
-  >
+  <AdminScreenHeader title="People">
     <UButton
       to="/settings/invitations"
       label="Invite someone"

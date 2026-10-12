@@ -1,4 +1,4 @@
-export { modelFrom, readCollectionConfig } from './config';
+export { modelFrom, readCollectionConfig, readSiteConfig } from './config';
 
 export {
   entryPath,
@@ -8,7 +8,7 @@ export {
   type FieldValue
 } from './entry';
 
-export { InvalidCollectionConfig, InvalidEntry } from './errors';
+export { InvalidConfig, InvalidEntry } from './errors';
 
 export type { Json } from './literal';
 
@@ -20,5 +20,7 @@ export {
   type CollectionModel,
   type Field
 } from './model';
+
+export { siteFrom, type SiteSettings } from './site';
 
 export { docToMarkdown } from './to-markdown';

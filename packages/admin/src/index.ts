@@ -15,6 +15,8 @@ export {
   type NavItem
 } from './plugin';
 
+export { screenDescription, SETTINGS_SCREEN, windowTitle } from './site';
+
 export {
   AdminRegistryKey,
   AdminRequestError,

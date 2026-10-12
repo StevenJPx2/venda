@@ -11,7 +11,7 @@ import { Effect, Layer, Predicate } from 'effect';
 import type { ContentFiles, RawFile } from './target';
 
 // Only these are read and hashed; images and other files beside them are skipped.
-const CONTENT_FILE = /(?:^|\/)(?:config\.ts|[^/]+\.mdx?)$/;
+const CONTENT_FILE = /^site\.ts$|(?:^|\/)(?:config\.ts|[^/]+\.mdx?)$/;
 
 const decoder = new TextDecoder();
 

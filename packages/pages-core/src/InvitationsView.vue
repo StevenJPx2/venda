@@ -52,10 +52,7 @@ async function remove() {
 </script>
 
 <template>
-  <AdminScreenHeader
-    title="Invitations"
-    description="Invite someone with a private link. Links expire after seven days and can be used once."
-  >
+  <AdminScreenHeader title="Invitations">
     <UButton
       label="Invite someone"
       icon="i-lucide-plus"

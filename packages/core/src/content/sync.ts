@@ -1,9 +1,14 @@
 // Brings the index up to date with the content store. Each run compares SHAs,
 // reads at most `limit` changed files (configs first) and reports what is
 // left; a file that cannot be read becomes a problem, never a failed run.
-import { readCollectionConfig, readEntry } from '@venda/content';
+import {
+  readCollectionConfig,
+  readEntry,
+  readSiteConfig
+} from '@venda/content';
 import { Effect, Option, Result } from 'effect';
 import { ContentStore, type StoredFile } from './services';
+import { dropSite, saveSite, SITE_PATH } from './site';
 import {
   clearProblem,
   dropCollection,
@@ -35,7 +40,9 @@ export interface SyncReport {
   readonly problems: number;
 }
 
-const isContentFile = (path: string) => CONFIG.test(path) || ENTRY.test(path);
+const isSettings = (path: string) => path === SITE_PATH || CONFIG.test(path);
+
+const isContentFile = (path: string) => isSettings(path) || ENTRY.test(path);
 
 const configCollection = (path: string) => CONFIG.exec(path)?.[1];
 
@@ -90,6 +97,30 @@ const indexConfig = Effect.fnUntraced(function* (
   return yield* done(file);
 });
 
+/** Indexes the site's settings; an invalid file leaves the site with none. */
+const indexSite = Effect.fnUntraced(function* (file: StoredFile) {
+  const store = yield* ContentStore;
+  const settings = yield* Effect.result(
+    readSiteConfig(file.path, yield* store.read(file.path))
+  );
+
+  if (Result.isFailure(settings))
+    return yield* Effect.andThen(
+      dropSite,
+      problem(file, settings.failure.message, settings.failure.line)
+    );
+
+  yield* saveSite(file.path, settings.success);
+
+  return yield* done(file);
+});
+
+/** A settings file: the site's, or a collection's config. */
+const indexSettings = (file: StoredFile) =>
+  file.path === SITE_PATH
+    ? indexSite(file)
+    : indexConfig(file, configCollection(file.path) ?? '');
+
 const indexEntry = Effect.fnUntraced(function* (file: StoredFile) {
   const store = yield* ContentStore;
   const collection = file.path.split('/')[0] ?? '';
@@ -134,7 +165,8 @@ const indexEntry = Effect.fnUntraced(function* (file: StoredFile) {
 const forget = Effect.fnUntraced(function* (path: string) {
   const collection = configCollection(path);
 
-  if (collection !== undefined) yield* dropCollection(collection, path);
+  if (path === SITE_PATH) yield* dropSite;
+  else if (collection !== undefined) yield* dropCollection(collection, path);
   else yield* dropEntry(path);
 
   yield* Effect.all([clearProblem(path), forgetFile(path)], { discard: true });
@@ -157,11 +189,9 @@ export const syncContent = Effect.fnUntraced(function* (limit = 200) {
   yield* Effect.forEach(gone, forget, { discard: true });
 
   const configs = changedFiles(files, yield* knownFiles)
-    .filter(file => CONFIG.test(file.path))
+    .filter(file => isSettings(file.path))
     .slice(0, limit);
-  const configResults = yield* Effect.forEach(configs, file =>
-    indexConfig(file, configCollection(file.path) ?? '')
-  );
+  const configResults = yield* Effect.forEach(configs, indexSettings);
   const entries = changedFiles(files, yield* knownFiles).filter(file =>
     ENTRY.test(file.path)
   );

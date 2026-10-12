@@ -13,6 +13,16 @@ export class PublicEntry extends Schema.Class<PublicEntry>(
   data: Schema.Record(Schema.String, Schema.Json)
 }) {}
 
+/** The site's own settings from `content/site.ts`; each is empty until set. */
+export class SiteSettings extends Schema.Class<SiteSettings>(
+  'venda/contract/SiteSettings'
+)({
+  name: Schema.NullOr(Schema.String),
+  url: Schema.NullOr(Schema.String),
+  /** Screen descriptions by page id; an empty string shows none. */
+  screens: Schema.Record(Schema.String, Schema.String)
+}) {}
+
 export class CollectionNotFound extends Schema.TaggedError<CollectionNotFound>()(
   'CollectionNotFound',
   {
@@ -33,6 +43,7 @@ export class EntryNotFound extends Schema.TaggedError<EntryNotFound>()(
 const collection = Schema.String;
 
 export class ContentApi extends HttpApiGroup.make('content').add(
+  HttpApiEndpoint.get('site', '/site', { success: SiteSettings }),
   // Published entries, newest first.
   HttpApiEndpoint.get('list', '/content/:collection', {
     params: { collection },

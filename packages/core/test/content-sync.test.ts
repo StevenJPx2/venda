@@ -8,6 +8,7 @@ import {
   getPublished,
   gitBlobSha,
   listPublished,
+  siteSettings,
   syncContent
 } from '../src/content';
 import { Database } from '../src/database';
@@ -201,6 +202,34 @@ describe('syncContent: config and slug changes', () => {
     expect((await problems()).map(each => each.message)).toContainEqual(
       expect.stringMatching(/already uses the slug "hello"/)
     );
+  });
+});
+
+describe('syncContent: the site settings', () => {
+  it('reads site.ts, reports it when it breaks, and forgets it when removed', async () => {
+    files.set(
+      'site.ts',
+      "export default defineSite({ name: 'SAFT', screens: { content: 'Ours.' } });"
+    );
+    await run(syncContent());
+
+    expect(await run(siteSettings)).toEqual({
+      name: 'SAFT',
+      screens: { content: 'Ours.' }
+    });
+
+    files.set('site.ts', "export default defineSite({ url: 'saft.org' });");
+    await run(syncContent());
+
+    expect(await run(siteSettings)).toEqual({});
+    expect((await problems()).map(each => each.path)).toContain('site.ts');
+
+    files.set('site.ts', "export default defineSite({ name: 'SAFT' });");
+    await run(syncContent());
+    files.delete('site.ts');
+
+    expect(await run(syncContent())).toMatchObject({ removed: 1 });
+    expect(await run(siteSettings)).toEqual({});
   });
 });
 

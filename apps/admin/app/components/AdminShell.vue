@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import type { AdminPage } from '@venda/admin';
+import { useAdmin, type AdminPage } from '@venda/admin';
 
 defineProps<{ pages: ReadonlyArray<AdminPage> }>();
 const route = useRoute();
+const admin = useAdmin();
 const open = ref(false);
 const scrolled = ref(false);
+const siteName = computed(() => admin.site.value?.name);
 
 // The bar's hairline appears only once content scrolls beneath it.
 const onScroll = () => {
@@ -15,6 +17,9 @@ watch(
   () => route.fullPath,
   () => {
     open.value = false;
+
+    // site.ts may have changed since; like the sidebar, read it again.
+    void admin.refreshSite();
   }
 );
 
@@ -38,13 +43,11 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
         @click="open = true"
       />
 
-      <NuxtLink to="/content" class="brand-mark">venda<span>.</span></NuxtLink>
+      <AdminBrand :name="siteName" />
     </header>
 
     <aside class="admin-sidebar">
-      <NuxtLink to="/content" class="brand-mark px-3 py-5"
-        >venda<span>.</span></NuxtLink
-      >
+      <AdminBrand :name="siteName" class="px-3 py-5" />
 
       <AdminNav :pages="pages" label="Main navigation" class="flex-1" />
       <AdminIdentity :pages="pages" />

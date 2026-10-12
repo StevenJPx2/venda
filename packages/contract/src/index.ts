@@ -12,7 +12,8 @@ export {
   CollectionNotFound,
   ContentApi,
   EntryNotFound,
-  PublicEntry
+  PublicEntry,
+  SiteSettings
 } from './content';
 
 export { HealthStatus, SystemApi } from './system';

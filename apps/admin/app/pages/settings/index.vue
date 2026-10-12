@@ -1,23 +1,36 @@
 <script setup lang="ts">
-import { listed, useAdmin } from '@venda/admin';
+import {
+  listed,
+  screenDescription,
+  SETTINGS_SCREEN,
+  useAdmin,
+  windowTitle
+} from '@venda/admin';
 import { registry } from '~/utils/plugins';
+import { ScreenKey } from '~/utils/screen';
 
 const admin = useAdmin();
 
-// Every settings section any plugin contributes and this role may open.
-const sections = computed(() =>
-  listed(registry.pages, 'settings', admin.user.value?.role)
+provide(
+  ScreenKey,
+  computed(() => SETTINGS_SCREEN)
 );
 
-useHead({ title: 'Settings · Venda' });
+// Every settings section any plugin contributes and this role may open, each
+// described in the site's words when site.ts gives them.
+const sections = computed(() =>
+  listed(registry.pages, 'settings', admin.user.value?.role).map(page => ({
+    ...page,
+    note: screenDescription(admin.site.value, page.id, page.description)
+  }))
+);
+
+useHead({ title: () => windowTitle(admin.site.value, SETTINGS_SCREEN.title) });
 </script>
 
 <template>
   <div>
-    <AdminScreenHeader
-      title="Settings"
-      description="How this site is set up: its files, its people and its keys."
-    />
+    <AdminScreenHeader :title="SETTINGS_SCREEN.title" />
 
     <AdminFeedback
       :empty="sections.length === 0"
@@ -37,8 +50,8 @@ useHead({ title: 'Settings · Venda' });
         <div class="min-w-0 flex-1">
           <p class="font-medium text-highlighted">{{ page.nav?.label }}</p>
 
-          <p v-if="page.nav?.description" class="mt-1 text-xs text-muted">
-            {{ page.nav.description }}
+          <p v-if="page.note" class="mt-1 text-xs text-muted">
+            {{ page.note }}
           </p>
         </div>
 

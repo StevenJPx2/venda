@@ -101,7 +101,7 @@ describe('readCollectionConfig: rejected sources', () => {
   ])('rejects %s with its line', (_name, source, message, line) => {
     const error = failure(source);
 
-    expect(error._tag).toBe('InvalidCollectionConfig');
+    expect(error._tag).toBe('InvalidConfig');
     expect(error.message).toMatch(message);
     expect(error.line).toBe(line);
     expect(error.path).toBe('content/blog/config.ts');

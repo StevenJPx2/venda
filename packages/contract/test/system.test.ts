@@ -22,6 +22,7 @@ describe('VendaApi', () => {
   it('serves its paths under the /api prefix', () => {
     expect(Object.keys(OpenApi.fromApi(VendaApi).paths)).toEqual([
       '/api/health',
+      '/api/site',
       '/api/content/{collection}',
       '/api/content/{collection}/{slug}',
       '/api/auth/sign-in',

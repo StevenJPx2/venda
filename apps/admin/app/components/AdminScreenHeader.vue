@@ -1,5 +1,9 @@
 <script setup lang="ts">
+import { screenDescription, useAdmin } from '@venda/admin';
+import { ScreenKey } from '~/utils/screen';
+
 // `pending` holds the title's space blank until the real one arrives, instead of swapping a placeholder for it.
+// Without a description of its own, the header describes the screen it opens, in the site's words.
 const props = defineProps<{
   title: string;
   description?: string | undefined;
@@ -7,6 +11,20 @@ const props = defineProps<{
   pending?: boolean;
 }>();
 const route = useRoute();
+const admin = useAdmin();
+const screen = inject(ScreenKey, undefined);
+
+const shownDescription = computed(
+  () =>
+    props.description ??
+    (screen?.value
+      ? screenDescription(
+          admin.site.value,
+          screen.value.id,
+          screen.value.description
+        )
+      : undefined)
+);
 
 // Every settings section leads back to Settings, unless the screen names
 // another way back. The static build serves pages with a trailing slash, so
@@ -33,8 +51,8 @@ const way = computed(
 
       <h1 class="screen-title" :class="{ invisible: pending }">{{ title }}</h1>
 
-      <p v-if="description" class="mt-2 text-muted text-sm max-w-xl">
-        {{ description }}
+      <p v-if="shownDescription" class="mt-2 text-muted text-sm max-w-xl">
+        {{ shownDescription }}
       </p>
     </div>
 

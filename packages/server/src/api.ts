@@ -1,6 +1,6 @@
 // The HTTP API: @venda/contract's endpoints, implemented by the core.
 import { HealthStatus, VendaApi } from '@venda/contract';
-import { getPublished, listPublished } from '@venda/core/content';
+import { getPublished, getSite, listPublished } from '@venda/core/content';
 import { Context, Effect, Layer } from 'effect';
 import { HttpRouter, HttpServer } from 'effect/http';
 import { HttpApiBuilder } from 'effect/http-api';
@@ -38,6 +38,7 @@ const ContentHandlers = HttpApiBuilder.group(
     const run = yield* domainRunner;
 
     return handlers.handleAll({
+      site: () => run(getSite),
       list: ({ params }) => run(listPublished(params.collection)),
       get: ({ params }) => run(getPublished(params.collection, params.slug))
     });

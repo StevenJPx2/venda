@@ -1,8 +1,8 @@
 import { Schema } from 'effect';
 
-/** A `config.ts` that is not a valid collection model. */
-export class InvalidCollectionConfig extends Schema.TaggedError<InvalidCollectionConfig>()(
-  'InvalidCollectionConfig',
+/** A collection's `config.ts` or the site's `site.ts` that does not hold valid settings. */
+export class InvalidConfig extends Schema.TaggedError<InvalidConfig>()(
+  'InvalidConfig',
   {
     path: Schema.String,
     message: Schema.String,

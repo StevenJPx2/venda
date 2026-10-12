@@ -1,28 +1,32 @@
-// Reads `content/<collection>/config.ts` as data. The file must be
+// Reads Venda's settings files as data:
 //
-//   import { defineCollection } from 'venda';
-//   export default defineCollection({ ...a literal... });
+//   content/<collection>/config.ts   export default defineCollection({ ... });
+//   content/site.ts                  export default defineSite({ ... });
 //
-// It is parsed, never executed: anything that is not plain data is rejected
+// Each is parsed, never executed: anything that is not plain data is rejected
 // with its line, so the server can read repository files safely.
 import { parse, type AnyNode, type CallExpression, type Program } from 'acorn';
 import { Effect, Option, Result, Schema } from 'effect';
-import { InvalidCollectionConfig } from './errors';
+import { InvalidConfig } from './errors';
 import { literal, type Json } from './literal';
 import { decodeModelInput, resolveModel, type CollectionModel } from './model';
+import { siteFrom, type SiteSettings } from './site';
 
-const isDefineCall = (node: AnyNode | undefined): node is CallExpression =>
+type Located<T> = Result.Result<
+  T,
+  { message: string; line: number | undefined }
+>;
+
+const isDefineCall = (
+  node: AnyNode | undefined,
+  callee: string
+): node is CallExpression =>
   node?.type === 'CallExpression' &&
   node.callee.type === 'Identifier' &&
-  node.callee.name === 'defineCollection' &&
+  node.callee.name === callee &&
   node.arguments.length === 1;
 
-function definition(
-  program: Program
-): Result.Result<
-  CallExpression,
-  { message: string; line: number | undefined }
-> {
+function definition(program: Program, callee: string): Located<CallExpression> {
   const others = program.body.filter(
     statement =>
       statement.type !== 'ImportDeclaration' &&
@@ -31,8 +35,7 @@ function definition(
 
   if (others.length)
     return Result.fail({
-      message:
-        'Only imports and `export default defineCollection({ ... })` are allowed',
+      message: `Only imports and \`export default ${callee}({ ... })\` are allowed`,
       line: others[0]?.loc?.start.line ?? 1
     });
 
@@ -41,11 +44,10 @@ function definition(
   );
   const call = exported?.declaration;
 
-  return isDefineCall(call)
+  return isDefineCall(call, callee)
     ? Result.succeed(call)
     : Result.fail({
-        message:
-          'The file must `export default defineCollection({ ... })` with one object',
+        message: `The file must \`export default ${callee}({ ... })\` with one object`,
         line: exported?.loc?.start.line ?? 1
       });
 }
@@ -55,9 +57,7 @@ const decodeAcornLocation = Schema.decodeUnknownOption(
   Schema.Struct({ loc: Schema.Struct({ line: Schema.Number }) })
 );
 
-function syntax(
-  source: string
-): Result.Result<Program, { message: string; line: number | undefined }> {
+function syntax(source: string): Located<Program> {
   try {
     return Result.succeed(
       parse(source, {
@@ -78,6 +78,56 @@ function syntax(
   }
 }
 
+/** The one object a settings file passes to its define call, as data. */
+function definedValue(
+  source: string,
+  callee: string
+): Located<{ value: Json; line: number | undefined }> {
+  const program = syntax(source);
+
+  if (Result.isFailure(program)) return Result.fail(program.failure);
+
+  const call = definition(program.success, callee);
+
+  if (Result.isFailure(call)) return Result.fail(call.failure);
+
+  const [argument] = call.success.arguments;
+  const line = call.success.loc?.start.line;
+
+  if (argument === undefined || argument.type === 'SpreadElement')
+    return Result.fail({ message: `${callee} takes one object`, line });
+
+  return Result.map(literal(argument), value => ({
+    value,
+    line: argument.loc?.start.line
+  }));
+}
+
+/** Settings a file defines, checked by `check`, or where and why they are invalid. */
+const readDefinition = <T>(
+  path: string,
+  source: string,
+  callee: string,
+  check: (value: Json) => Result.Result<T, string>
+) =>
+  Effect.gen(function* () {
+    const defined = definedValue(source, callee);
+
+    if (Result.isFailure(defined))
+      return yield* new InvalidConfig({ path, ...defined.failure });
+
+    const checked = check(defined.success.value);
+
+    if (Result.isFailure(checked))
+      return yield* new InvalidConfig({
+        path,
+        message: checked.failure,
+        line: defined.success.line
+      });
+
+    return checked.success;
+  });
+
 /** A model from its JSON form (as the index stores it), checked the same way as a config. */
 export function modelFrom(value: Json): Result.Result<CollectionModel, string> {
   return Result.match(decodeModelInput(value), {
@@ -87,38 +137,15 @@ export function modelFrom(value: Json): Result.Result<CollectionModel, string> {
 }
 
 /** The collection model a `config.ts` declares, or where and why it is invalid. */
-export const readCollectionConfig = Effect.fnUntraced(function* (
+export const readCollectionConfig = (
   path: string,
   source: string
-) {
-  const fail = (message: string, line?: number) =>
-    new InvalidCollectionConfig({ path, message, line });
-  const program = syntax(source);
+): Effect.Effect<CollectionModel, InvalidConfig> =>
+  readDefinition(path, source, 'defineCollection', modelFrom);
 
-  if (Result.isFailure(program))
-    return yield* fail(program.failure.message, program.failure.line);
-
-  const call = definition(program.success);
-
-  if (Result.isFailure(call))
-    return yield* fail(call.failure.message, call.failure.line);
-
-  const [argument] = call.success.arguments;
-  const value =
-    argument === undefined || argument.type === 'SpreadElement'
-      ? Result.fail({
-          message: 'defineCollection takes one object',
-          line: call.success.loc?.start.line
-        })
-      : literal(argument);
-
-  if (Result.isFailure(value))
-    return yield* fail(value.failure.message, value.failure.line);
-
-  const model = modelFrom(value.success);
-
-  if (Result.isFailure(model))
-    return yield* fail(model.failure, argument?.loc?.start.line);
-
-  return model.success;
-});
+/** The site settings `site.ts` declares, or where and why they are invalid. */
+export const readSiteConfig = (
+  path: string,
+  source: string
+): Effect.Effect<SiteSettings, InvalidConfig> =>
+  readDefinition(path, source, 'defineSite', siteFrom);

@@ -1,4 +1,4 @@
-import { VendaApi, type User } from '@venda/contract';
+import { VendaApi, type SiteSettings, type User } from '@venda/contract';
 import { Effect, Predicate, Result } from 'effect';
 import { FetchHttpClient } from 'effect/http';
 import { HttpApiClient } from 'effect/http-api';
@@ -62,6 +62,7 @@ export async function createAdminRuntime(origin: string) {
     )
   );
   const user = ref<User | null>(null);
+  const site = ref<SiteSettings | null>(null);
 
   const invoke = async <A, E>(effect: Effect.Effect<A, E>): Promise<A> => {
     try {
@@ -88,7 +89,12 @@ export async function createAdminRuntime(origin: string) {
     }
   };
 
-  return { api, user, refreshIdentity, request: invoke };
+  // The site's settings change with its files; a failed read keeps the last.
+  const refreshSite = async () => {
+    site.value = await request(api.content.site()).catch(() => site.value);
+  };
+
+  return { api, user, site, refreshIdentity, refreshSite, request: invoke };
 }
 
 export type AdminRuntime = Awaited<ReturnType<typeof createAdminRuntime>>;

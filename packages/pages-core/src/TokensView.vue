@@ -45,10 +45,7 @@ async function remove() {
 </script>
 
 <template>
-  <AdminScreenHeader
-    title="API tokens"
-    description="Private credentials for scripts and CI. Each token has your permissions; keep it out of source code."
-  >
+  <AdminScreenHeader title="API tokens">
     <UButton
       label="Create token"
       icon="i-lucide-plus"

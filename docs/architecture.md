@@ -35,6 +35,7 @@ developers and agents edit the files. Both paths meet in git.
 ```
 venda.config.ts               instance settings and plugins (build time)
 content/
+  site.ts                     the site's name, address and admin copy
   blog/
     config.ts                 the collection's model
     why-we-moved.mdx
@@ -90,6 +91,34 @@ export default defineCollection({
 - A collection has at most one `richtext` field. It is stored as the file
   body; every other field is frontmatter.
 
+### Site settings: `site.ts`
+
+```ts
+import { defineSite } from 'venda';
+
+export default defineSite({
+  name: 'SAFT',
+  url: 'https://saftapologetics.com',
+  screens: {
+    'content.index': 'Everything SAFT publishes.',
+    'accounts.tokens': ''
+  }
+});
+```
+
+- Read as data under the same rules as `config.ts`, synced into the index
+  with the configs, and reported in Content problems when invalid. Every
+  setting is optional; an invalid or missing file leaves all of them empty.
+- `name` (at most 60 characters) replaces Venda's mark in the sidebar and
+  names the window titles ("People · SAFT"). Without it they say Venda.
+- `screens` gives a screen's description by its page id (at most 300
+  characters), replacing the one its plugin ships; an empty string shows
+  none. The shell's Settings page is `settings`. Settings → General lists
+  every screen with its id, its words and where they come from, including
+  ids no installed screen has.
+- `GET /api/site` serves the settings without signing in, so a site can read
+  its own name and address.
+
 ### Entry: `<slug>.md` or `<slug>.mdx`
 
 ```md
@@ -124,6 +153,7 @@ For three years every page on our site was rendered in a single region.
 | Fact | Source of truth | Copy |
 | --- | --- | --- |
 | Collection models | `content/*/config.ts` | `collections` index table |
+| Site name, address and admin copy | `content/site.ts` | `content_site` index table |
 | Published and file drafts | `.md` / `.mdx` files | `entries` index: frontmatter, body document, search text, references, file SHA |
 | Autosaved working copies | database | none |
 | Revisions | git history (publishes) and database (saves between publishes) | none |
@@ -326,7 +356,9 @@ In detail:
 - **Page:** each plugin has an id and pages, each with
   an id, a path of named segments, a title, access (`public`, `signed-in`,
   `administrator`), a section (`content`, `settings`, `account`, `public`), an
-  optional navigation entry (label, icon, description) and a lazy `load()`.
+  optional description, an optional navigation entry (label, icon) and a lazy
+  `load()`. The description shows under the screen's title and beside its
+  link on the Settings page, unless `site.ts` words it differently.
   The section decides where the shell lists a page:
   - Content pages: the sidebar. A page whose entry has `items` becomes a
     sidebar heading with those links beneath it, loaded on each navigation:
@@ -496,7 +528,8 @@ suites; it does not replace them.
    titles. `try/slice-2b.html` links to the actual admin and checks its serving
    and API boundaries rather than pretending to test the UI. From here every
    slice ships API, admin plugins and a try page together.
-3. **Write path.** Working copies, publish to files, conflicts.
+3. **Write path.** Working copies, publish to files, conflicts
+   ([plan](plans/slice-3-write-path.md)).
 4. **GitHub content store.** App authentication, commits, webhook sync; a
    contract test against a real throwaway repository.
 5. **Lifecycle on files.** Scheduling, unpublish, trash and restore, revisions

@@ -23,7 +23,7 @@ async function identify() {
   error.value = '';
 
   try {
-    await admin.refreshIdentity();
+    await Promise.all([admin.refreshIdentity(), admin.refreshSite()]);
     ready.value = true;
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : 'Unable to connect.';
