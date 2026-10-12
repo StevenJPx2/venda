@@ -1,7 +1,7 @@
 import { Schema } from 'effect';
 import { HttpApiEndpoint, HttpApiGroup } from 'effect/http-api';
 import { Authentication, Forbidden, UserId } from './auth';
-import { CollectionNotFound, EntryNotFound } from './content';
+import { CollectionNotFound, EntryNotFound, SiteSettings } from './content';
 
 const entryFields = {
   collection: Schema.String,
@@ -46,6 +46,12 @@ export class ContentReadOnly extends Schema.TaggedError<ContentReadOnly>()(
   { httpApiStatus: 409 }
 ) {}
 
+export class SlugTaken extends Schema.TaggedError<SlugTaken>()(
+  'SlugTaken',
+  { slug: Schema.String },
+  { httpApiStatus: 409 }
+) {}
+
 export class InvalidContent extends Schema.TaggedError<InvalidContent>()(
   'InvalidContent',
   { message: Schema.String },
@@ -56,7 +62,8 @@ export class WorkingCopy extends Schema.Class<WorkingCopy>('venda/WorkingCopy')(
   {
     ...entryFields,
     revision: Schema.Int,
-    baseSha: Schema.String,
+    /** The file the copy started from; null for an entry that has no file yet. */
+    baseSha: Schema.NullOr(Schema.String),
     data: Schema.Record(Schema.String, Schema.Json),
     publishedAt: Schema.NullOr(Schema.String),
     dirty: Schema.Boolean,
@@ -83,11 +90,51 @@ const errors = [
   PublishInProgress,
   ContentReadOnly,
   InvalidContent,
-  Conflict
+  Conflict,
+  SlugTaken
 ] as const;
+
+/** The site's settings file as the admin edits it, with the SHA it was read at. */
+export class SiteDocument extends Schema.Class<SiteDocument>(
+  'venda/SiteDocument'
+)({
+  settings: SiteSettings,
+  /** Null while `site.ts` does not exist. */
+  sha: Schema.NullOr(Schema.String),
+  writable: Schema.Boolean
+}) {}
 
 export class ContentWriteApi extends HttpApiGroup.make('contentWrite')
   .add(
+    HttpApiEndpoint.post('create', '/admin/collections/:collection/entries', {
+      params: { collection: Schema.String },
+      payload: Schema.Struct({
+        slug: Schema.String,
+        data: Schema.Record(Schema.String, Schema.Json)
+      }),
+      success: WorkingCopy,
+      error: errors
+    }),
+    HttpApiEndpoint.get('site', '/admin/site', {
+      success: SiteDocument,
+      error: [Forbidden, InvalidContent]
+    }),
+    HttpApiEndpoint.put('saveSite', '/admin/site', {
+      payload: Schema.Struct({
+        baseSha: Schema.NullOr(Schema.String),
+        name: Schema.NullOr(Schema.String),
+        url: Schema.NullOr(Schema.String),
+        screens: Schema.Record(Schema.String, Schema.String)
+      }),
+      success: SiteDocument,
+      error: [
+        Forbidden,
+        Conflict,
+        ContentReadOnly,
+        InvalidContent,
+        ContentTooLarge
+      ]
+    }),
     HttpApiEndpoint.get('copy', `${base}/copy`, {
       params: EntryRef,
       success: WorkingCopy,
@@ -103,10 +150,11 @@ export class ContentWriteApi extends HttpApiGroup.make('contentWrite')
       success: WorkingCopy,
       error: errors
     }),
+    // A copy that never had a file is removed whole: the answer is then null.
     HttpApiEndpoint.delete('discard', `${base}/copy`, {
       params: EntryRef,
       payload: Schema.Struct({ revision }),
-      success: WorkingCopy,
+      success: Schema.NullOr(WorkingCopy),
       error: errors
     }),
     HttpApiEndpoint.post('publish', `${base}/publish`, {

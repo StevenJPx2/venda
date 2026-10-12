@@ -1,0 +1,19 @@
+{
+  "name": "@venda/editor-form",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
+  },
+  "dependencies": {
+    "@venda/admin": "workspace:*",
+    "@venda/contract": "workspace:*",
+    "@venda/editor-kit": "workspace:*",
+    "vue": "3.5.43"
+  }
+}

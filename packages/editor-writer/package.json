@@ -1,0 +1,26 @@
+{
+  "name": "@venda/editor-writer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
+  },
+  "devDependencies": {
+    "vitest": "5.0.2"
+  },
+  "dependencies": {
+    "@nuxt/ui": "4.11.2",
+    "@tiptap/vue-3": "3.31.3",
+    "@venda/admin": "workspace:*",
+    "@venda/contract": "workspace:*",
+    "@venda/editor-kit": "workspace:*",
+    "@venda/richtext": "workspace:*",
+    "vue": "3.5.43"
+  }
+}

@@ -24,7 +24,7 @@ const FRESH = process.argv.includes('--fresh');
 // .try/content through the content server, so an edit shows on the next request.
 const CONTENT = join(ROOT, 'try/content');
 const LIVE_CONTENT = join(STATE, 'content');
-const CONTENT_FILE = /^\/files\/([a-z0-9-]+\/[a-z0-9-]+\.mdx?)$/;
+const CONTENT_FILE = /^\/files\/(site\.ts|[a-z0-9-]+\/[a-z0-9-]+\.mdx?)$/;
 const PORTS = { page: 8794, server: 8805, content: 8806 };
 // Its own build output, so `pnpm e2e` or a manual build cannot replace files this server is serving.
 const BUILD = join(STATE, 'build');
@@ -228,7 +228,8 @@ async function readBody(request) {
   return Buffer.concat(chunks).toString('utf8');
 }
 
-// A local-only helper for the slice 1 page: read and write the live content files.
+// A local-only helper for the try pages: read, write and remove the live
+// content files, as an agent or a developer editing the folder would.
 async function files(request, response, path) {
   const file = CONTENT_FILE.exec(path)?.[1];
 
@@ -239,6 +240,12 @@ async function files(request, response, path) {
 
   if (request.method === 'PUT') {
     await writeFile(join(LIVE_CONTENT, file), await readBody(request));
+    response.writeHead(204).end();
+    return;
+  }
+
+  if (request.method === 'DELETE') {
+    await rm(join(LIVE_CONTENT, file), { force: true });
     response.writeHead(204).end();
     return;
   }

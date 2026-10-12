@@ -2,26 +2,23 @@
 import { useAdmin, useAdminResource } from '@venda/admin';
 import { computed, onMounted } from 'vue';
 import { useCollection } from './collection';
-import { useCollectionSlots } from './slots';
-import SlotNotice from './SlotNotice.vue';
-import { stateLabel } from './text';
+import EntryEditing from './EntryEditing.vue';
 
-// One entry's screen: the way back and its status, then whichever editor the
-// collection's kind or its config.ts chooses (the writer, a form).
+// One entry's screen: the way back, then the entry being edited in whichever
+// editor the collection's kind or its config.ts chooses.
 const props = defineProps<{ params: Record<string, string> }>();
 const admin = useAdmin();
 const collectionSlug = props.params.collection ?? '';
+const slug = props.params.slug ?? '';
 const { collections, collection, pending } = useCollection(collectionSlug);
-const { editorFor } = useCollectionSlots();
 
 const entries = useAdminResource(() =>
   admin.request(
     admin.api.adminContent.entry({
-      params: { collection: collectionSlug, slug: props.params.slug ?? '' }
+      params: { collection: collectionSlug, slug }
     })
   )
 );
-const entry = entries.data;
 
 onMounted(entries.reload);
 
@@ -32,26 +29,12 @@ const back = computed(() => ({
   label: collection.value?.name ?? 'Entries'
 }));
 const failure = computed(() => entries.error.value || collections.error.value);
-const missing = computed(() => !entries.busy.value && !entry.value);
-const editor = computed(() =>
-  collection.value ? editorFor(collection.value) : undefined
-);
+const missing = computed(() => !entries.busy.value && !entries.data.value);
 </script>
 
 <template>
-  <div class="entry-bar">
-    <NuxtLink :to="back.to" class="back-link">
-      <UIcon name="i-lucide-arrow-left" class="size-4 shrink-0" />
-
-      <span :class="{ invisible: pending }">{{ back.label }}</span>
-    </NuxtLink>
-
-    <p v-if="entry" class="entry-state" :data-state="entry.state">
-      <span />{{ stateLabel(entry.state) }} · read-only
-    </p>
-  </div>
-
   <AdminFeedback
+    v-if="!entries.data.value"
     :busy="entries.busy.value"
     :error="failure"
     :empty="missing"
@@ -60,14 +43,20 @@ const editor = computed(() =>
     @retry="entries.reload"
   />
 
-  <template v-if="collection && entry && editor">
-    <SlotNotice :shown="editor" part="editor" :kind="collection.kind" />
+  <EntryEditing
+    v-if="collection && entries.data.value"
+    :key="`${collectionSlug}/${slug}`"
+    :collection="collection"
+    :slug="slug"
+    :entry="entries.data.value"
+    @file-changed="entries.reload"
+  >
+    <template #back>
+      <NuxtLink :to="back.to" class="back-link">
+        <UIcon name="i-lucide-arrow-left" class="size-4 shrink-0" />
 
-    <component
-      :is="editor.component"
-      v-if="editor.component"
-      :collection="collection"
-      :entry="entry"
-    />
-  </template>
+        <span :class="{ invisible: pending }">{{ back.label }}</span>
+      </NuxtLink>
+    </template>
+  </EntryEditing>
 </template>

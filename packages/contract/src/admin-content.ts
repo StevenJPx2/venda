@@ -9,7 +9,14 @@ export class CollectionField extends Schema.Class<CollectionField>(
 )({
   key: Schema.String,
   type: Schema.String,
-  label: Schema.NullOr(Schema.String)
+  label: Schema.NullOr(Schema.String),
+  help: Schema.NullOr(Schema.String),
+  required: Schema.Boolean,
+  /** A select field's choices. */
+  options: Schema.NullOr(Schema.Array(Schema.String)),
+  /** Bounds: a number's value, or a text's length. */
+  min: Schema.NullOr(Schema.Number),
+  max: Schema.NullOr(Schema.Number)
 }) {}
 
 export class CollectionSummary extends Schema.Class<CollectionSummary>(
@@ -35,6 +42,8 @@ export class IndexedEntry extends Schema.Class<IndexedEntry>(
   collection: Schema.String,
   slug: Schema.String,
   state: Schema.Literals(['published', 'draft', 'future']),
+  /** Unpublished work in the admin: none, changes to the file, or a new entry with no file yet. */
+  copy: Schema.Literals(['none', 'changes', 'new']),
   publishedAt: Schema.NullOr(Schema.String),
   data: Schema.Record(Schema.String, Schema.Json)
 }) {}

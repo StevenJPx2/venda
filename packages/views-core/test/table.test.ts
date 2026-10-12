@@ -3,7 +3,16 @@ import { expect, it } from 'vitest';
 import { tableColumns } from '../src/table';
 
 const field = (key: string, type: string, label: string | null = null) =>
-  new CollectionField({ key, type, label });
+  new CollectionField({
+    key,
+    type,
+    label,
+    help: null,
+    required: false,
+    options: null,
+    min: null,
+    max: null
+  });
 
 const records = (titleField: string | null) =>
   new CollectionSummary({

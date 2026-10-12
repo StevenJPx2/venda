@@ -1,6 +1,6 @@
 # Slice 3: the write path
 
-Status: **approved**. Builds on [architecture.md](../architecture.md), flows
+Status: **done**. Builds on [architecture.md](../architecture.md), flows
 1 and 2 (Save, Publish) and the slice list under Delivery.
 
 People edit content in the admin. Every change autosaves to a working copy in

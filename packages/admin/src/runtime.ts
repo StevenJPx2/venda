@@ -4,6 +4,7 @@ import { FetchHttpClient } from 'effect/http';
 import { HttpApiClient } from 'effect/http-api';
 import { inject, ref, type InjectionKey, type Ref } from 'vue';
 import type { AdminRegistry } from './plugin';
+import { navigationChecks } from './navigation';
 
 const MESSAGES = new Map([
   ['InvalidCredentials', 'The email or password is incorrect.'],
@@ -19,8 +20,28 @@ const MESSAGES = new Map([
   ['CollectionNotFound', 'This collection no longer exists.'],
   ['EntryNotFound', 'This entry is missing or is not visible to your role.'],
   ['UserNotFound', 'This person no longer has an account.'],
-  ['TooManyAttempts', 'Too many attempts. Try again in fifteen minutes.']
+  ['TooManyAttempts', 'Too many attempts. Try again in fifteen minutes.'],
+  [
+    'EditedElsewhere',
+    'Someone else saved this entry meanwhile. Load their version to continue.'
+  ],
+  [
+    'Conflict',
+    'The file changed outside Venda since you started. Nothing was overwritten.'
+  ],
+  ['PublishInProgress', 'This entry is being published. Try again shortly.'],
+  [
+    'ContentReadOnly',
+    'This server cannot publish yet: its content is read-only until it is connected to GitHub.'
+  ],
+  [
+    'ContentTooLarge',
+    'This entry is larger than 1 MB, the most a file can hold.'
+  ]
 ]);
+
+// Errors whose own text says what is wrong with the content.
+const OWN_MESSAGE = new Set(['InvalidContent']);
 
 export class AdminRequestError extends Error {
   constructor(
@@ -45,7 +66,11 @@ export async function request<A, E>(effect: Effect.Effect<A, E>): Promise<A> {
   const reason =
     Predicate.isObject(error) && Predicate.isString(error.reason)
       ? error.reason
-      : undefined;
+      : Predicate.isObject(error) &&
+          OWN_MESSAGE.has(tag) &&
+          Predicate.isString(error.message)
+        ? error.message
+        : undefined;
 
   throw new AdminRequestError(
     tag,
@@ -55,7 +80,11 @@ export async function request<A, E>(effect: Effect.Effect<A, E>): Promise<A> {
   );
 }
 
-export async function createAdminRuntime(origin: string) {
+/** `navigate` opens an admin route; the shell provides it, so plugins never import its router. */
+export async function createAdminRuntime(
+  origin: string,
+  navigate: (path: string) => Promise<void>
+) {
   const api = await Effect.runPromise(
     HttpApiClient.make(VendaApi, { baseUrl: origin }).pipe(
       Effect.provide(FetchHttpClient.layer)
@@ -94,7 +123,16 @@ export async function createAdminRuntime(origin: string) {
     site.value = await request(api.content.site()).catch(() => site.value);
   };
 
-  return { api, user, site, refreshIdentity, refreshSite, request: invoke };
+  return {
+    api,
+    user,
+    site,
+    navigate,
+    ...navigationChecks(),
+    refreshIdentity,
+    refreshSite,
+    request: invoke
+  };
 }
 
 export type AdminRuntime = Awaited<ReturnType<typeof createAdminRuntime>>;

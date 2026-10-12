@@ -41,13 +41,13 @@ Status: `[ ]` not started · `[~]` partial · `[x]` done.
 - [x] Field types in models: text, textarea, rich text, number, boolean, date, datetime, tags, image, URL, select, relation, JSON
 - [ ] More field types: slug, email, URL, color, multi-select, file, repeater/list, group, blocks
 - [ ] Relations/references between collections (e.g. post → author), both directions
-- [~] Singletons (single-entry collections such as a home page): the `single` kind opens straight into its entry; editing with the write path
+- [x] Singletons (single-entry collections such as a home page): the `single` kind opens straight into its one entry, created and edited in the admin
 - [ ] Internationalization: locales, translated entries, translated taxonomies
 - [ ] TypeScript type generation from the live schema (CLI)
 
 ### 3. Content lifecycle
 - [x] Draft / published status (`draft: true` in the file; future `publishedAt` stays hidden)
-- [ ] Draft edits that leave the live version untouched until published (working copy + published file)
+- [x] Draft edits that leave the live version untouched until published (working copy + published file)
 - [ ] Revisions with field comparison and restore (git history plus saves between publishes)
 - [ ] Scheduled publishing and unpublishing (Nitro scheduled tasks)
 - [ ] Preview links for unpublished content, opened on the site
@@ -62,7 +62,7 @@ Status: `[ ]` not started · `[~]` partial · `[x]` done.
 - [ ] Widget areas and widgets
 - [ ] Sections (reusable content blocks)
 - [ ] Page layouts and a block library for page building
-- [~] Site settings (title, logo, social links, custom settings): name, address and admin copy in `content/site.ts`
+- [~] Site settings (title, logo, social links, custom settings): name, address and admin copy in `content/site.ts`, edited in Settings → General
 - [ ] Redirects manager
 - [ ] SEO: per-entry meta, Open Graph, canonical URLs, sitemap.xml, robots.txt
 - [ ] Dark-mode and theming hooks for frontends
@@ -79,7 +79,7 @@ Status: `[ ]` not started · `[~]` partial · `[x]` done.
 ### 6. Users and authentication
 - [x] Server-side sessions, revoked on password, role or status changes
 - [x] Multiple users and invitations
-- [~] Roles: Administrator, Editor, Author, Contributor, enforced as capability proofs (people and invitations done; content capabilities with the write path)
+- [x] Roles: Administrator, Editor, Author, Contributor, enforced as capability proofs, including per-entry ownership for editing and publishing
 - [ ] Passkeys (WebAuthn) as the primary login
 - [ ] OAuth sign-in (Google first, then GitHub and others)
 - [ ] Magic-link email sign-in and pluggable email providers
@@ -108,7 +108,7 @@ Status: `[ ]` not started · `[~]` partial · `[x]` done.
 - [ ] Seed files and starter themes/templates
 
 ### 10. Admin experience
-- [~] Ghost-style writing canvas (Focus prototype; promoted with the plugin shell), schema-driven forms
+- [x] Ghost-style writing canvas and schema-driven forms, as editor plugins
 - [ ] Screens for every feature above
 - [ ] Inline visual editing from the live site
 - [ ] Admin UI translations
@@ -133,7 +133,7 @@ loop. Slice 6 finishes and freezes the plugin API.
 
 1. Server, file format and read path (architecture slices 0 and 1). **Done.**
 2. Users, roles, sessions, API tokens, because every later feature records who did what (slice 2). **Done.**
-3. Structured rich text editing and the write path (slice 3).
+3. Structured rich text editing and the write path (slice 3). **Done.**
 4. GitHub content store, then the content lifecycle: drafts vs live, revisions, scheduling, preview, trash, search (slices 4 and 5); then freeze the plugin API and finish the CLI (slices 6 and 7).
 5. Content model: new field types, relations, singletons, i18n, typegen.
 6. Media library.

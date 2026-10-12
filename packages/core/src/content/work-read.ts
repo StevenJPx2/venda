@@ -40,7 +40,7 @@ export const modelFor = (ref: EntryRef) =>
     return model.value;
   });
 
-const currentSha = (path: string) =>
+export const currentSha = (path: string) =>
   Effect.gen(function* () {
     const store = yield* ContentStore;
     const files = yield* store.list;
@@ -86,7 +86,12 @@ export const openWork = (ref: EntryRef) =>
     yield* modelFor(ref);
     const known = yield* workOf(ref);
 
-    if (known) return known;
+    if (known) {
+      if (known.baseSha === null && !known.dirty)
+        return yield* new EntryNotFound(ref);
+
+      return known;
+    }
 
     const db = yield* Database;
     const [indexed] = yield* db

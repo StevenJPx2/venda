@@ -32,18 +32,6 @@ export function cellText(
   return fieldText(value);
 }
 
-/** A publish date in the reader's locale and time zone, or a plain statement when there is none. */
-export const dateText = (
-  iso: IndexedEntry['publishedAt'],
-  locale?: string
-): string =>
-  iso === null
-    ? 'No date set'
-    : new Date(iso).toLocaleString(locale, {
-        dateStyle: 'medium',
-        timeStyle: 'short'
-      });
-
 /** A short day for list rows ("1 Sept 2026"), or nothing for an undated entry. */
 export const dayText = (
   iso: IndexedEntry['publishedAt'],
@@ -66,3 +54,24 @@ const STATE_LABELS: Record<IndexedEntry['state'], string> = {
 /** The status text beside an entry's dot. */
 export const stateLabel = (state: IndexedEntry['state']): string =>
   STATE_LABELS[state];
+
+/** A list row's status: unpublished work in the admin first, then the file's state. */
+export function rowStatus(entry: Pick<IndexedEntry, 'state' | 'copy'>) {
+  if (entry.copy === 'new') return { state: 'draft', label: 'New' } as const;
+
+  if (entry.copy === 'changes')
+    return { state: 'draft', label: 'Changes not published' } as const;
+
+  return { state: entry.state, label: stateLabel(entry.state) };
+}
+
+/** The slug a title suggests: lowercase words joined by hyphens, accents dropped. */
+export const slugOf = (title: string) =>
+  title
+    .normalize('NFKD')
+    .replaceAll(/\p{Mark}/gu, '')
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]+/g, '-')
+    .replaceAll(/^-+|-+$/g, '')
+    .slice(0, 80)
+    .replace(/-+$/, '');

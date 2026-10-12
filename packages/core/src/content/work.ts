@@ -18,6 +18,7 @@ import { Database } from '../database';
 import { users } from '../auth/schema';
 import { contentWork } from './schema';
 import {
+  currentSha,
   freshWork,
   modelFor,
   openWork,
@@ -126,8 +127,29 @@ export const discardWorkingCopy = <U, E>(
 
     yield* revisionIs(row, revision);
 
-    const file = yield* snapshot(entry.value, row.path);
     const db = yield* Database;
+
+    // No file to go back to: hide the copy but retain its revision. Recreating
+    // the slug must not make a stale tab's revision valid again.
+    if (row.baseSha === null || (yield* currentSha(row.path)) === null) {
+      const [gone] = yield* db
+        .update(contentWork)
+        .set({
+          baseSha: null,
+          dirty: false,
+          ownerId: null,
+          dataJson: '{}',
+          extraJson: '{}',
+          publishedAt: null,
+          ...(yield* touched(user, revision))
+        })
+        .where(idleRevision(entry.value, revision))
+        .returning();
+
+      return gone ? null : yield* failedUpdate(entry.value);
+    }
+
+    const file = yield* snapshot(entry.value, row.path);
     const [saved] = yield* db
       .update(contentWork)
       .set({

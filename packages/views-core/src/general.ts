@@ -1,49 +1,91 @@
-// What Settings → General lists about each screen's description: the words
-// it shows and where they come from, so an owner can find a screen's id for
-// site.ts and see a typo in one.
+// Settings → General edits each screen's description in site.ts: the words its
+// plugin ships, the site's own words, or none. The list also shows ids that no
+// installed screen has, so a typo in one can be seen and removed.
 import { SETTINGS_SCREEN, type AdminPage } from '@venda/admin';
 import type { SiteSettings } from '@venda/contract';
 
-export interface ScreenCopy {
+export type ScreenMode = 'default' | 'own' | 'hidden';
+
+export interface ScreenDraft {
   readonly id: string;
   readonly title: string;
+  /** The words the screen's plugin ships; empty for an id no screen has. */
+  readonly fallback: string;
+  readonly mode: ScreenMode;
   readonly text: string;
-  readonly source: string;
+  /** No installed screen has this id. */
+  readonly stray: boolean;
 }
 
 type Described = Pick<AdminPage, 'id' | 'title' | 'description'>;
 
-function copyOf(screen: Described, site: SiteSettings | null): ScreenCopy {
-  const own = site?.screens[screen.id];
-  const { id, title } = screen;
+function draftOf(
+  screen: Described,
+  screens: SiteSettings['screens']
+): ScreenDraft {
+  const own = screens[screen.id];
+  const base = {
+    id: screen.id,
+    title: screen.title,
+    fallback: screen.description ?? '',
+    stray: false
+  };
 
-  if (own === undefined)
-    return { id, title, text: screen.description ?? '', source: 'Default' };
+  if (own === undefined) return { ...base, mode: 'default', text: '' };
 
   return own
-    ? { id, title, text: own, source: 'From site.ts' }
-    : { id, title, text: '', source: 'Hidden by site.ts' };
+    ? { ...base, mode: 'own', text: own }
+    : { ...base, mode: 'hidden', text: '' };
 }
 
-export function screenCopy(
+/** Every screen with a description, then the site's ids that match none. */
+export function screenDrafts(
   pages: ReadonlyArray<AdminPage>,
   site: SiteSettings | null
-): ScreenCopy[] {
-  const screens: Described[] = [
+): ScreenDraft[] {
+  const screens = site?.screens ?? {};
+  const described: Described[] = [
     SETTINGS_SCREEN,
     ...pages.filter(
-      page => page.description !== undefined || page.id in (site?.screens ?? {})
+      page => page.description !== undefined || Object.hasOwn(screens, page.id)
     )
   ];
-  const known = new Set(screens.map(screen => screen.id));
-  const strays = Object.entries(site?.screens ?? {})
+  const known = new Set(described.map(screen => screen.id));
+  const strays = Object.entries(screens)
     .filter(([id]) => !known.has(id))
-    .map(([id, text]) => ({
+    .map(([id, text]): ScreenDraft => ({
       id,
       title: id,
+      fallback: '',
+      mode: text ? 'own' : 'hidden',
       text,
-      source: 'No screen has this id'
+      stray: true
     }));
 
-  return [...screens.map(screen => copyOf(screen, site)), ...strays];
+  return [...described.map(screen => draftOf(screen, screens)), ...strays];
+}
+
+/** The request that writes the settings, from the file's SHA they were read at. */
+export const siteRequest = (
+  sha: string | null,
+  name: string,
+  url: string,
+  drafts: ReadonlyArray<ScreenDraft>
+) => ({
+  payload: { baseSha: sha, name, url, screens: screensFrom(drafts) }
+});
+
+/** What site.ts records for the drafts: own words, or an empty string to hide one. */
+export function screensFrom(
+  drafts: ReadonlyArray<ScreenDraft>
+): Record<string, string> {
+  return Object.fromEntries(
+    drafts.flatMap(draft => {
+      if (draft.mode === 'hidden') return [[draft.id, '']];
+
+      return draft.mode === 'own' && draft.text.trim()
+        ? [[draft.id, draft.text.trim()]]
+        : [];
+    })
+  );
 }

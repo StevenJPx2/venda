@@ -22,7 +22,8 @@ const rowsOf = (items: ReadonlyArray<IndexedEntry>) =>
   <EntryBrowser
     :collection="collection"
     empty-title="No records found"
-    empty-description="Try another search, or add a record file to this collection."
+    empty-description="Try another search, or add a record."
+    new-label="New record"
   >
     <template #default="{ items, busy }">
       <div class="table-surface" :aria-busy="busy">

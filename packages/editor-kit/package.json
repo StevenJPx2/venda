@@ -1,0 +1,21 @@
+{
+  "name": "@venda/editor-kit",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
+  },
+  "dependencies": {
+    "@tiptap/vue-3": "3.31.3",
+    "@venda/admin": "workspace:*",
+    "@venda/contract": "workspace:*",
+    "@venda/richtext": "workspace:*",
+    "effect": "4.0.1",
+    "vue": "3.5.43"
+  }
+}

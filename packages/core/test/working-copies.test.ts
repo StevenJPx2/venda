@@ -114,7 +114,7 @@ it('only one save at a revision wins; discard raises the revision too', async ()
   const clean = await h.run(discardCopy(current.revision));
 
   expect(clean).toMatchObject({ dirty: false, data: { title: 'Hello' } });
-  expect(clean.revision).toBeGreaterThan(current.revision);
+  expect(clean?.revision).toBeGreaterThan(current.revision);
   expect(
     Result.isFailure(
       await h.run(Effect.result(saveCopy(copy.revision, copy.data)))

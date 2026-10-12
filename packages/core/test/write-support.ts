@@ -1,11 +1,17 @@
 import { name } from '@gdp-ts/core';
 import { Conflict, EntryRef, UserId, type Role } from '@venda/contract';
 import { Effect, Layer, ManagedRuntime, Schema } from 'effect';
-import { canAssignOwner, canEditEntry, canPublishEntry } from '../src/auth';
+import {
+  canAssignOwner,
+  canCreateEntry,
+  canEditEntry,
+  canPublishEntry
+} from '../src/auth';
 import { users } from '../src/auth/schema';
 import {
   ContentStore,
   ContentStoreError,
+  createEntry,
   gitBlobSha,
   syncAll,
   getWorkingCopy,
@@ -146,15 +152,33 @@ export const saveCopy = (
     )
   );
 
-export const discardCopy = (revision: number, id = admin) =>
-  name(id, ref, (user, entry) =>
+export const discardCopy = (revision: number, id = admin, target = ref) =>
+  name(id, target, (user, entry) =>
     Effect.flatMap(canEditEntry(user, entry), proof =>
       discardWorkingCopy(user, entry, revision, proof)
     )
   );
 
-export const publishCopy = (revision: number, id = admin) =>
-  name(id, ref, (user, entry) =>
+/** Starts an entry as `id`, then reads its copy the way the API does. */
+export const createCopy = (
+  slug: string,
+  data: Readonly<Record<string, Schema.Json>>,
+  id = admin
+) =>
+  Effect.flatMap(
+    name(id, 'blog', (user, collection) =>
+      Effect.flatMap(canCreateEntry(user, collection), proof =>
+        createEntry(user, collection, { slug, data }, proof)
+      )
+    ),
+    created => readCopy(id, created)
+  );
+
+export const entryRef = (slug: string) =>
+  decodeRef({ collection: 'blog', slug });
+
+export const publishCopy = (revision: number, id = admin, target = ref) =>
+  name(id, target, (user, entry) =>
     Effect.flatMap(canPublishEntry(user, entry), proof =>
       publishWorkingCopy(user, entry, revision, proof)
     )

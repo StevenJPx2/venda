@@ -7,7 +7,7 @@ const search = defineModel<string>({ required: true });
 </script>
 
 <template>
-  <form class="mb-5 max-w-md" role="search" @submit.prevent="emit('submit')">
+  <form class="max-w-md flex-1" role="search" @submit.prevent="emit('submit')">
     <UInput
       v-model="search"
       type="search"

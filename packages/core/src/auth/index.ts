@@ -36,6 +36,8 @@ export { ownsToken, type OwnsToken } from './proofs/owns-token';
 
 export { canEditEntry } from './proofs/can-edit-entry';
 
+export { canCreateEntry } from './proofs/can-create-entry';
+
 export { canPublishEntry } from './proofs/can-publish-entry';
 
 export { canAssignOwner } from './proofs/can-assign-owner';

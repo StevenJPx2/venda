@@ -189,6 +189,38 @@ body {
 .entry-bar .back-link {
   margin: 0 0 0 -2px;
 }
+/* The status line and at most two actions, on the right of the way back. */
+.entry-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-inline-start: auto;
+}
+
+/* Search and the button that starts an entry share one row above the list. */
+.entry-browser-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+/* Content the editor cannot edit, kept exactly as the file has it. */
+.venda-kept {
+  margin-block: 0.6em;
+  padding: 10px 12px;
+  border: 1px dashed var(--ui-border-accented);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--ui-text-muted);
+}
+.venda-kept-inline {
+  display: inline-block;
+  margin-block: 0;
+  padding: 0 6px;
+}
 
 /* Lists: rows reach 12px past the text so their highlight has room, while text
    stays aligned with the heading. A refresh dims the list it will replace. */

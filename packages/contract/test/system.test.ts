@@ -40,6 +40,7 @@ describe('VendaApi', () => {
       '/api/admin/collections/{collection}/entries',
       '/api/admin/content-problems',
       '/api/admin/collections/{collection}/entries/{slug}',
+      '/api/admin/site',
       '/api/admin/collections/{collection}/entries/{slug}/copy',
       '/api/admin/collections/{collection}/entries/{slug}/publish',
       '/api/admin/collections/{collection}/entries/{slug}/copy/rebase',

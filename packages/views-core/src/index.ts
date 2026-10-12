@@ -76,19 +76,5 @@ export default {
       kinds: ['single'],
       load: () => import('./views/SingleView.vue')
     }
-  ],
-  editors: [
-    {
-      id: 'venda.writer',
-      label: 'Writer',
-      kinds: ['posts', 'pages'],
-      load: () => import('./editors/WriterPreview.vue')
-    },
-    {
-      id: 'venda.form',
-      label: 'Form',
-      kinds: ['single', 'records'],
-      load: () => import('./editors/FormEditor.vue')
-    }
   ]
 } satisfies AdminPlugin;

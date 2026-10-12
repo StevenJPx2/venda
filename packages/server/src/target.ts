@@ -30,6 +30,8 @@ export interface ContentFiles {
 export interface ContentSource {
   readonly files: ContentFiles;
   readonly commit?: (input: ContentCommit) => Promise<{ readonly sha: string }>;
+  /** Force a fresh comparison after a mutation, including an uncertain write. */
+  readonly invalidate?: () => void;
   /**
    * Where files can change while the app runs: resolves true when they have
    * changed since the last call, so the app re-indexes before answering.

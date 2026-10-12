@@ -204,12 +204,13 @@ retries and then reports the outage.
 | `@venda/admin` | The browser SDK: the plugin contract, registration and route/access checks, a typed Effect API client and the injected runtime with async screen primitives. | contract |
 | `apps/admin` (`@venda/admin-app`) | The Nuxt 4.6 static shell: sign-in, identity, routing, navigation, theme and shared primitives; chooses a preset and loads a plugin screen only when it is opened. | admin SDK, preset |
 | `@venda/preset-default` | The default plugins below, as one install. | the plugins |
-| `@venda/editor-writer` | The Ghost-style writing editor (today's Focus prototype). | admin plugin API |
-| `@venda/editor-form` | Form editor for `single` and `records`. | admin plugin API |
-| `@venda/views-core` | Content: collections, entries, search, the entry view and file problems. | admin plugin API |
+| `@venda/editor-kit` | What the editors share, as a library: the rich-text editor that keeps what it cannot edit, the Venda extensions, the link popover and the field list. | admin plugin API, richtext |
+| `@venda/editor-writer` | The Ghost-style writer for `posts` and `pages`. | editor-kit |
+| `@venda/editor-form` | Form editor for `single` and `records`. | editor-kit |
+| `@venda/views-core` | Content: collections, entries, search, new entries, the editing frame (status, Publish, conflicts), Settings → General and file problems. | admin plugin API |
 | `@venda/pages-core` | People, invitations, API tokens, your account and the join page. | admin plugin API |
 | `@venda/blocks-core` | Paragraph, headings, lists, quote, code, image, divider, callout. | content, admin plugin API |
-| `@venda/fields-core` | Text, textarea, number, toggle, date and time, tags, image, relation, JSON. | admin plugin API |
+| `@venda/fields-core` | Text, textarea, number, toggle, date and time, tags, select, JSON and rich text; image and relation as text until their slices. | editor-kit |
 | `@venda/nuxt` | Site module: typed reads, preview, `<VendaContent>`; can mount the server inside the site's own Nitro. | contract, richtext |
 | `venda` (CLI) | `init`, `sync`, `export`, `types`, `build`, `deploy`. | contract, content |
 
@@ -374,15 +375,18 @@ In detail:
     one button with Sign out.
 
   A role sees only the pages it may open, and Settings is hidden when there
-  are none. `apps/admin/app/utils/plugins.ts` selects `@venda/preset-default`, which
-  composes `@venda/views-core` and `@venda/pages-core`. Duplicate ids and
-  equivalent route patterns are rejected at registration. The SDK is
-  provisional: the block, field, panel and action slots arrive only with the
-  slices that use them, and slice 6 finishes and freezes the API.
+  are none. `apps/admin/app/utils/plugins.ts` selects `@venda/preset-default`,
+  which composes the views, the writer, the form, the fields and the account
+  pages. Duplicate ids and equivalent route patterns are rejected at
+  registration. The SDK is provisional: the block, panel and action slots
+  arrive only with the slices that use them, and slice 6 finishes and freezes
+  the API.
 - **View and editor:** a plugin lists `views` and `editors` beside its pages.
   Each has an id, a label, the kinds it serves and a lazy `load()`. A view's
   component receives `collection`; an editor's receives `collection` and
-  `entry`. Which one shows a collection:
+  `edit`, an `EntryEdit`: the copy's values, whether it is read-only, and
+  setters. The shell saves and publishes; an editor only reads values and sets
+  them. Which one shows a collection:
   - The one its `config.ts` names with `view:` or `editor:`, whatever its
     kinds.
   - Otherwise the last registered one serving the collection's kind, so a
@@ -397,17 +401,27 @@ In detail:
     `config.ts` order, leaving out the rich-text body.
   - `venda.single` (single): opens the collection's one entry straight away,
     in its editor.
-  - `venda.writer` (posts, pages): the canvas with the details panel beside
-    it. Read-only until slice 3.
-  - `venda.form` (single, records): each field in `config.ts` order, as a
-    control that fits its type. Read-only until slice 3.
+  - `venda.writer` (posts, pages): the title and body on a canvas, formatting
+    on selection, `/` and `+` to insert blocks, a grip to move, turn into,
+    duplicate or delete one; every other field in the details panel beside it
+    (a sheet on narrow screens).
+  - `venda.form` (single, records): each field in `config.ts` order, in the
+    input installed for its type.
+
+  Rich text keeps what the editor cannot edit. Before a document is edited,
+  any node or mark the editor's schema lacks (a block tag, a subscript) is
+  wrapped whole in a kept node, shown as itself, and unwrapped unchanged on
+  save. A document the editor would still alter opens read-only.
 - **Block:** a framework-free spec (`defineBlock`: name, which is also its MDX
   tag; attribute Schema; whether it holds inline text, blocks or nothing; an
   HTML renderer) plus an admin part (TipTap node, Vue node view, its entry in
   the `/` and `+` menus and in "Turn into"). Markdown-native blocks such as
   headings and lists are blocks too, so the writer has no hard-coded list.
-- **Field:** the input (and list cell) for a field type. `VendaDateTimeInput`
-  becomes the `datetime` field.
+- **Field:** the input for a field type. A plugin lists `fields`, each with
+  the types it edits; the last registered input for a type is used. Its
+  component receives `field`, `modelValue` and `readonly`, and emits
+  `update:modelValue`; emitting null unsets the field, which then stays out of
+  the file.
 
 On sites, `renderHtml` uses each block's HTML renderer, and framework
 renderers such as `<VendaContent :components>` can replace any block with a
@@ -532,18 +546,28 @@ suites; it does not replace them.
    and API boundaries rather than pretending to test the UI. From here every
    slice ships API, admin plugins and a try page together.
 3. **Write path.** Working copies, publish to files, conflicts
-   ([plan](plans/slice-3-write-path.md)). The existing-entry API includes:
-   - A shared copy with monotonic revisions, conditional saves and discard.
-   - Owner assignment by editors; author edits and publishes for owned entries;
-     contributors save owned entries for an editor to publish.
+   ([plan](plans/slice-3-write-path.md)). **Done:**
+   - A shared copy per entry with a revision that never resets, conditional
+     saves, and discard. Autosave sends one save at a time; Publish, Discard
+     and leaving the screen wait for it, and refuse if it failed.
+   - Owner assignment by editors; authors edit and publish entries they own;
+     contributors save theirs for an editor to publish. Anyone else reads an
+     entry read-only.
    - A frozen publish intent, SHA-conditional store writes and atomic index
-     finalization. Retries finish an uncertain publication; conflicts keep work.
-     Finalization checks the current collection model and records a content
-     problem if an outside model change makes the published file invalid.
+     finalization. Retries finish an uncertain publication; conflicts keep the
+     copy until the person keeps theirs or takes the file's. Finalization
+     checks the current collection model and records a content problem if an
+     outside model change makes the published file invalid.
+   - New entries from the admin: a copy owned by its creator, with no file
+     until published, and never written over a file that appeared meanwhile.
+     Lists show them first, paged with the files; a discarded one keeps its
+     revision so a stale tab cannot revive it.
+   - The writer and form editors, the field slot with `@venda/fields-core`,
+     and Settings → General writing `site.ts`.
    - Local writes through a token-authenticated folder server, limited to 1 MB.
      The bundled store is read-only, with a typed publishing error.
-   - `try/slice-3.html`: a title-editing API console and checks for save,
-     publish and an outside edit. Editable admin plugins follow within the slice.
+   - `try/slice-3.html`: steps for the real admin, a title-editing console,
+     and checks for save, publish, an outside edit, a new entry and General.
 4. **GitHub content store.** App authentication, commits, webhook sync; a
    contract test against a real throwaway repository.
 5. **Lifecycle on files.** Scheduling, unpublish, trash and restore, revisions
@@ -551,9 +575,7 @@ suites; it does not replace them.
 6. **Finish and freeze the plugin API and the default preset.** Every screen
    arrives as a plugin from slice 2b on. What is left: the model editor that
    writes `config.ts`, any remaining slots, and one external test plugin
-   installed from outside this repository, then the API is frozen. The Focus
-   prototype is promoted to the writer in slice 3 and deleted once that screen
-   is proven.
+   installed from outside this repository, then the API is frozen.
 7. **CLI and deployment.** `init` against a repository, `sync`, `types` from
    `config.ts`, `deploy`; the hosted deployment moves to `@venda/server`.
 

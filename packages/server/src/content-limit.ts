@@ -1,14 +1,18 @@
 import { ContentTooLarge, MAX_CONTENT_BYTES } from '@venda/contract';
 
+const isContentWrite = (url: string) => {
+  const path = new URL(url).pathname;
+
+  return (
+    path.startsWith('/api/admin/collections/') || path === '/api/admin/site'
+  );
+};
+
 /** Bound streams as well as declared lengths before the API decodes JSON. */
 export async function limitContentRequest(
   request: Request
 ): Promise<Request | Response> {
-  if (
-    !request.body ||
-    !new URL(request.url).pathname.startsWith('/api/admin/collections/')
-  )
-    return request;
+  if (!request.body || !isContentWrite(request.url)) return request;
 
   const reader = request.body.getReader();
   const chunks: Uint8Array[] = [];

@@ -1,57 +1,145 @@
 <script setup lang="ts">
-import { useAdmin, useAdminRegistry } from '@venda/admin';
-import { computed, onMounted } from 'vue';
-import { screenCopy } from './general';
+import {
+  useAdmin,
+  useAdminAction,
+  useAdminRegistry,
+  useAdminResource
+} from '@venda/admin';
+import type { SiteDocument } from '@venda/contract';
+import { computed, onMounted, ref, shallowRef } from 'vue';
+import { tagOf } from './autosave';
+import { screenDrafts, siteRequest, type ScreenDraft } from './general';
+import ScreenDescription from './ScreenDescription.vue';
 
-// The site's own settings from content/site.ts: its name, its address and the
-// words each screen opens with. Read-only until the write path.
+// The site's own settings, written to content/site.ts: its name, its address
+// and the words each screen opens with. Save writes the file; a change made
+// to it elsewhere since it was loaded is reported, never overwritten.
 const admin = useAdmin();
 const registry = useAdminRegistry();
-const site = admin.site;
-const screens = computed(() => screenCopy(registry.pages, site.value));
+const save = useAdminAction();
+const document = useAdminResource(() =>
+  admin.request(admin.api.contentWrite.site())
+);
+const name = shallowRef('');
+const url = shallowRef('');
+const drafts = ref<ScreenDraft[]>([]);
+const conflict = shallowRef(false);
+const saved = shallowRef(false);
 
-onMounted(admin.refreshSite);
+function fill(site: SiteDocument) {
+  document.data.value = site;
+  name.value = site.settings.name ?? '';
+  url.value = site.settings.url ?? '';
+  drafts.value = screenDrafts(registry.pages, site.settings);
+  conflict.value = false;
+}
+
+async function load() {
+  await document.reload();
+
+  if (document.data.value) fill(document.data.value);
+}
+
+onMounted(load);
+
+const readonly = computed(() => document.data.value?.writable === false);
+
+const write = () =>
+  admin.request(
+    admin.api.contentWrite.saveSite(
+      siteRequest(
+        document.data.value?.sha ?? null,
+        name.value,
+        url.value,
+        drafts.value
+      )
+    )
+  );
+
+const submit = () =>
+  save.perform(async () => {
+    saved.value = false;
+    fill(
+      await write().catch((cause: unknown) => {
+        conflict.value = tagOf(cause) === 'Conflict';
+
+        throw cause;
+      })
+    );
+    // "Saved" appears once the whole admin uses the new settings.
+    await admin.refreshSite();
+    saved.value = true;
+  });
 </script>
 
 <template>
-  <AdminScreenHeader title="General" />
+  <AdminScreenHeader title="General">
+    <span v-if="saved" class="text-xs text-muted" role="status">Saved</span>
 
-  <p class="mb-6 max-w-xl text-sm text-muted">
-    These come from <code>content/site.ts</code> in your repository. Edit that
-    file to change them; the next page you open shows the change.
+    <UButton
+      label="Save"
+      :loading="save.busy.value"
+      :disabled="readonly || !document.data.value"
+      @click="submit"
+    />
+  </AdminScreenHeader>
+
+  <AdminFeedback
+    v-if="!document.data.value"
+    :busy="document.busy.value"
+    :error="document.error.value"
+    @retry="load"
+  />
+
+  <p v-if="readonly" class="mb-6 max-w-xl text-sm text-muted">
+    This server's content is read-only until it is connected to GitHub. Edit
+    <code>content/site.ts</code> in your repository instead.
   </p>
 
-  <div class="entry-form">
+  <UAlert
+    v-if="conflict"
+    class="mb-6"
+    color="warning"
+    variant="subtle"
+    icon="i-lucide-git-compare"
+    title="site.ts changed elsewhere"
+    description="Someone changed the file since you opened this page, so nothing was saved. Load their version, then make your change again."
+    :actions="[{ label: 'Load their version', onClick: load }]"
+  />
+
+  <p v-else-if="save.error.value" role="alert" class="mb-6 text-sm text-error">
+    {{ save.error.value }}
+  </p>
+
+  <form v-if="document.data.value" class="entry-form" @submit.prevent="submit">
     <UFormField
       label="Site name"
       help="Shown in the sidebar and window titles."
     >
-      <UInput :model-value="site?.name ?? ''" readonly class="w-full" />
+      <UInput
+        v-model="name"
+        :readonly="readonly"
+        maxlength="60"
+        class="w-full"
+      />
     </UFormField>
 
-    <UFormField label="Address">
-      <UInput :model-value="site?.url ?? ''" readonly class="w-full" />
+    <UFormField
+      label="Address"
+      help="Where the site lives, like https://example.com."
+    >
+      <UInput v-model="url" :readonly="readonly" type="url" class="w-full" />
     </UFormField>
-  </div>
 
-  <h2 class="mt-10 mb-3 text-sm font-medium text-highlighted">
-    Screen descriptions
-  </h2>
+    <h2 class="mt-6 text-sm font-medium text-highlighted">
+      Screen descriptions
+    </h2>
 
-  <div class="list-surface">
-    <div v-for="screen in screens" :key="screen.id" class="content-row">
-      <div class="min-w-0 flex-1">
-        <p class="font-medium text-highlighted">
-          {{ screen.title }}
-          <code class="ms-2 text-xs text-muted">{{ screen.id }}</code>
-        </p>
-
-        <p class="mt-1 text-sm text-muted [overflow-wrap:anywhere]">
-          {{ screen.text || 'No description' }}
-        </p>
-      </div>
-
-      <span class="shrink-0 text-xs text-muted">{{ screen.source }}</span>
-    </div>
-  </div>
+    <ScreenDescription
+      v-for="(draft, index) in drafts"
+      :key="draft.id"
+      v-model="drafts[index]!"
+      :readonly="readonly"
+    />
+  </form>
 </template>

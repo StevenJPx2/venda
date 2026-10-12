@@ -8,6 +8,10 @@
     "packages/admin",
     "packages/views-core",
     "packages/pages-core",
-    "packages/preset-default"
+    "packages/preset-default",
+    "packages/editor-kit",
+    "packages/fields-core",
+    "packages/editor-form",
+    "packages/editor-writer"
   ]
 }

@@ -85,7 +85,9 @@ it('keeps work on outside changes; rebase acknowledges the exact new SHA', async
   });
   expect(
     Result.isFailure(
-      await h.run(Effect.result(rebaseCopy(conflict.revision, copy.baseSha)))
+      await h.run(
+        Effect.result(rebaseCopy(conflict.revision, copy.baseSha ?? ''))
+      )
     )
   ).toBe(true);
 

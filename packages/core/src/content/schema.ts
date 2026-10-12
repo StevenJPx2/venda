@@ -57,7 +57,8 @@ export const contentWork = sqliteTable(
     collection: text().notNull(),
     slug: text().notNull(),
     path: text().notNull().unique(),
-    baseSha: text('base_sha').notNull(),
+    // Null for an entry created in the admin that has no file yet.
+    baseSha: text('base_sha'),
     dataJson: text('data_json').notNull(),
     extraJson: text('extra_json').notNull(),
     publishedAt: text('published_at'),

@@ -2,7 +2,7 @@
 // workerd, over a live content folder with a thousand extra entries. Browser
 // contexts are separate people, not mocked credentials.
 import { chromium } from 'playwright';
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { access, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
@@ -161,12 +161,23 @@ async function contentChecks(page, label, base, screenshots) {
     .waitFor({ state: 'hidden' });
   await page.screenshot({ path: join(screenshots, `${label}-content.png`) });
   await page.getByRole('link').filter({ hasText: 'First light' }).click();
-  await page
-    .getByRole('heading', { name: 'First light', exact: true })
-    .waitFor();
+  await page.getByRole('textbox', { name: 'Title', exact: true }).waitFor();
   check(
-    `${label}: entry preview renders safe rich text`,
-    (await page.locator('.preview-prose strong').innerText()) === '6:12'
+    `${label}: the writer opens the entry's title and body for editing`,
+    (await page
+      .getByRole('textbox', { name: 'Title', exact: true })
+      .inputValue()) === 'First light' &&
+      (await page.locator('.ProseMirror strong').innerText()) === '6:12' &&
+      (await page.locator('.ProseMirror').getAttribute('contenteditable')) ===
+        'true'
+  );
+  check(
+    `${label}: a block tag the editor has no node for is kept whole, not dropped`,
+    (await page
+      .locator('.venda-kept')
+      .filter({ hasText: '<Callout>' })
+      .count()) === 1 &&
+      (await page.locator('.venda-kept-inline').innerText()) === '2'
   );
 
   const panel = await page
@@ -175,9 +186,9 @@ async function contentChecks(page, label, base, screenshots) {
 
   check(
     `${label}: tags and the file live in the right-hand details panel`,
-    panel.includes('dawn, hills') &&
+    panel.includes('dawn') &&
       panel.includes('content/field-notes/first-light') &&
-      !(await page.locator('article').innerText()).includes('dawn, hills')
+      !(await page.locator('article').innerText()).includes('dawn')
   );
   await page.screenshot({ path: join(screenshots, `${label}-entry.png`) });
   await page
@@ -234,6 +245,118 @@ async function contentChecks(page, label, base, screenshots) {
   );
 }
 
+const exists = path =>
+  access(path).then(
+    () => true,
+    () => false
+  );
+
+// The status line beside the way back.
+const entryStatus = page =>
+  page.locator('.entry-actions .entry-state').innerText();
+
+/** Waits for the status line to say `text`. */
+const statusIs = (page, text) =>
+  page.waitForFunction(
+    expected =>
+      document.querySelector('.entry-actions .entry-state')?.textContent ===
+      expected,
+    text,
+    { timeout: 10_000 }
+  );
+
+// Editing saves itself; publishing writes the file; an outside edit is never overwritten.
+async function editChecks(page, label, base, live) {
+  const file = join(live, 'field-notes', 'first-light.md');
+  const title = page.getByRole('textbox', { name: 'Title', exact: true });
+
+  await page.goto(`${base}/admin/content/field-notes/first-light`);
+  await title.waitFor();
+  await title.fill('First light, edited');
+  await statusIs(page, 'Saved · not published');
+  await page.reload();
+  await title.waitFor();
+  check(
+    `${label}: typing saves a working copy that survives a reload, leaving the file alone`,
+    (await title.inputValue()) === 'First light, edited' &&
+      !(await readFile(file, 'utf8')).includes('edited')
+  );
+
+  await page.getByRole('button', { name: 'Publish changes' }).click();
+  await statusIs(page, 'Published');
+  check(
+    `${label}: Publish writes the file and the public API serves it`,
+    (await readFile(file, 'utf8')).includes('title: First light, edited') &&
+      (
+        await (
+          await fetch(`${base}/api/content/field-notes/first-light`)
+        ).json()
+      ).data.title === 'First light, edited'
+  );
+
+  await title.fill('Mine');
+  await statusIs(page, 'Saved · not published');
+  await writeFile(
+    file,
+    (await readFile(file, 'utf8')).replace(
+      'title: First light, edited',
+      'title: Theirs'
+    )
+  );
+  await page.getByRole('button', { name: 'Publish changes' }).click();
+  await page
+    .getByText('The file changed outside Venda', { exact: true })
+    .waitFor();
+  check(
+    `${label}: an outside edit stops Publish, keeps the copy, and leaves the file as they wrote it`,
+    (await readFile(file, 'utf8')).includes('title: Theirs') &&
+      (await title.inputValue()) === 'Mine'
+  );
+  await page.getByRole('button', { name: 'Keep editing mine' }).click();
+  await page.getByRole('button', { name: 'Publish changes' }).click();
+  await statusIs(page, 'Published');
+  check(
+    `${label}: Keep editing mine then publishes over the outside edit, on purpose`,
+    (await readFile(file, 'utf8')).includes('title: Mine')
+  );
+
+  // Later checks find the entry by its original title.
+  await title.fill('First light');
+  await statusIs(page, 'Saved · not published');
+  await page.getByRole('button', { name: 'Publish changes' }).click();
+  await statusIs(page, 'Published');
+}
+
+// A record and a single entry are created from the admin, then published.
+async function createChecks(page, label, live) {
+  const main = page.locator('#main-content');
+
+  await sidebarLink(page, 'Authors').click();
+  await main.getByRole('button', { name: 'New record' }).click();
+  await page.getByRole('textbox', { name: 'Title' }).fill('Bo Chen');
+  check(
+    `${label}: a new entry suggests its slug from its title`,
+    (await page.getByRole('textbox', { name: 'Slug' }).inputValue()) ===
+      'bo-chen'
+  );
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await main.getByRole('textbox', { name: 'Role' }).fill('Writer');
+  await statusIs(page, 'Saved · not published');
+  check(
+    `${label}: a new record opens in its form as an unpublished copy`,
+    (await entryStatus(page)) === 'Saved · not published' &&
+      !(await exists(join(live, 'authors', 'bo-chen.md')))
+  );
+  await page.getByRole('button', { name: 'Publish', exact: true }).click();
+  await statusIs(page, 'Published');
+  check(
+    `${label}: publishing a new record writes its file`,
+    (await readFile(join(live, 'authors', 'bo-chen.md'), 'utf8')).includes(
+      'role: Writer'
+    )
+  );
+}
+
 // Each kind of collection is shown by its own view and opened by its own editor.
 async function kindChecks(page, label) {
   const main = page.locator('#main-content');
@@ -277,7 +400,7 @@ async function kindChecks(page, label) {
 }
 
 // content/site.ts names the site and words its screens; an empty string hides one.
-async function siteChecks(page, label, base) {
+async function siteChecks(page, label, base, live) {
   const heading = page.locator('.screen-heading');
 
   await page.goto(`${base}/admin/content`);
@@ -301,15 +424,31 @@ async function siteChecks(page, label, base) {
   await openSettings(page, 'General');
   await page.getByRole('heading', { name: 'General', exact: true }).waitFor();
 
-  const general = await page.locator('#main-content').innerText();
+  const siteName = page.getByRole('textbox', { name: 'Site name' });
 
   check(
-    `${label}: General shows the site's settings and where each screen's words come from`,
-    (await page.getByRole('textbox', { name: 'Site name' }).inputValue()) ===
-      'Hill Notes' &&
-      general.includes('content.index') &&
-      general.includes('From site.ts') &&
-      general.includes('Hidden by site.ts')
+    `${label}: General shows the site's settings and each screen's words`,
+    (await siteName.inputValue()) === 'Hill Notes' &&
+      (await page.locator('#main-content').innerText()).includes(
+        'content.index'
+      )
+  );
+
+  await siteName.fill('Hill Notes Weekly');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await page.getByRole('status').filter({ hasText: 'Saved' }).waitFor();
+
+  const written = await readFile(join(live, 'site.ts'), 'utf8');
+  const named = await page
+    .getByRole('navigation', { name: 'Main navigation' })
+    .locator('xpath=..')
+    .getByRole('link', { name: 'Hill Notes Weekly', exact: true })
+    .count();
+
+  check(
+    `${label}: Save in General writes site.ts, and the sidebar takes the new name`,
+    written.includes("name: 'Hill Notes Weekly'") && named > 0,
+    `links named: ${named}\n${written}`
   );
 }
 
@@ -362,6 +501,19 @@ async function inviteAndJoin(owner, ann, label, base) {
     `${label}: authors see published content, not file drafts`,
     (await ann.getByRole('link').filter({ hasText: 'Unfinished' }).count()) ===
       0
+  );
+
+  // An entry nobody gave her: she reads it, but cannot change or publish it.
+  await ann.getByRole('link').filter({ hasText: 'First light' }).click();
+  await statusIs(ann, 'Published · read-only');
+  check(
+    `${label}: an author reads an entry she does not own, read-only and without Publish`,
+    (await ann
+      .getByRole('textbox', { name: 'Title', exact: true })
+      .getAttribute('readonly')) !== null &&
+      (await ann.getByRole('button', { name: /^Publish/ }).count()) === 0 &&
+      (await ann.locator('.ProseMirror').getAttribute('contenteditable')) ===
+        'false'
   );
   await ann.goto(`${base}/admin/settings/people`);
   await ann
@@ -484,14 +636,15 @@ async function mobileChecks(page, label, screenshots) {
 
   check(
     `${label}: on a phone the details panel opens as a sheet`,
-    sheet.includes('dawn, hills')
+    sheet.includes('dawn') && sheet.includes('hills'),
+    sheet
   );
   await page.screenshot({
     path: join(screenshots, `${label}-mobile-details.png`)
   });
 }
 
-async function uiChecks(browser, label, base, screenshots) {
+async function uiChecks(browser, label, base, screenshots, live) {
   const context = await browser.newContext({
     viewport: { width: 1440, height: 960 },
     colorScheme: 'light'
@@ -519,8 +672,10 @@ async function uiChecks(browser, label, base, screenshots) {
 
   try {
     await contentChecks(owner, label, base, screenshots);
+    await editChecks(owner, label, base, live);
     await kindChecks(owner, label);
-    await siteChecks(owner, label, base);
+    await createChecks(owner, label, live);
+    await siteChecks(owner, label, base, live);
     await inviteAndJoin(owner, ann, label, base);
     await tokenChecks(owner, label, base);
     await peopleChecks(owner, ann, label);
@@ -576,7 +731,7 @@ await suite('admin', async () => {
 
     const stopWorkers = await startWorkers(await workersState(), live);
 
-    await uiChecks(browser, 'Workers', WORKERS, screenshots);
+    await uiChecks(browser, 'Workers', WORKERS, screenshots, live);
     await stopWorkers();
   } finally {
     await browser.close();

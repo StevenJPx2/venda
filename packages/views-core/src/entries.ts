@@ -79,7 +79,7 @@ export function useEntryList(collection: CollectionSummary) {
 }
 
 /** The route of one entry's screen. */
-const entryPath = (collection: string, slug: string) =>
+export const entryPath = (collection: string, slug: string) =>
   `/content/${encodeURIComponent(collection)}/${encodeURIComponent(slug)}`;
 
 /** What any view's row for an entry starts from: its key, its link and its title. */

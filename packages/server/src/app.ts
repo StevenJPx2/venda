@@ -95,6 +95,11 @@ async function build(
 
       const response = await api.handler(bounded);
 
+      // A mutation can finish after another request consumed the source's
+      // version change. Compare again after every write, even an uncertain one.
+      if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method))
+        content.invalidate?.();
+
       if (
         response.ok &&
         new URL(request.url).pathname.startsWith('/api/content/')

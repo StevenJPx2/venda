@@ -7,16 +7,23 @@ import {
 } from '@venda/contract';
 import {
   canAssignOwner,
+  canCreateEntry,
   canEditEntry,
-  canPublishEntry
+  canPublishEntry,
+  isAdministrator,
+  type IsAdministrator
 } from '@venda/core/auth';
 import {
   assignEntryOwner,
+  createEntry,
   discardWorkingCopy,
+  getSiteDocument,
   getWorkingCopy,
   publishWorkingCopy,
   rebaseWorkingCopy,
-  saveWorkingCopy
+  saveSiteFile,
+  saveWorkingCopy,
+  type CreateInput
 } from '@venda/core/content';
 import { Effect } from 'effect';
 import { HttpApiBuilder } from 'effect/http-api';
@@ -38,6 +45,37 @@ const forEntry = <A, E>(
     );
   });
 
+type Run = Effect.Success<typeof domainRunner>;
+
+/** Creates the entry, then reads it back as its new owner, through the edit proof. */
+const create = (run: Run, collection: string, input: CreateInput) =>
+  Effect.gen(function* () {
+    const actor = yield* CurrentActor;
+    const ref = yield* run(
+      name(actor.userId, collection, (user, named) =>
+        Effect.flatMap(canCreateEntry(user, named), proof =>
+          createEntry(user, named, input, proof)
+        )
+      )
+    );
+
+    return yield* forEntry(run, ref, (user, entry) =>
+      Effect.flatMap(canEditEntry(user, entry), proof =>
+        getWorkingCopy(user, entry, proof)
+      )
+    );
+  });
+
+const asAdministrator = <A, E>(
+  run: Run,
+  action: <U>(admin: IsAdministrator<U>) => Effect.Effect<A, E, DomainServices>
+) =>
+  Effect.flatMap(CurrentActor, actor =>
+    run(
+      name(actor.userId, user => Effect.flatMap(isAdministrator(user), action))
+    )
+  );
+
 export const ContentWriteHandlers = HttpApiBuilder.group(
   VendaApi,
   'contentWrite',
@@ -45,6 +83,10 @@ export const ContentWriteHandlers = HttpApiBuilder.group(
     const run = yield* domainRunner;
 
     return handlers.handleAll({
+      create: ({ params, payload }) => create(run, params.collection, payload),
+      site: () => asAdministrator(run, getSiteDocument),
+      saveSite: ({ payload }) =>
+        asAdministrator(run, admin => saveSiteFile(payload, admin)),
       copy: ({ params }) =>
         forEntry(run, params, (user, entry) =>
           Effect.flatMap(canEditEntry(user, entry), proof =>

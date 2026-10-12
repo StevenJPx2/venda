@@ -13,13 +13,65 @@
           <a class="crumb" href="/">← Try Venda</a>
           <h1>Slice 3 · Saving and publishing</h1>
           <p class="lede">
-            Edit a shared working copy, publish it to Markdown, and handle a
-            change made outside Venda. These checks exercise the API; the
-            editable form and writer are the next parts of this slice.
+            Write in the admin: every edit saves to a shared working copy, and
+            Publish writes the Markdown file. A change made to the file outside
+            Venda is never overwritten without your say.
           </p>
         </div>
         <button class="primary" id="run-all">Run the checks</button>
       </header>
+
+      <section class="check">
+        <div class="check-head">
+          <div>
+            <h2>Write in the real admin</h2>
+            <p>
+              Sign in with <code>owner@venda.local</code> /
+              <code>try-venda-owner</code>. Every file you publish lands in
+              <code>.try/content</code>, which you can open beside the admin.
+            </p>
+          </div>
+          <div class="actions">
+            <a
+              href="http://localhost:8805/admin/content"
+              target="_blank"
+              rel="noopener"
+              >Open the admin ↗</a
+            >
+          </div>
+        </div>
+        <div class="extra">
+          <ol>
+            <li>
+              Open Journal, then an entry. Change the title and a paragraph: the
+              status says "Saved · not published", and a reload keeps your text
+              while the file is untouched.
+            </li>
+            <li>
+              Select text to format it, type <code>/</code> on an empty line to
+              insert a block, and drag the grip to move one. Press Publish
+              changes and open the file.
+            </li>
+            <li>
+              Save another change, then edit the same file on disk and press
+              Publish changes: Venda stops and offers to keep yours or take
+              theirs.
+            </li>
+            <li>
+              In Authors, press New record, fill it in and publish it. In Home,
+              edit a field. In Settings, open General and rename the site.
+            </li>
+            <li>
+              Invite someone as a contributor, give them an entry from its owner
+              field via the API, and see that they can save but not publish.
+            </li>
+          </ol>
+          <p class="note">
+            The browser suite runs these steps: <code>pnpm e2e admin</code>. The
+            checks below cover the API and its boundaries.
+          </p>
+        </div>
+      </section>
 
       <section class="check">
         <div class="check-head">
@@ -259,6 +311,110 @@
                 note: 'Outside edit kept until its exact SHA is acknowledged'
               };
             })
+        },
+        {
+          title: 'Start a new entry, publish it, and remove it again',
+          description:
+            'A new entry is a copy with no file until it is published. A taken slug is refused. The file is removed afterwards so the check can run again.',
+          async run({ log }) {
+            await signIn();
+
+            const slug = `try-${Date.now()}`;
+            const NEW = `/api/admin/collections/journal/entries/${slug}`;
+            const created = await call(
+              'POST',
+              '/api/admin/collections/journal/entries',
+              { ...AS, body: { slug, data: { title: 'Made in the try page' } } }
+            );
+            const taken = await call(
+              'POST',
+              '/api/admin/collections/journal/entries',
+              { ...AS, body: { slug: 'write-path', data: {} } }
+            );
+            const before = await call('GET', `/files/journal/${slug}.md`);
+            const saved = await call('PUT', `${NEW}/copy`, {
+              ...AS,
+              body: {
+                revision: created.data.revision,
+                data: {
+                  title: 'Made in the try page',
+                  body: {
+                    type: 'doc',
+                    content: [
+                      {
+                        type: 'paragraph',
+                        content: [{ type: 'text', text: 'Hello.' }]
+                      }
+                    ]
+                  }
+                },
+                publishedAt: null
+              }
+            });
+            const published = await call('POST', `${NEW}/publish`, {
+              ...AS,
+              body: { revision: saved.data.revision }
+            });
+            const after = await call('GET', `/files/journal/${slug}.md`);
+
+            for (const result of [created, taken, before, published, after])
+              log(result.line, result.data);
+
+            await call('DELETE', `/files/journal/${slug}.md`);
+
+            return {
+              pass:
+                created.ok &&
+                created.data.baseSha === null &&
+                taken.data?._tag === 'SlugTaken' &&
+                before.status === 404 &&
+                published.ok &&
+                String(after.data).includes('Made in the try page'),
+              note: 'No file until Publish; slugs are never taken twice'
+            };
+          }
+        },
+        {
+          title: 'Settings → General writes site.ts, refusing a stale save',
+          description:
+            'The site name is saved to content/site.ts with the SHA it was read at. A save from an older read is refused. The original file is restored afterwards.',
+          async run({ log }) {
+            await signIn();
+
+            const original = await call('GET', '/files/site.ts');
+            const read = await call('GET', '/api/admin/site', AS);
+            const body = name => ({
+              baseSha: read.data.sha,
+              name,
+              url: read.data.settings.url,
+              screens: read.data.settings.screens
+            });
+
+            try {
+              const saved = await call('PUT', '/api/admin/site', {
+                ...AS,
+                body: body('Field Journal, renamed')
+              });
+              const stale = await call('PUT', '/api/admin/site', {
+                ...AS,
+                body: body('From an old tab')
+              });
+              const file = await call('GET', '/files/site.ts');
+
+              for (const result of [read, saved, stale, file])
+                log(result.line, result.data);
+
+              return {
+                pass:
+                  saved.ok &&
+                  stale.data?._tag === 'Conflict' &&
+                  String(file.data).includes('Field Journal, renamed'),
+                note: 'Written once; the stale save changed nothing'
+              };
+            } finally {
+              await call('PUT', '/files/site.ts', { body: original.data });
+            }
+          }
         }
       ]);
     </script>

@@ -26,6 +26,9 @@ export function localContent(base: URL, token?: string): ContentSource {
   };
 
   const source: ContentSource = {
+    invalidate: () => {
+      seen = undefined;
+    },
     files: {
       getKeys: async () => [...decodeKeys(await (await get('keys')).json())],
       getItemRaw: async key => {

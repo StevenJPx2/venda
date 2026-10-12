@@ -8,7 +8,16 @@ import {
 import { registry } from '~/utils/plugins';
 import { provide } from 'vue';
 
-const admin = await createAdminRuntime(window.location.origin);
+const router = useRouter();
+const admin = await createAdminRuntime(window.location.origin, async path => {
+  await router.push(path);
+});
+const removeGuard = router.beforeEach(
+  async (to, from) =>
+    to.fullPath === from.fullPath || (await admin.prepareNavigation())
+);
+
+onBeforeUnmount(removeGuard);
 provide(AdminRuntimeKey, admin);
 provide(AdminRegistryKey, registry);
 const route = useRoute();
@@ -17,7 +26,6 @@ const error = ref('');
 const publicPage = computed(
   () => resolvePage(registry.pages, route.path)?.page.access === 'public'
 );
-const prototype = computed(() => route.path.startsWith('/prototypes/'));
 
 async function identify() {
   error.value = '';
@@ -34,9 +42,7 @@ await identify();
 </script>
 
 <template>
-  <NuxtPage v-if="prototype" />
-
-  <div v-else-if="!ready" class="auth-screen">
+  <div v-if="!ready" class="auth-screen">
     <AdminFeedback :error="error" :busy="!error" @retry="identify" />
   </div>
 

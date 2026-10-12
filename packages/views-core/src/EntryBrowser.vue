@@ -4,6 +4,7 @@ import { computed } from 'vue';
 import { useEntryList } from './entries';
 import EntryPaging from './EntryPaging.vue';
 import EntrySearch from './EntrySearch.vue';
+import NewEntry from './NewEntry.vue';
 
 // The frame every browsing view shares: search above, loading and empty
 // states, the next page below. The view decides only how entries look, in
@@ -12,6 +13,8 @@ const props = defineProps<{
   collection: CollectionSummary;
   emptyTitle: string;
   emptyDescription: string;
+  /** The label of the button that starts an entry, such as "New post". */
+  newLabel: string;
 }>();
 const list = useEntryList(props.collection);
 const { search, entries, loadMore } = list;
@@ -19,11 +22,15 @@ const items = computed(() => entries.data.value?.items ?? []);
 </script>
 
 <template>
-  <EntrySearch
-    v-model="search"
-    :loading="list.refreshing.value"
-    @submit="list.searchNow"
-  />
+  <div class="entry-browser-bar">
+    <EntrySearch
+      v-model="search"
+      :loading="list.refreshing.value"
+      @submit="list.searchNow"
+    />
+
+    <NewEntry :collection="collection" :label="newLabel" />
+  </div>
 
   <AdminFeedback
     :busy="list.firstLoad.value"

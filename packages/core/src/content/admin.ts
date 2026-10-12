@@ -1,6 +1,5 @@
 import type { Named } from '@gdp-ts/core';
 import {
-  CollectionField,
   CollectionNotFound,
   CollectionSummary,
   ContentProblem,
@@ -11,7 +10,7 @@ import {
 } from '@venda/contract';
 import { modelFrom } from '@venda/content';
 import { and, asc, eq, gt, isNull, lte, or, sql } from 'drizzle-orm';
-import { DateTime, Effect, Option, Result, Schema } from 'effect';
+import { DateTime, Effect, Result, Schema } from 'effect';
 import type { CanBrowseContent } from '../auth/proofs/can-browse-content';
 import type { IsAdministrator } from '../auth/proofs/is-administrator';
 import { Database } from '../database';
@@ -21,6 +20,14 @@ import {
   contentProblems,
   contentWork
 } from './schema';
+import { changedSlugs, newEntries, newEntryOf } from './admin-copies';
+import { collectionField } from './fields';
+import {
+  pageCursor,
+  encodeCursor,
+  PAGE_SIZE,
+  type EntryCursor
+} from './page-cursor';
 import { hasCollection } from './tables';
 
 const decodeJson = Schema.decodeUnknownSync(Schema.fromJsonString(Schema.Json));
@@ -49,26 +56,23 @@ export const listCollections = <U>(_access: CanBrowseContent<U>) =>
         editor: model.editor ?? null,
         titleField: model.titleField ?? null,
         bodyField: model.bodyField ?? null,
-        fields: Object.entries(model.fields).map(
-          ([key, field]) =>
-            new CollectionField({
-              key,
-              type: field.type,
-              label: field.label ?? null
-            })
+        fields: Object.entries(model.fields).map(([key, field]) =>
+          collectionField(key, field)
         )
       });
     });
   });
-
-const PAGE_SIZE = 50;
 
 export interface EntryQuery {
   readonly cursor?: string | undefined;
   readonly q?: string | undefined;
 }
 
-const indexedEntry = (row: typeof contentEntries.$inferSelect, now: string) =>
+const indexedEntry = (
+  row: typeof contentEntries.$inferSelect,
+  now: string,
+  changed: boolean
+) =>
   new IndexedEntry({
     collection: row.collection,
     slug: row.slug,
@@ -77,6 +81,7 @@ const indexedEntry = (row: typeof contentEntries.$inferSelect, now: string) =>
       : row.publishedAt !== null && row.publishedAt > now
         ? 'future'
         : 'published',
+    copy: changed ? 'changes' : 'none',
     publishedAt: row.publishedAt,
     data: decodeData(row.dataJson)
   });
@@ -120,24 +125,26 @@ const collectionScope = <U>(
     return { db, now, filter };
   });
 
-// A page ends at an entry's (sort key, slug); the next page starts after it.
-const Cursor = Schema.fromJsonString(
-  Schema.Tuple([Schema.String, Schema.String])
-);
-const encodeCursor = Schema.encodeSync(Cursor);
-const decodeCursor = Schema.decodeUnknownOption(Cursor);
-
 // Entries after the cursor in (sort key, slug) order. A cursor that does not
 // decode starts from the top: it can only have been tampered with.
-const after = (cursor: string | undefined) =>
-  Option.match(cursor === undefined ? Option.none() : decodeCursor(cursor), {
-    onNone: () => undefined,
-    onSome: ([key, slug]) =>
-      or(
-        gt(contentEntries.sortKey, key),
-        and(eq(contentEntries.sortKey, key), gt(contentEntries.slug, slug))
+const after = (cursor: EntryCursor | undefined) =>
+  cursor?.phase === 'files'
+    ? or(
+        gt(contentEntries.sortKey, cursor.key),
+        and(
+          eq(contentEntries.sortKey, cursor.key),
+          gt(contentEntries.slug, cursor.slug)
+        )
       )
-  });
+    : undefined;
+
+const searchFiles = (search: string | undefined) =>
+  search
+    ? or(
+        sql`instr(lower(${contentEntries.slug}), ${search}) > 0`,
+        sql`instr(lower(${contentEntries.dataJson}), ${search}) > 0`
+      )
+    : undefined;
 
 /**
  * Bounded, cursor-paged reads in the order the collection's kind reads best
@@ -157,17 +164,28 @@ export const listIndexedEntries = <U>(
     );
     // instr treats the search literally, including SQL wildcard characters.
     const search = query.q?.trim().toLowerCase();
+    const cursor = pageCursor(query.cursor);
+    const scoped = and(filter, searchFiles(search));
 
-    const conditions = and(
-      filter,
-      after(query.cursor),
-      search
-        ? or(
-            sql`instr(lower(${contentEntries.slug}), ${search}) > 0`,
-            sql`instr(lower(${contentEntries.dataJson}), ${search}) > 0`
-          )
-        : undefined
-    );
+    if (cursor?.phase !== 'files') {
+      const [file] = yield* db
+        .select({ slug: contentEntries.slug })
+        .from(contentEntries)
+        .where(scoped)
+        .limit(1);
+      const fresh = yield* newEntries(
+        user,
+        collection,
+        search,
+        access,
+        cursor,
+        Boolean(file)
+      );
+
+      if (fresh.items.length) return fresh;
+    }
+
+    const conditions = and(scoped, after(cursor));
 
     const rows = yield* db
       .select()
@@ -177,12 +195,16 @@ export const listIndexedEntries = <U>(
       .limit(PAGE_SIZE + 1);
     const page = rows.slice(0, PAGE_SIZE);
     const last = page.at(-1);
+    const changed = yield* changedSlugs(
+      collection,
+      page.map(row => row.slug)
+    );
 
     return new EntryPage({
-      items: page.map(row => indexedEntry(row, now)),
+      items: page.map(row => indexedEntry(row, now, changed.has(row.slug))),
       nextCursor:
         rows.length > PAGE_SIZE && last
-          ? encodeCursor([last.sortKey, last.slug])
+          ? encodeCursor({ phase: 'files', key: last.sortKey, slug: last.slug })
           : null
     });
   });
@@ -204,10 +226,18 @@ export const getIndexedEntry = <U>(
       .from(contentEntries)
       .where(and(filter, eq(contentEntries.slug, slug)));
 
-    if (row === undefined)
+    if (row !== undefined) {
+      const changed = yield* changedSlugs(collection, [slug]);
+
+      return indexedEntry(row, now, changed.has(slug));
+    }
+
+    const fresh = yield* newEntryOf(user, collection, slug, access);
+
+    if (fresh === undefined)
       return yield* new EntryNotFound({ collection, slug });
 
-    return indexedEntry(row, now);
+    return fresh;
   });
 
 export const listContentProblems = <A>(_admin: IsAdministrator<A>) =>

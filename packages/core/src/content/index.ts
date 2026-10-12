@@ -25,6 +25,10 @@ export {
 
 export { publishWorkingCopy } from './publish';
 
+export { createEntry, type CreateInput } from './create';
+
+export { getSiteDocument, saveSiteFile } from './site-write';
+
 export { syncAll, syncContent, type SyncReport } from './sync';
 
 export {

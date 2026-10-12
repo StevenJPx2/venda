@@ -2,26 +2,33 @@
 import type { CollectionSummary, IndexedEntry } from '@venda/contract';
 import { entryLink } from '../entries';
 import EntryBrowser from '../EntryBrowser.vue';
-import { dayText, stateLabel } from '../text';
+import { dayText, rowStatus } from '../text';
 
 // Posts and pages: whole-row links in the kind's order, each with its status;
-// a dated entry shows its day beside its slug.
+// a dated entry shows its day beside its slug. New entries sit at the top.
 const props = defineProps<{ collection: CollectionSummary }>();
 
 const rowsOf = (items: ReadonlyArray<IndexedEntry>) =>
-  items.map(entry => ({
-    ...entryLink(entry, props.collection),
-    meta: [dayText(entry.publishedAt), entry.slug].filter(Boolean).join(' · '),
-    state: entry.state,
-    status: stateLabel(entry.state)
-  }));
+  items.map(entry => {
+    const status = rowStatus(entry);
+
+    return {
+      ...entryLink(entry, props.collection),
+      meta: [dayText(entry.publishedAt), entry.slug]
+        .filter(Boolean)
+        .join(' · '),
+      state: status.state,
+      status: status.label
+    };
+  });
 </script>
 
 <template>
   <EntryBrowser
     :collection="collection"
     empty-title="No entries found"
-    empty-description="Try another search, or add an entry file to this collection."
+    empty-description="Try another search, or start a new entry."
+    :new-label="collection.kind === 'posts' ? 'New post' : 'New page'"
   >
     <template #default="{ items, busy }">
       <div class="list-surface" :aria-busy="busy">
