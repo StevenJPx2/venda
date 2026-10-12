@@ -51,23 +51,29 @@ function spawnLogged(name, command, args, options = {}) {
   return child;
 }
 
+// Builds join the children too, so Ctrl-C during one stops it: a build left
+// running would hold Nuxt's build lock and fail the next `pnpm try`.
 function step(label, command, args, env) {
   process.stdout.write(`  ${label}… `);
 
   return new Promise((done, fail) => {
-    spawnLogged(label.replaceAll(' ', '-'), command, args, { env }).once(
-      'exit',
-      code => {
-        if (code === 0) {
-          console.log('done');
-          done();
-          return;
-        }
+    const child = spawnLogged(label.replaceAll(' ', '-'), command, args, {
+      env
+    });
 
-        console.log(`failed (see .try/${label.replaceAll(' ', '-')}.log)`);
-        fail(new Error(`${label} failed`));
+    children.push(child);
+    child.once('exit', code => {
+      children.splice(children.indexOf(child), 1);
+
+      if (code === 0) {
+        console.log('done');
+        done();
+        return;
       }
-    );
+
+      console.log(`failed (see .try/${label.replaceAll(' ', '-')}.log)`);
+      fail(new Error(`${label} failed`));
+    });
   });
 }
 
@@ -299,6 +305,26 @@ process.on('uncaughtException', error => {
   stopAll(1);
 });
 
+// Another `pnpm try` already serving would lose its build to the cleanup below.
+const portInUse = port =>
+  fetch(`http://127.0.0.1:${port}/`).then(
+    () => true,
+    () => false
+  );
+
+if ((await portInUse(PORTS.page)) || (await portInUse(PORTS.server))) {
+  console.error(
+    `pnpm try is already running: open http://localhost:${PORTS.page}, or stop it (Ctrl-C in its terminal) before starting another.`
+  );
+  process.exit(1);
+}
+
+// Stopping at any point, even mid-build, stops everything this run started.
+let stopContent = async () => {};
+
+process.on('SIGINT', () => stopContent().finally(() => stopAll()));
+process.on('SIGTERM', () => stopContent().finally(() => stopAll()));
+
 // Everything in .try/ except the data is rebuilt each run; --fresh drops the data too.
 for (const entry of await readdir(STATE).catch(() => []))
   if (FRESH || join(STATE, entry) !== DATA)
@@ -315,11 +341,7 @@ await step('build the Worker', 'pnpm', ['exec', 'nitro', 'build'], {
 });
 
 const contentToken = randomUUID();
-const stopContent = await serveContent(
-  LIVE_CONTENT,
-  PORTS.content,
-  contentToken
-);
+stopContent = await serveContent(LIVE_CONTENT, PORTS.content, contentToken);
 const vars = Object.entries({
   ...OWNER_ENV,
   VENDA_CONTENT_URL: `http://127.0.0.1:${PORTS.content}/`,
@@ -338,8 +360,6 @@ serve('server', 'npx', [
   String(PORTS.server),
   ...vars
 ]);
-process.on('SIGINT', () => stopContent().finally(() => stopAll()));
-process.on('SIGTERM', () => stopContent().finally(() => stopAll()));
 
 await healthy(PORTS.server);
 startPageServer();
