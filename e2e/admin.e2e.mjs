@@ -82,14 +82,70 @@ const sidebarLink = (page, name) =>
     .getByRole('link', { name, exact: true });
 
 const sidebarState = page =>
-  page.locator('.admin-shell').getAttribute('data-sidebar');
+  page.locator('.floating-sidebar').getAttribute('data-state');
 
 /** Opens a sidebar link, first bringing a hidden sidebar back from the edge. */
 async function fromSidebar(page, name) {
-  if ((await sidebarState(page)) === 'hidden')
-    await page.locator('.sidebar-edge').hover();
+  if ((await sidebarState(page)) === 'hidden') {
+    await page.mouse.move(400, 300);
+    await page.mouse.move(4, 300);
+  }
 
   await sidebarLink(page, name).click();
+}
+
+// The toggle's box in the sidebar's head, then on the rail once it is hidden.
+async function toggleBoxes(page) {
+  const box = name =>
+    page.getByRole('button', { name, exact: true }).boundingBox();
+
+  await page.keyboard.press('ControlOrMeta+Backslash');
+  const inside = await box('Hide sidebar');
+
+  await page.keyboard.press('ControlOrMeta+Backslash');
+
+  return { inside, rail: await box('Show sidebar') };
+}
+
+async function sidebarChecks(page, label) {
+  const { inside, rail } = await toggleBoxes(page);
+
+  check(
+    `${label}: the sidebar's toggle is the same size and height inside it and on the rail`,
+    inside.width === rail.width &&
+      inside.height === rail.height &&
+      inside.y === rail.y,
+    JSON.stringify({ inside, rail })
+  );
+
+  await page.mouse.move(600, 300);
+  await page.mouse.move(6, 500);
+  await page
+    .locator('.floating-sidebar[data-state="peek"]')
+    .waitFor({ state: 'attached', timeout: 2000 });
+  await page.mouse.move(120, 500);
+  check(
+    `${label}: the pointer near the left edge floats the sidebar out, and it stays while the pointer is on it`,
+    (await sidebarState(page)) === 'peek'
+  );
+  await page.locator('.account-button').click();
+  await page.getByRole('menuitem', { name: 'Sign out' }).waitFor();
+  await page.mouse.move(700, 500);
+  await page.waitForTimeout(400);
+  check(
+    `${label}: a menu opened from the floating sidebar keeps it out while the menu is open`,
+    (await sidebarState(page)) === 'peek' &&
+      (await page.getByRole('menuitem', { name: 'Sign out' }).isVisible())
+  );
+  await page.keyboard.press('Escape');
+  await page.mouse.move(710, 500);
+  await page
+    .locator('.floating-sidebar[data-state="hidden"]')
+    .waitFor({ state: 'attached', timeout: 2000 });
+  check(
+    `${label}: moving well away from it hides it again`,
+    (await sidebarState(page)) === 'hidden'
+  );
 }
 
 async function contentChecks(page, label, base, screenshots) {
@@ -194,6 +250,7 @@ async function contentChecks(page, label, base, screenshots) {
     `${label}: and hides it again`,
     (await sidebarState(page)) === 'hidden'
   );
+  await sidebarChecks(page, label);
   check(
     `${label}: a block tag the editor has no node for is kept whole, not dropped`,
     (await page
