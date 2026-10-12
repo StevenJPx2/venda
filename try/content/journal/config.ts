@@ -5,6 +5,7 @@ export default defineCollection({
   description: 'Notes on building Venda, newest first.',
   kind: 'posts',
   fields: {
+    cover: { type: 'image' },
     title: { type: 'text', required: true, max: 80 },
     excerpt: { type: 'textarea', max: 200 },
     tags: { type: 'tags' },

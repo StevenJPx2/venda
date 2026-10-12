@@ -70,31 +70,40 @@ const blankIcons = page =>
 
 // Settings live on their own page, reached from the foot of the navigation.
 async function openSettings(page, section) {
-  await page
-    .getByRole('navigation', { name: 'Main navigation' })
-    .getByRole('link', { name: 'Settings', exact: true })
-    .click();
+  await fromSidebar(page, 'Settings');
   await page.getByRole('heading', { name: 'Settings', exact: true }).waitFor();
   await page.getByRole('link', { name: new RegExp(`^${section}`) }).click();
 }
 
-/** A collection's link in the sidebar, under the Content heading. */
+/** A collection's link in the sidebar, under its group's heading. */
 const sidebarLink = (page, name) =>
   page
     .getByRole('navigation', { name: 'Main navigation' })
     .getByRole('link', { name, exact: true });
+
+const sidebarState = page =>
+  page.locator('.admin-shell').getAttribute('data-sidebar');
+
+/** Opens a sidebar link, first bringing a hidden sidebar back from the edge. */
+async function fromSidebar(page, name) {
+  if ((await sidebarState(page)) === 'hidden')
+    await page.locator('.sidebar-edge').hover();
+
+  await sidebarLink(page, name).click();
+}
 
 async function contentChecks(page, label, base, screenshots) {
   await signIn(page, base, label);
   await sidebarLink(page, 'Field notes').click();
   await page.getByRole('link').filter({ hasText: 'First light' }).waitFor();
   check(
-    `${label}: each collection is listed under Content in the sidebar, marked when open`,
+    `${label}: collections are listed under Writing, Site and Data in the sidebar, marked when open`,
     (
       await page
         .getByRole('navigation', { name: 'Main navigation' })
-        .innerText()
-    ).includes('Content') &&
+        .locator('.nav-label')
+        .allInnerTexts()
+    ).join('|') === 'Writing|Site|Data' &&
       (await sidebarLink(page, 'Field notes').getAttribute('aria-current')) ===
         'page'
   );
@@ -170,6 +179,20 @@ async function contentChecks(page, label, base, screenshots) {
       (await page.locator('.ProseMirror strong').innerText()) === '6:12' &&
       (await page.locator('.ProseMirror').getAttribute('contenteditable')) ===
         'true'
+  );
+  check(
+    `${label}: opening an entry hides the sidebar`,
+    (await sidebarState(page)) === 'hidden'
+  );
+  await page.keyboard.press('ControlOrMeta+Backslash');
+  check(
+    `${label}: Cmd+\\ brings the sidebar back beside the entry`,
+    (await sidebarState(page)) === 'shown'
+  );
+  await page.keyboard.press('ControlOrMeta+Backslash');
+  check(
+    `${label}: and hides it again`,
+    (await sidebarState(page)) === 'hidden'
   );
   check(
     `${label}: a block tag the editor has no node for is kept whole, not dropped`,
@@ -325,13 +348,39 @@ async function editChecks(page, label, base, live) {
   await statusIs(page, 'Saved · not published');
   await page.getByRole('button', { name: 'Publish changes' }).click();
   await statusIs(page, 'Published');
+
+  // Enter at the end of the body starts a paragraph of its own, which stays.
+  await page.locator('.ProseMirror').focus();
+  await page.evaluate(() => {
+    const last = [...document.querySelectorAll('.ProseMirror > p')].at(-1);
+    const range = document.createRange();
+
+    range.selectNodeContents(last);
+    range.collapse(false);
+    getSelection().removeAllRanges();
+    getSelection().addRange(range);
+  });
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('A paragraph of its own');
+  await statusIs(page, 'Saved · not published');
+  await page.reload();
+  await page.locator('.ProseMirror').waitFor();
+  check(
+    `${label}: Enter in the body starts a new paragraph that is saved`,
+    (await page
+      .locator('.ProseMirror > p')
+      .filter({ hasText: /^A paragraph of its own$/ })
+      .count()) === 1
+  );
+  await page.getByRole('button', { name: 'Publish changes' }).click();
+  await statusIs(page, 'Published');
 }
 
 // A record and a single entry are created from the admin, then published.
 async function createChecks(page, label, live) {
   const main = page.locator('#main-content');
 
-  await sidebarLink(page, 'Authors').click();
+  await fromSidebar(page, 'Authors');
   await main.getByRole('button', { name: 'New record' }).click();
   await page.getByRole('textbox', { name: 'Title' }).fill('Bo Chen');
   check(
@@ -361,7 +410,7 @@ async function createChecks(page, label, live) {
 async function kindChecks(page, label) {
   const main = page.locator('#main-content');
 
-  await sidebarLink(page, 'Authors').click();
+  await fromSidebar(page, 'Authors');
   await main.getByRole('link', { name: 'Ann Lee', exact: true }).waitFor();
   check(
     `${label}: records are a table with their fields as columns`,
@@ -378,7 +427,7 @@ async function kindChecks(page, label) {
       (await main.getByRole('switch', { name: 'On staff' }).isChecked())
   );
 
-  await sidebarLink(page, 'Home').click();
+  await fromSidebar(page, 'Home');
   await main.getByRole('textbox', { name: 'Introduction' }).waitFor();
   check(
     `${label}: a single collection opens straight into its one entry`,
@@ -386,7 +435,7 @@ async function kindChecks(page, label) {
       'Notes, maps and the people who make them.'
   );
 
-  await sidebarLink(page, 'Changes').click();
+  await fromSidebar(page, 'Changes');
   await main
     .getByRole('link')
     .filter({ hasText: 'The first change' })
@@ -495,7 +544,7 @@ async function inviteAndJoin(owner, ann, label, base) {
     (await ann.getByRole('link', { name: /^People/ }).count()) === 0 &&
       (await ann.getByRole('link', { name: /^API tokens/ }).count()) === 1
   );
-  await sidebarLink(ann, 'Field notes').click();
+  await fromSidebar(ann, 'Field notes');
   await ann.getByRole('link').filter({ hasText: 'First light' }).waitFor();
   check(
     `${label}: authors see published content, not file drafts`,

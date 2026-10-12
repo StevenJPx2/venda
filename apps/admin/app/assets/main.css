@@ -67,10 +67,49 @@ body {
   background: var(--ui-bg-muted);
   display: flex;
   flex-direction: column;
+  z-index: 30;
+  transition:
+    transform 200ms var(--ease-out),
+    box-shadow 200ms var(--ease-out);
 }
 .admin-main {
   margin-left: 232px;
   padding: 48px 56px 80px;
+  transition: margin-left 200ms var(--ease-out);
+}
+.sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Hidden, the page takes the width; at the left edge the sidebar floats back over it. */
+.admin-shell[data-sidebar='hidden'] .admin-sidebar {
+  transform: translateX(-100%);
+}
+.admin-shell:not([data-sidebar='shown']) .admin-main {
+  margin-left: 0;
+}
+.admin-shell[data-sidebar='peek'] .admin-sidebar {
+  box-shadow: 0 8px 32px rgb(0 0 0 / 0.12);
+}
+.sidebar-edge {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: 8px;
+  z-index: 29;
+}
+.sidebar-open {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 25;
+}
+@media (prefers-reduced-motion: reduce) {
+  .admin-sidebar,
+  .admin-main {
+    transition: none;
+  }
 }
 
 /* One centred column beside the sidebar: a laptop fills it, a large screen keeps lines and rows a readable length. */
@@ -92,11 +131,6 @@ body {
   font-weight: 500;
   letter-spacing: 0.04em;
   color: var(--ui-text-muted);
-}
-
-/* A quiet gap between kinds: writing, single, records. */
-.nav-gap {
-  margin-top: 12px;
 }
 .admin-sidebar .nav-settings {
   margin-top: auto;
@@ -505,7 +539,9 @@ a:focus-visible {
 }
 
 @media (max-width: 900px) {
-  .admin-sidebar {
+  .admin-sidebar,
+  .sidebar-edge,
+  .sidebar-open {
     display: none;
   }
 

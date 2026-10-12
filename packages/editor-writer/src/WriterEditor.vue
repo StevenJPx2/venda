@@ -3,9 +3,11 @@ import type { EntryEdit, FieldValue } from '@venda/admin';
 import type { CollectionSummary } from '@venda/contract';
 import { isRichTextDoc, type RichTextDoc } from '@venda/richtext';
 import { computed, shallowRef, useTemplateRef } from 'vue';
+import { coverFieldOf } from './cover';
 import { textOf } from './text';
 import { useWritingFocus } from './useWritingFocus';
 import WriterBody from './WriterBody.vue';
+import WriterCover from './WriterCover.vue';
 import WriterDetails from './WriterDetails.vue';
 import WriterTitle from './WriterTitle.vue';
 
@@ -26,6 +28,15 @@ const title = computed(() => {
 
   return key === null ? null : (textOf(props.edit.data[key]) ?? '');
 });
+
+const coverField = computed(() => coverFieldOf(props.collection));
+const cover = computed(() =>
+  coverField.value === null ? null : textOf(props.edit.data[coverField.value])
+);
+
+function setCover(value: string | null): void {
+  if (coverField.value !== null) props.edit.set(coverField.value, value);
+}
 
 const body = computed(() => {
   const key = props.collection.bodyField;
@@ -68,6 +79,13 @@ function setBody(doc: RichTextDoc): void {
 
     <div class="entry-layout">
       <article class="entry-preview writer-canvas">
+        <WriterCover
+          v-if="coverField !== null"
+          :model-value="cover"
+          :readonly="edit.readonly"
+          @update:model-value="setCover"
+        />
+
         <WriterTitle
           v-if="title !== null"
           :model-value="title"
@@ -117,10 +135,10 @@ function setBody(doc: RichTextDoc): void {
 
 /* Leaving is ambient (the writer is looking at the text), so it takes its
    time; returning answers the pointer, so it is quicker. */
-.writer-chrome {
+.writer :deep(.writer-chrome) {
   transition: opacity 220ms var(--ease-out);
 }
-.writer[data-typing] .writer-chrome {
+.writer[data-typing] :deep(.writer-chrome) {
   opacity: 0;
   pointer-events: none;
   transition: opacity 280ms ease;

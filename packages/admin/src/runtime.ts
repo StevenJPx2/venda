@@ -92,6 +92,8 @@ export async function createAdminRuntime(
   );
   const user = ref<User | null>(null);
   const site = ref<SiteSettings | null>(null);
+  // True while an entry is open for editing: the shell steps out of the way.
+  const writing = ref(false);
 
   const invoke = async <A, E>(effect: Effect.Effect<A, E>): Promise<A> => {
     try {
@@ -127,6 +129,7 @@ export async function createAdminRuntime(
     api,
     user,
     site,
+    writing,
     navigate,
     ...navigationChecks(),
     refreshIdentity,

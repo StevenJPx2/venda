@@ -7,7 +7,7 @@ export interface NavItem {
   readonly label: string;
   readonly icon: string;
   readonly to: string;
-  /** Items of one group sit together; the sidebar leaves a gap between groups. */
+  /** Items of one group sit together under it; the sidebar shows it as a heading. */
   readonly group: string;
 }
 

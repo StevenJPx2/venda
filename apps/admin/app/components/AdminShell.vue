@@ -7,6 +7,8 @@ const admin = useAdmin();
 const open = ref(false);
 const scrolled = ref(false);
 const siteName = computed(() => admin.site.value?.name);
+const sidebar = useSidebar(admin.writing);
+const { state: sidebarState, peeking } = sidebar;
 
 // The bar's hairline appears only once content scrolls beneath it.
 const onScroll = () => {
@@ -32,7 +34,7 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
 </script>
 
 <template>
-  <div class="admin-shell">
+  <div class="admin-shell" :data-sidebar="sidebarState">
     <!-- The trigger sits on the edge the navigation sheet slides in from. -->
     <header class="mobile-bar" :data-scrolled="scrolled">
       <UButton
@@ -46,8 +48,48 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
       <AdminBrand :name="siteName" />
     </header>
 
-    <aside class="admin-sidebar">
-      <AdminBrand :name="siteName" class="px-3 py-5" />
+    <template v-if="sidebarState !== 'shown'">
+      <div class="sidebar-edge" @mouseenter="peeking = true" />
+
+      <UButton
+        icon="i-lucide-panel-left-open"
+        aria-label="Show sidebar"
+        title="Show sidebar (⌘\)"
+        color="neutral"
+        variant="ghost"
+        class="sidebar-open"
+        @click="sidebar.toggle"
+      />
+    </template>
+
+    <aside
+      class="admin-sidebar"
+      :inert="sidebarState === 'hidden'"
+      @mouseleave="peeking = false"
+    >
+      <div class="sidebar-head">
+        <AdminBrand :name="siteName" class="px-3 py-5" />
+
+        <UButton
+          :icon="
+            sidebarState === 'shown'
+              ? 'i-lucide-panel-left-close'
+              : 'i-lucide-pin'
+          "
+          :aria-label="
+            sidebarState === 'shown' ? 'Hide sidebar' : 'Keep sidebar open'
+          "
+          :title="
+            sidebarState === 'shown'
+              ? 'Hide sidebar (⌘\\)'
+              : 'Keep sidebar open (⌘\\)'
+          "
+          color="neutral"
+          variant="ghost"
+          size="sm"
+          @click="sidebar.toggle"
+        />
+      </div>
 
       <AdminNav :pages="pages" label="Main navigation" class="flex-1" />
       <AdminIdentity :pages="pages" />

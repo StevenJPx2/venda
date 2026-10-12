@@ -1,6 +1,6 @@
 // How collections are grouped wherever they are listed (docs/redesign.md):
-// writing first (posts, then pages), then one-of-a-kind content, then
-// structured records; A to Z by name within each group.
+// Writing (posts, then pages), then Site (one-of-a-kind content such as the
+// home page), then Data (records); A to Z by name within each group.
 import type { AdminRuntime, NavItem } from '@venda/admin';
 import type { CollectionSummary } from '@venda/contract';
 
@@ -13,11 +13,12 @@ const RANK: Record<Kind, number> = {
   records: 3
 };
 
+// The heading each group shows in the sidebar.
 const GROUP: Record<Kind, string> = {
-  posts: 'writing',
-  pages: 'writing',
-  single: 'single',
-  records: 'records'
+  posts: 'Writing',
+  pages: 'Writing',
+  single: 'Site',
+  records: 'Data'
 };
 
 export const KIND_ICON: Record<Kind, string> = {

@@ -38,16 +38,24 @@ const children = useAdminResource(
 // Every navigation reloads them, so a new collection appears without a refresh.
 watch(() => route.path, children.reload, { immediate: true });
 
-const withGaps = (items: ReadonlyArray<NavItem>) =>
-  items.map((item, index) => ({
-    ...item,
-    gap: index > 0 && items[index - 1]?.group !== item.group
-  }));
+// Consecutive items of one group, under that group's heading.
+function grouped(items: ReadonlyArray<NavItem>) {
+  const groups: { label: string; items: NavItem[] }[] = [];
+
+  for (const item of items) {
+    const last = groups.at(-1);
+
+    if (last?.label === item.group) last.items.push(item);
+    else groups.push({ label: item.group, items: [item] });
+  }
+
+  return groups;
+}
 
 const sections = computed(() =>
   content.value.map(page => ({
     page,
-    links: withGaps(children.data.value?.get(page.id) ?? [])
+    groups: grouped(children.data.value?.get(page.id) ?? [])
   }))
 );
 
@@ -61,22 +69,24 @@ const isCurrent = (to: string) => {
 
 <template>
   <nav :aria-label="label" class="admin-nav">
-    <template v-for="{ page, links } in sections" :key="page.id">
-      <div v-if="page.nav?.items" class="nav-section">
-        <p class="nav-label">{{ page.nav.label }}</p>
+    <template v-for="{ page, groups } in sections" :key="page.id">
+      <template v-if="page.nav?.items">
+        <div v-for="group in groups" :key="group.label" class="nav-section">
+          <p class="nav-label">{{ group.label }}</p>
 
-        <NuxtLink
-          v-for="link in links"
-          :key="link.to"
-          :to="link.to"
-          class="nav-link"
-          :class="{ 'nav-current': isCurrent(link.to), 'nav-gap': link.gap }"
-          :aria-current="isCurrent(link.to) ? 'page' : undefined"
-        >
-          <UIcon :name="link.icon" class="size-4 shrink-0" />
-          <span class="truncate">{{ link.label }}</span>
-        </NuxtLink>
-      </div>
+          <NuxtLink
+            v-for="link in group.items"
+            :key="link.to"
+            :to="link.to"
+            class="nav-link"
+            :class="{ 'nav-current': isCurrent(link.to) }"
+            :aria-current="isCurrent(link.to) ? 'page' : undefined"
+          >
+            <UIcon :name="link.icon" class="size-4 shrink-0" />
+            <span class="truncate">{{ link.label }}</span>
+          </NuxtLink>
+        </div>
+      </template>
 
       <NuxtLink
         v-else

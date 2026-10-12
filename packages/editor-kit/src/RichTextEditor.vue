@@ -26,7 +26,9 @@ const emit = defineEmits<{ 'update:modelValue': [doc: RichTextDoc] }>();
 const editorRef = useTemplateRef<{ editor?: Editor }>('editorRef');
 const faithful = shallowRef(true);
 let loaded = false;
-let emitted: RichTextDoc | undefined;
+// What this editor last emitted, as text: the parent may hand back a copy,
+// and the editor holds more than it emits (the empty paragraph Enter makes).
+let emitted = '';
 
 const schemaOf = (editor: Editor): EditorSchema => ({
   hasNode: type => Object.hasOwn(editor.schema.nodes, type),
@@ -39,6 +41,7 @@ const schemaOf = (editor: Editor): EditorSchema => ({
 function load(editor: Editor) {
   const doc = props.modelValue ?? emptyDoc();
 
+  emitted = JSON.stringify(props.modelValue);
   editor.commands.setContent(keepUnknown(doc, schemaOf(editor)), {
     emitUpdate: false
   });
@@ -64,13 +67,14 @@ watch(
 );
 
 // Discard or loading somebody else's version replaces the document. A value
-// this editor just emitted is already displayed; loading it resets the caret.
+// this editor just emitted is already displayed: reloading it would move the
+// caret and drop the empty line a fresh Enter made.
 watch(
   () => props.modelValue,
   value => {
     const editor = editorRef.value?.editor;
 
-    if (editor && value !== emitted) load(editor);
+    if (editor && JSON.stringify(value) !== emitted) load(editor);
   }
 );
 
@@ -83,8 +87,10 @@ function onUpdate() {
   const held = editorRef.value?.editor?.getJSON();
 
   if (loaded && faithful.value && isRichTextDoc(held)) {
-    emitted = restoreKept(held);
-    emit('update:modelValue', emitted);
+    const doc = restoreKept(held);
+
+    emitted = JSON.stringify(doc);
+    emit('update:modelValue', doc);
   }
 }
 </script>

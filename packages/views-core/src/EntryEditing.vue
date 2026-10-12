@@ -25,7 +25,8 @@ const editing = useEntryEdit(
   () => props.entry
 );
 const { copy, action } = editing;
-const removeGuard = useAdmin().beforeNavigate(editing.flush);
+const admin = useAdmin();
+const removeGuard = admin.beforeNavigate(editing.flush);
 const { editorFor } = useCollectionSlots();
 const editor = computed(() => editorFor(props.collection));
 
@@ -48,12 +49,16 @@ const warnUnsaved = (event: BeforeUnloadEvent) => {
   if (editing.pending.value || editing.saving.value) event.preventDefault();
 };
 
+// The sidebar steps aside for the writing. A single collection's one entry
+// is that collection's own screen, so the sidebar stays beside it.
 onMounted(() => {
+  admin.writing.value = props.collection.kind !== 'single';
   window.addEventListener('beforeunload', warnUnsaved);
   void action.perform(editing.load);
 });
 
 onBeforeUnmount(() => {
+  admin.writing.value = false;
   window.removeEventListener('beforeunload', warnUnsaved);
   removeGuard();
   editing.dispose();
