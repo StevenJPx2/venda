@@ -1,5 +1,7 @@
 # Venda
 
+![Signing in to the admin, searching the Journal, opening a post, then the Home form and the Authors table](docs/media/admin.gif)
+
 Venda is a file-first, Cloudflare-native CMS. Content and data models live as files in your site's git repository: a folder per collection, a `config.ts` describing its fields, and a Markdown file per entry. A Venda server keeps a live index of those files and serves them through a typed content API. The design is in [docs/architecture.md](docs/architecture.md); it is being built slice by slice on the `platform` branch.
 
 ## Repository
@@ -49,8 +51,6 @@ Signed in (the session cookie, or `Authorization: Bearer <API token>`):
 Entries come back as `{ collection, slug, publishedAt, data }`, with the rich-text field as a document. Errors are tagged JSON (`{ "_tag": "CollectionNotFound", ... }`) with one status code each. Roles are administrator, editor, author and contributor; administrators and editors see drafts in the admin (people and invitations stay administrator-only), and per-entry ownership arrives with the write path.
 
 ## Try the admin
-
-![Signing in to the admin, searching the Journal, opening a post, then the Home form and the Authors table](docs/media/admin.gif)
 
 Run `pnpm try`, open `http://localhost:8794/slice-2b` and open the admin.
 Sign in as `owner@venda.local` / `try-venda-owner` (local only). Browse content
