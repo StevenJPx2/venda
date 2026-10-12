@@ -50,6 +50,8 @@ Entries come back as `{ collection, slug, publishedAt, data }`, with the rich-te
 
 ## Try the admin
 
+![Signing in to the admin, searching the Journal, opening a post, then the Home form and the Authors table](docs/media/admin.gif)
+
 Run `pnpm try`, open `http://localhost:8794/slice-2b` and open the admin.
 Sign in as `owner@venda.local` / `try-venda-owner` (local only). Browse content
 and file problems, invite someone, manage people, change your password, and
