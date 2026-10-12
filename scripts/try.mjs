@@ -6,6 +6,7 @@
 // stay signed in; the build and the content copy start fresh every time.
 // `pnpm try --fresh` wipes everything first.
 import { spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
 import { cp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
@@ -306,10 +307,16 @@ await step('build the Worker', 'pnpm', ['exec', 'nitro', 'build'], {
   VENDA_OUTPUT_DIR: BUILD
 });
 
-const stopContent = await serveContent(LIVE_CONTENT, PORTS.content);
+const contentToken = randomUUID();
+const stopContent = await serveContent(
+  LIVE_CONTENT,
+  PORTS.content,
+  contentToken
+);
 const vars = Object.entries({
   ...OWNER_ENV,
-  VENDA_CONTENT_URL: `http://127.0.0.1:${PORTS.content}/`
+  VENDA_CONTENT_URL: `http://127.0.0.1:${PORTS.content}/`,
+  VENDA_CONTENT_TOKEN: contentToken
 }).flatMap(([key, value]) => ['--var', `${key}:${value}`]);
 
 serve('server', 'npx', [

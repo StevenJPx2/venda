@@ -12,6 +12,7 @@ import {
   UsersHandlers
 } from './api/accounts';
 import { AdminContentHandlers } from './api/content-admin';
+import { ContentWriteHandlers } from './api/content-write';
 import { domainRunner, type DomainServices } from './infrastructure';
 
 export class BuildInfo extends Context.Service<
@@ -51,6 +52,7 @@ const ApiRoutes = HttpApiBuilder.layer(VendaApi).pipe(
     SystemHandlers,
     ContentHandlers,
     AdminContentHandlers,
+    ContentWriteHandlers,
     AuthHandlers,
     UsersHandlers,
     InvitationsHandlers,

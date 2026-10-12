@@ -1,6 +1,7 @@
 // Shared harness for live end-to-end checks: builds and starts the real
 // server on local workerd, and reports named checks.
 import { spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { cp, mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -138,11 +139,16 @@ export async function liveContent() {
  * built-in copy. Resolves to a function that stops both.
  */
 export async function startWorkers(state, live) {
+  const token = randomUUID();
   const stopContent = live
-    ? await serveContent(live, CONTENT_PORT)
+    ? await serveContent(live, CONTENT_PORT, token)
     : async () => {};
   const env = live
-    ? { ...OWNER_ENV, VENDA_CONTENT_URL: `http://127.0.0.1:${CONTENT_PORT}/` }
+    ? {
+        ...OWNER_ENV,
+        VENDA_CONTENT_URL: `http://127.0.0.1:${CONTENT_PORT}/`,
+        VENDA_CONTENT_TOKEN: token
+      }
     : OWNER_ENV;
   const vars = Object.entries(env).flatMap(([key, value]) => [
     '--var',

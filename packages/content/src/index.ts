@@ -23,4 +23,6 @@ export {
 
 export { siteFrom, type SiteSettings } from './site';
 
+export { checkEntryData } from './entry-data';
+
 export { docToMarkdown } from './to-markdown';

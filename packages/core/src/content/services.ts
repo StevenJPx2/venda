@@ -1,5 +1,14 @@
 // What the content domain needs from its host besides the database: the files.
 import { Context, type Effect, Schema } from 'effect';
+import { Conflict, ContentReadOnly } from '@venda/contract';
+
+export interface ContentCommit {
+  readonly path: string;
+  readonly content: string;
+  readonly baseSha: string | null;
+  /** Same intent retried after an uncertain write; equivalent bytes are success. */
+  readonly sha: string;
+}
 
 /** A file in the content store and its git blob SHA. */
 export interface StoredFile {
@@ -22,6 +31,13 @@ export class ContentStore extends Context.Service<
     /** Every file, with its SHA. */
     readonly list: Effect.Effect<ReadonlyArray<StoredFile>, ContentStoreError>;
     readonly read: (path: string) => Effect.Effect<string, ContentStoreError>;
+    readonly writable: boolean;
+    readonly commit: (
+      input: ContentCommit
+    ) => Effect.Effect<
+      { readonly sha: string },
+      Conflict | ContentReadOnly | ContentStoreError
+    >;
   }
 >()('venda/core/content/ContentStore') {}
 

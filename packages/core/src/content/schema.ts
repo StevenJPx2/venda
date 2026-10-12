@@ -49,6 +49,31 @@ export const contentSite = sqliteTable('content_site', {
   settingsJson: text('settings_json').notNull()
 });
 
+// Operational state survives publishing and discard: revisions never reset.
+// Ownership is independent of the Markdown's byline fields.
+export const contentWork = sqliteTable(
+  'content_work',
+  {
+    collection: text().notNull(),
+    slug: text().notNull(),
+    path: text().notNull().unique(),
+    baseSha: text('base_sha').notNull(),
+    dataJson: text('data_json').notNull(),
+    extraJson: text('extra_json').notNull(),
+    publishedAt: text('published_at'),
+    revision: integer().notNull().default(0),
+    dirty: integer({ mode: 'boolean' }).notNull().default(false),
+    ownerId: text('owner_id'),
+    updatedBy: text('updated_by'),
+    updatedAt: text('updated_at'),
+    // Frozen canonical publish payload; a retry completes this exact intent.
+    publishText: text('publish_text'),
+    publishSha: text('publish_sha'),
+    publishModelJson: text('publish_model_json')
+  },
+  table => [primaryKey({ columns: [table.collection, table.slug] })]
+);
+
 // Every file the index has looked at, valid or not, so unchanged files are skipped.
 export const contentFiles = sqliteTable('content_files', {
   path: text().primaryKey(),

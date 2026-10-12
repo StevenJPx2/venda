@@ -10,6 +10,8 @@ import { watch } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { join, relative, resolve, sep } from 'node:path';
+import { realpath } from 'node:fs/promises';
+import { writeContent } from './content-writes.mjs';
 
 // Editors save in bursts (write, rename, touch); the version moves once they settle.
 const SETTLE_MS = 100;
@@ -31,7 +33,20 @@ function fileFor(root, key) {
   return path.startsWith(root + sep) ? path : undefined;
 }
 
-async function answer(root, version, url, response) {
+async function answer(root, token, version, url, request, response) {
+  if (request.method === 'PUT' && url.pathname.startsWith('/files/')) {
+    await writeContent(
+      root,
+      token,
+      decodeURIComponent(url.pathname.slice(7)).replaceAll(':', '/'),
+      request,
+      response
+    );
+
+    return;
+  }
+
+  if (request.method !== 'GET') return response.writeHead(405).end();
   if (url.pathname === '/version')
     return response
       .writeHead(200, { 'content-type': 'text/plain' })
@@ -45,7 +60,10 @@ async function answer(root, version, url, response) {
   const key = url.pathname.startsWith('/files/')
     ? decodeURIComponent(url.pathname.slice('/files/'.length))
     : undefined;
-  const path = key && fileFor(root, key);
+  const candidate = key && fileFor(root, key);
+  const resolved =
+    candidate && (await realpath(candidate).catch(() => undefined));
+  const path = resolved?.startsWith(root + sep) ? resolved : undefined;
   const bytes = path && (await readFile(path).catch(() => undefined));
 
   if (!bytes) return response.writeHead(404).end();
@@ -56,8 +74,8 @@ async function answer(root, version, url, response) {
 }
 
 /** Serves `dir` on 127.0.0.1:`port`; resolves to a function that stops serving and watching. */
-export async function serveContent(dir, port) {
-  const root = resolve(dir);
+export async function serveContent(dir, port, token) {
+  const root = await realpath(resolve(dir));
   const started = Date.now();
   let edits = 0;
   let settle;
@@ -75,8 +93,10 @@ export async function serveContent(dir, port) {
   const server = createServer((request, response) => {
     answer(
       root,
+      token,
       version,
       new URL(request.url ?? '/', 'http://localhost'),
+      request,
       response
     ).catch(error => {
       console.error('[content-server]', error);

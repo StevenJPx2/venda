@@ -7,8 +7,9 @@ import {
   type SyncReport
 } from '@venda/core/content';
 import type { Database } from '@venda/core/database';
+import { Conflict, ContentReadOnly } from '@venda/contract';
 import { Effect, Layer, Predicate } from 'effect';
-import type { ContentFiles, RawFile } from './target';
+import type { ContentSource, RawFile } from './target';
 
 // Only these are read and hashed; images and other files beside them are skipped.
 const CONTENT_FILE = /^site\.ts$|(?:^|\/)(?:config\.ts|[^/]+\.mdx?)$/;
@@ -29,7 +30,9 @@ const storeError = (message: string) => (cause: unknown) =>
   new ContentStoreError({ message, cause });
 
 /** Content files over a storage mount; unstorage names `blog/hello.md` with the key `blog:hello.md`. */
-export const contentStoreLayer = (files: ContentFiles) => {
+export const contentStoreLayer = (source: ContentSource) => {
+  const files = source.files;
+  const commit = source.commit;
   const bytes = (path: string) =>
     Effect.tryPromise({
       try: async () =>
@@ -38,6 +41,20 @@ export const contentStoreLayer = (files: ContentFiles) => {
     });
 
   return Layer.succeed(ContentStore, {
+    writable: commit !== undefined,
+    commit: input =>
+      commit
+        ? Effect.tryPromise({
+            try: () => commit(input),
+            catch: cause =>
+              cause instanceof Conflict
+                ? cause
+                : new ContentStoreError({
+                    message: `Could not write ${input.path}`,
+                    cause
+                  })
+          })
+        : Effect.fail(new ContentReadOnly()),
     list: Effect.gen(function* () {
       const keys = yield* Effect.tryPromise({
         try: () => files.getKeys(),

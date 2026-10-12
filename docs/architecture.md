@@ -155,7 +155,7 @@ For three years every page on our site was rendered in a single region.
 | Collection models | `content/*/config.ts` | `collections` index table |
 | Site name, address and admin copy | `content/site.ts` | `content_site` index table |
 | Published and file drafts | `.md` / `.mdx` files | `entries` index: frontmatter, body document, search text, references, file SHA |
-| Autosaved working copies | database | none |
+| Working copies, owners and publish intents | database | none |
 | Revisions | git history (publishes) and database (saves between publishes) | none |
 | Schedules, trash tombstones, preview tokens | database | none |
 | Users, roles, invitations, API tokens | database | none |
@@ -281,7 +281,10 @@ client for the Drizzle index and where content comes from:
   its version, which moves whenever a file changes; if it moved, the request
   waits for a re-index first, so an edit on disk is served by the next
   request, with no rebuild or restart. An unreachable server keeps the last
-  index serving. This is the shape the GitHub store takes in slice 4: content
+  index serving. `pnpm try` creates a per-run `VENDA_CONTENT_TOKEN` for
+  conditional writes; the folder server rejects browser Origins, paths
+  escaping the folder, symlink targets and payloads over 1 MB. A local URL
+  without that token remains read-only. This is the shape the GitHub store takes in slice 4: content
   over HTTP, re-indexed when its source says it changed.
 
 A Node target was built and tested until slice 2b and then removed: local
@@ -520,8 +523,8 @@ suites; it does not replace them.
    and your account. Content is read-only until slice 3.
    `adminContent` is a protected contract group, and the `CanBrowseContent`
    proof carries the case: administrators and editors see every file,
-   authors and contributors see published files only (entry ownership lands
-   with the write path), and only administrators see repository problems.
+    authors and contributors see published files and entries they own;
+    only administrators see repository problems.
    Playwright drives the real UI on both presets: sign-in, an invited author in
    a private context, token creation and revocation, disabling someone, mobile
    navigation at 390px and a thousand-entry collection with long non-Latin
@@ -529,7 +532,18 @@ suites; it does not replace them.
    and API boundaries rather than pretending to test the UI. From here every
    slice ships API, admin plugins and a try page together.
 3. **Write path.** Working copies, publish to files, conflicts
-   ([plan](plans/slice-3-write-path.md)).
+   ([plan](plans/slice-3-write-path.md)). The existing-entry API includes:
+   - A shared copy with monotonic revisions, conditional saves and discard.
+   - Owner assignment by editors; author edits and publishes for owned entries;
+     contributors save owned entries for an editor to publish.
+   - A frozen publish intent, SHA-conditional store writes and atomic index
+     finalization. Retries finish an uncertain publication; conflicts keep work.
+     Finalization checks the current collection model and records a content
+     problem if an outside model change makes the published file invalid.
+   - Local writes through a token-authenticated folder server, limited to 1 MB.
+     The bundled store is read-only, with a typed publishing error.
+   - `try/slice-3.html`: a title-editing API console and checks for save,
+     publish and an outside edit. Editable admin plugins follow within the slice.
 4. **GitHub content store.** App authentication, commits, webhook sync; a
    contract test against a real throwaway repository.
 5. **Lifecycle on files.** Scheduling, unpublish, trash and restore, revisions

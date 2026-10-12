@@ -11,6 +11,7 @@ import {
   siteSettings,
   syncContent
 } from '../src/content';
+import { ContentReadOnly } from '@venda/contract';
 import { Database } from '../src/database';
 import { testDatabase } from './support';
 
@@ -30,6 +31,8 @@ let files: Map<string, string>;
 let runtime: ManagedRuntime.ManagedRuntime<ContentStore | Database, unknown>;
 
 const store = Layer.succeed(ContentStore, {
+  writable: false,
+  commit: () => Effect.fail(new ContentReadOnly()),
   list: Effect.promise(() =>
     Promise.all(
       [...files].map(async ([path, text]) => ({

@@ -5,7 +5,9 @@
 import { Owner } from '@venda/core/auth';
 import { Effect, Layer, ManagedRuntime, Redacted } from 'effect';
 import { BuildInfo, toApiHandler } from './api';
+import { atomicWritesLayer } from './atomic-writes';
 import { contentStoreLayer, contentSync } from './content';
+import { limitContentRequest } from './content-limit';
 import { decodeServerEnv, type RawEnv } from './env';
 import type { DomainServices } from './infrastructure';
 import { keyValueLayer, type KeyValueMount } from './key-value';
@@ -37,10 +39,11 @@ async function build(
     VENDA_VERSION,
     VENDA_OWNER_EMAIL,
     VENDA_OWNER_PASSWORD,
-    VENDA_CONTENT_URL
+    VENDA_CONTENT_URL,
+    VENDA_CONTENT_TOKEN
   } = decodeServerEnv(env);
   const content = VENDA_CONTENT_URL
-    ? localContent(VENDA_CONTENT_URL)
+    ? localContent(VENDA_CONTENT_URL, VENDA_CONTENT_TOKEN)
     : target.content();
   const owner = Layer.succeed(Owner, {
     email: VENDA_OWNER_EMAIL,
@@ -49,7 +52,10 @@ async function build(
   const runtime = ManagedRuntime.make(
     Layer.mergeAll(
       target.database.layer,
-      contentStoreLayer(content.files),
+      atomicWritesLayer(target.database).pipe(
+        Layer.provide(target.database.layer)
+      ),
+      contentStoreLayer(content),
       keyValueLayer(mounts.keyValue),
       owner
     )
@@ -81,9 +87,13 @@ async function build(
 
   return {
     async fetch(request) {
+      const bounded = await limitContentRequest(request);
+
+      if (bounded instanceof Response) return bounded;
+
       await freshen();
 
-      const response = await api.handler(request);
+      const response = await api.handler(bounded);
 
       if (
         response.ok &&

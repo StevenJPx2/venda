@@ -1,6 +1,6 @@
 # Slice 3: the write path
 
-Status: **proposed**. Builds on [architecture.md](../architecture.md), flows
+Status: **approved**. Builds on [architecture.md](../architecture.md), flows
 1 and 2 (Save, Publish) and the slice list under Delivery.
 
 People edit content in the admin. Every change autosaves to a working copy in
@@ -40,13 +40,17 @@ A working copy is one row per entry, shared by everyone who may edit it:
 | `data_json`, `published_at` | the edited fields and date |
 | `revision` | raises by one on every save |
 | `updated_by`, `updated_at` | who saved it last, and when |
+| `owner_id` | who may edit it as an author or contributor |
+| `publish_text`, `publish_sha`, `publish_model_json` | a frozen intent while publishing |
 
 - The editor saves 800 ms after typing stops, and on leaving the page. Each
   save sends the revision it started from. A stale revision answers
   `EditedElsewhere`, and the editor offers to load the newer copy.
 - A save checks field types only, so a half-written entry always saves.
   Publishing applies the model's full rules.
-- Discarding deletes the copy; the file is untouched.
+- Discarding returns the copy to the file's fields. The operational record
+  retains its owner and revision; each discard and publish raises the revision
+  so stale tabs cannot overwrite a fresh copy.
 - The admin's lists show an entry with a copy as "Changes not published", and
   a new entry that has no file yet as "New".
 
@@ -77,7 +81,13 @@ curl -X PUT $API/admin/collections/journal/entries/first-light/copy \
 
 3. The index takes the committed content at once: the entry is saved, the
    file is marked with its new SHA (so the next sync skips it), and the copy
-   is deleted.
+   becomes clean. The index, file marker and clean copy are one atomic batch.
+   Saving and discarding are blocked while an intent is publishing. A retry
+   resumes its frozen payload, including after a file write with a lost
+   response or a failed index batch.
+   If the model changed while the intent was pending, finalization indexes
+   against that model; an invalid file is recorded in Content problems and
+   withheld from the public API.
 
 ```bash
 curl -X POST $API/admin/collections/journal/entries/first-light/publish \
@@ -91,7 +101,7 @@ fields beside the copy, with two actions:
 
 - **Keep editing mine:** takes the new SHA as the copy's base. The next
   publish replaces the outside change.
-- **Discard mine:** deletes the copy and opens the file as it is now.
+- **Discard mine:** opens the file as it is now, with a fresh revision.
 
 Sync also flags copies whose base differs from the file's SHA, so the warning
 shows when the entry opens, before anyone presses Publish.
@@ -118,8 +128,8 @@ overwritten. A single collection's one entry is created the same way, as
 | Author | entries they own | entries they own | yes |
 | Contributor | entries they own | no | yes |
 
-- Owning an entry is operational state: an `entry_owners` row written when
-  someone creates the entry in the admin. A file that arrives from the
+- Owning an entry is operational state: `owner_id` in its working record,
+  set when someone creates the entry in the admin. A file that arrives from the
   repository has no owner until an editor assigns one.
 - `CanEditEntry` and `CanPublishEntry` are gdp-ts proofs minted in
   `core/auth/proofs/` from the person's role and the entry's owner. The save,
@@ -185,20 +195,10 @@ the gate, all suites and the try page pass.
 Five commits, each green on `pnpm check` and `pnpm e2e`, each extending
 `try/slice-3.html`:
 
-1. Core and API: copies, publish, conflicts, stores, capabilities.
+1. Core and API for existing entries: copies, publish, conflicts, stores,
+   capabilities and assigning owners. The try page provides a small title
+   editor and checks; admin editing follows in commits 2 and 3.
 2. Fields and the editable form editor (records, single).
 3. The writer plugin; prototype removed.
 4. New entries and the list statuses.
 5. Settings → General writes `site.ts`.
-
-## Open questions
-
-- **Owners for repository files.** Unowned files stay with editors and
-  administrators until one is assigned. The alternative reads an `author`
-  relation field as the owner when the model has one.
-- **One copy per entry or one per person.** One shared copy with the revision
-  guard matches Ghost and keeps a single source of "what will publish".
-  Per-person copies avoid stepping on each other, at the cost of merging.
-- **Contributor hand-off.** Editors find contributors' copies by the "Changes
-  not published" status. An explicit "Ready for review" state could come with
-  the slice 5 lifecycle instead.

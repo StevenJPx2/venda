@@ -8,17 +8,19 @@ import { users } from '../schema';
 
 const CanReadAllContent = defineProof('CanReadAllContent');
 
-const CanReadPublishedContent = defineProof('CanReadPublishedContent');
+const CanReadOwnAndPublishedContent = defineProof(
+  'CanReadOwnAndPublishedContent'
+);
 
 export interface CanReadAllContent<U> extends Proof<'CanReadAllContent', [U]> {}
 
-export interface CanReadPublishedContent<U> extends Proof<
-  'CanReadPublishedContent',
+export interface CanReadOwnAndPublishedContent<U> extends Proof<
+  'CanReadOwnAndPublishedContent',
   [U]
 > {}
 
 export type CanBrowseContent<U> =
-  CanReadAllContent<U> | CanReadPublishedContent<U>;
+  CanReadAllContent<U> | CanReadOwnAndPublishedContent<U>;
 
 export const canBrowseContent = <U>(user: Named<U, UserId>) =>
   Effect.gen(function* () {
@@ -34,7 +36,7 @@ export const canBrowseContent = <U>(user: Named<U, UserId>) =>
     const proof: CanBrowseContent<U> =
       row.role === 'administrator' || row.role === 'editor'
         ? CanReadAllContent.prove(user)
-        : CanReadPublishedContent.prove(user);
+        : CanReadOwnAndPublishedContent.prove(user);
 
     return proof;
   });

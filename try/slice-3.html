@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Slice 3 · Try Venda</title>
+    <link rel="stylesheet" href="/try.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <a class="crumb" href="/">← Try Venda</a>
+          <h1>Slice 3 · Saving and publishing</h1>
+          <p class="lede">
+            Edit a shared working copy, publish it to Markdown, and handle a
+            change made outside Venda. These checks exercise the API; the
+            editable form and writer are the next parts of this slice.
+          </p>
+        </div>
+        <button class="primary" id="run-all">Run the checks</button>
+      </header>
+
+      <section class="check">
+        <div class="check-head">
+          <div>
+            <h2>Try the working copy yourself</h2>
+            <p>
+              The title below is a saved working copy of a journal entry.
+              Loading does not make a draft; Save keeps edits in the database.
+              Publish writes the file. Discard returns to the file's fields.
+            </p>
+          </div>
+        </div>
+
+        <div class="extra">
+          <label>Title <input id="title" type="text" /></label>
+          <div class="actions">
+            <button id="load">Load</button>
+            <button id="save">Save</button>
+            <button id="publish">Publish</button>
+            <button id="discard">Discard</button>
+          </div>
+          <pre id="editor-result">Load to begin.</pre>
+          <p class="note">
+            Edit <code>.try/content/journal/write-path.md</code> on disk between
+            Save and Publish to provoke a conflict. The checks below also make
+            and recover from that conflict, and restore the fixture afterward.
+          </p>
+        </div>
+      </section>
+
+      <div id="checks"></div>
+    </main>
+    <script type="module">
+      import { call, mount } from '/harness.js';
+
+      const ROOT = '/api/admin/collections/journal/entries/write-path';
+      const FILE = '/files/journal/write-path.md';
+      const AS = { as: 'slice-3' };
+      let editing;
+
+      async function signIn() {
+        const signedIn = await call('POST', '/api/auth/sign-in', {
+          ...AS,
+          body: { email: 'owner@venda.local', password: 'try-venda-owner' }
+        });
+
+        if (!signedIn.ok) throw new Error('Unable to sign in');
+      }
+
+      async function copy() {
+        const result = await call('GET', `${ROOT}/copy`, AS);
+
+        if (!result.ok) throw new Error(JSON.stringify(result.data));
+
+        return result.data;
+      }
+
+      const changed = (source, title) => ({
+        revision: source.revision,
+        data: { ...source.data, title },
+        publishedAt: source.publishedAt
+      });
+
+      async function show(action) {
+        const out = document.getElementById('editor-result');
+
+        try {
+          await signIn();
+
+          const result = await action();
+
+          if (result?.line)
+            out.textContent = `${result.line}\n${JSON.stringify(result.data, null, 2)}`;
+
+          editing = await copy();
+          document.getElementById('title').value = editing.data.title ?? '';
+
+          if (!result?.line) out.textContent = JSON.stringify(editing, null, 2);
+        } catch (error) {
+          out.textContent = error.message;
+        }
+      }
+
+      document.getElementById('load').onclick = () => show(() => copy());
+      document.getElementById('save').onclick = () =>
+        show(async () => {
+          if (!editing) throw new Error('Load before saving');
+
+          return call('PUT', `${ROOT}/copy`, {
+            ...AS,
+            body: changed(editing, document.getElementById('title').value)
+          });
+        });
+      document.getElementById('publish').onclick = () =>
+        show(async () => {
+          if (!editing) throw new Error('Load before publishing');
+
+          return call('POST', `${ROOT}/publish`, {
+            ...AS,
+            body: { revision: editing.revision }
+          });
+        });
+      document.getElementById('discard').onclick = () =>
+        show(async () => {
+          if (!editing) throw new Error('Load before discarding');
+
+          return call('DELETE', `${ROOT}/copy`, {
+            ...AS,
+            body: { revision: editing.revision }
+          });
+        });
+
+      // Tests restore both the file and the copy, so every card may run alone.
+      async function fixture(log, test) {
+        await signIn();
+
+        const original = (await call('GET', FILE)).data;
+        const request = async (method, path, options = {}) => {
+          const result = await call(method, path, { ...AS, ...options });
+
+          log(result.line, result.data);
+
+          return result;
+        };
+
+        try {
+          const current = await copy();
+
+          await request('DELETE', `${ROOT}/copy`, {
+            body: { revision: current.revision }
+          });
+
+          return await test(request, await copy(), original);
+        } finally {
+          await call('PUT', FILE, { body: original });
+
+          const current = await copy();
+
+          await call('DELETE', `${ROOT}/copy`, {
+            ...AS,
+            body: { revision: current.revision }
+          });
+        }
+      }
+
+      mount([
+        {
+          title: 'Save without touching the published file',
+          description:
+            'A shared copy survives another read. The Markdown stays unchanged, and a stale save is refused.',
+          run: ({ log }) =>
+            fixture(log, async (request, current, original) => {
+              const saved = await request('PUT', `${ROOT}/copy`, {
+                body: changed(current, 'Working title')
+              });
+              const stale = await request('PUT', `${ROOT}/copy`, {
+                body: changed(current, 'Stale title')
+              });
+              const persisted = await request('GET', `${ROOT}/copy`);
+              const file = await request('GET', FILE);
+
+              return {
+                pass:
+                  saved.ok &&
+                  persisted.data.data.title === 'Working title' &&
+                  file.data === original &&
+                  stale.data._tag === 'EditedElsewhere',
+                note: 'Saved in D1; file unchanged; stale revision refused'
+              };
+            })
+        },
+        {
+          title: 'Publish the copy to Markdown',
+          description:
+            'Publishing writes the canonical file and makes its fields available through the public API immediately.',
+          run: ({ log }) =>
+            fixture(log, async (request, current) => {
+              const before = await request('GET', FILE);
+              const saved = await request('PUT', `${ROOT}/copy`, {
+                body: changed(current, 'Published through Venda')
+              });
+              const published = await request('POST', `${ROOT}/publish`, {
+                body: { revision: saved.data.revision }
+              });
+              const file = await request('GET', FILE);
+              const live = await request(
+                'GET',
+                '/api/content/journal/write-path'
+              );
+
+              return {
+                pass:
+                  published.ok &&
+                  !published.data.dirty &&
+                  before.data !== file.data &&
+                  file.data.includes('Published through Venda') &&
+                  live.ok &&
+                  live.data?.data?.title === 'Published through Venda',
+                note: 'File written; public API updated; copy clean'
+              };
+            })
+        },
+        {
+          title: 'An outside change is never silently replaced',
+          description:
+            'Save a copy, edit the file on disk, get Conflict, then explicitly acknowledge that file’s SHA to publish your copy.',
+          run: ({ log }) =>
+            fixture(log, async (request, current, original) => {
+              const saved = await request('PUT', `${ROOT}/copy`, {
+                body: changed(current, 'My copy')
+              });
+
+              await request('PUT', FILE, {
+                body: original.replace(/^title:.*$/m, 'title: Outside change')
+              });
+
+              const conflict = await request('POST', `${ROOT}/publish`, {
+                body: { revision: saved.data.revision }
+              });
+              const untouched = await request('GET', FILE);
+              const conflicted = await copy();
+              const rebased = await request('POST', `${ROOT}/copy/rebase`, {
+                body: {
+                  revision: conflicted.revision,
+                  sha: conflicted.currentSha
+                }
+              });
+              const published = await request('POST', `${ROOT}/publish`, {
+                body: { revision: rebased.data.revision }
+              });
+
+              return {
+                pass:
+                  conflict.data._tag === 'Conflict' &&
+                  untouched.data.includes('Outside change') &&
+                  published.ok,
+                note: 'Outside edit kept until its exact SHA is acknowledged'
+              };
+            })
+        }
+      ]);
+    </script>
+  </body>
+</html>

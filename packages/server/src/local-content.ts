@@ -3,6 +3,7 @@
 // development this replaces the copy built into it: before each request the
 // app asks whether the folder changed, and re-indexes first if it did.
 import { Schema } from 'effect';
+import { Conflict } from '@venda/contract';
 import type { ContentSource } from './target';
 
 // A local server answers at once; anything slower is stuck, not busy.
@@ -10,7 +11,7 @@ const TIMEOUT_MS = 5_000;
 
 const decodeKeys = Schema.decodeUnknownSync(Schema.Array(Schema.String));
 
-export function localContent(base: URL): ContentSource {
+export function localContent(base: URL, token?: string): ContentSource {
   let seen: string | undefined;
 
   const get = async (path: string) => {
@@ -24,7 +25,7 @@ export function localContent(base: URL): ContentSource {
     return response;
   };
 
-  return {
+  const source: ContentSource = {
     files: {
       getKeys: async () => [...decodeKeys(await (await get('keys')).json())],
       getItemRaw: async key => {
@@ -52,6 +53,41 @@ export function localContent(base: URL): ContentSource {
       seen = version;
 
       return true;
+    }
+  };
+
+  if (!token) return source;
+
+  return {
+    ...source,
+    commit: async input => {
+      const response = await fetch(
+        new URL(`files/${encodeURIComponent(input.path)}`, base),
+        {
+          method: 'PUT',
+          headers: {
+            authorization: `Bearer ${token}`,
+            'content-type': 'text/plain',
+            ...(input.baseSha === null
+              ? { 'if-none-match': '*' }
+              : { 'if-match': `"${input.baseSha}"` }),
+            'x-venda-content-sha': input.sha
+          },
+          body: input.content,
+          signal: AbortSignal.timeout(TIMEOUT_MS)
+        }
+      );
+
+      if (response.status === 412)
+        throw new Conflict({
+          path: input.path,
+          sha: response.headers.get('etag')?.replaceAll('"', '') ?? null
+        });
+
+      if (!response.ok)
+        throw new Error(`Content write answered ${response.status}`);
+
+      return { sha: response.headers.get('etag')?.replaceAll('"', '') ?? '' };
     }
   };
 }

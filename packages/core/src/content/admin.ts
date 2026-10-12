@@ -15,7 +15,12 @@ import { DateTime, Effect, Option, Result, Schema } from 'effect';
 import type { CanBrowseContent } from '../auth/proofs/can-browse-content';
 import type { IsAdministrator } from '../auth/proofs/is-administrator';
 import { Database } from '../database';
-import { contentCollections, contentEntries, contentProblems } from './schema';
+import {
+  contentCollections,
+  contentEntries,
+  contentProblems,
+  contentWork
+} from './schema';
 import { hasCollection } from './tables';
 
 const decodeJson = Schema.decodeUnknownSync(Schema.fromJsonString(Schema.Json));
@@ -76,19 +81,31 @@ const indexedEntry = (row: typeof contentEntries.$inferSelect, now: string) =>
     data: decodeData(row.dataJson)
   });
 
-const visibleEntries = <U>(access: CanBrowseContent<U>, now: string) =>
+const visibleEntries = <U>(
+  user: Named<U, UserId>,
+  access: CanBrowseContent<U>,
+  now: string
+) =>
   access.kind === 'CanReadAllContent'
     ? undefined
-    : and(
-        eq(contentEntries.draft, false),
-        or(
-          isNull(contentEntries.publishedAt),
-          lte(contentEntries.publishedAt, now)
-        )
+    : or(
+        and(
+          eq(contentEntries.draft, false),
+          or(
+            isNull(contentEntries.publishedAt),
+            lte(contentEntries.publishedAt, now)
+          )
+        ),
+        sql`EXISTS (SELECT 1 FROM ${contentWork} WHERE ${contentWork.collection} = ${contentEntries.collection}
+        AND ${contentWork.slug} = ${contentEntries.slug} AND ${contentWork.ownerId} = ${user.value})`
       );
 
 /** The collection and visibility scope shared by list and single-entry reads. */
-const collectionScope = <U>(collection: string, access: CanBrowseContent<U>) =>
+const collectionScope = <U>(
+  user: Named<U, UserId>,
+  collection: string,
+  access: CanBrowseContent<U>
+) =>
   Effect.gen(function* () {
     if (!(yield* hasCollection(collection)))
       return yield* new CollectionNotFound({ collection });
@@ -97,7 +114,7 @@ const collectionScope = <U>(collection: string, access: CanBrowseContent<U>) =>
     const now = DateTime.formatIso(yield* DateTime.now);
     const filter = and(
       eq(contentEntries.collection, collection),
-      visibleEntries(access, now)
+      visibleEntries(user, access, now)
     );
 
     return { db, now, filter };
@@ -127,13 +144,17 @@ const after = (cursor: string | undefined) =>
  * (order.ts). The proof's kind selects what is visible.
  */
 export const listIndexedEntries = <U>(
-  _user: Named<U, UserId>,
+  user: Named<U, UserId>,
   collection: string,
   query: EntryQuery,
   access: CanBrowseContent<U>
 ) =>
   Effect.gen(function* () {
-    const { db, now, filter } = yield* collectionScope(collection, access);
+    const { db, now, filter } = yield* collectionScope(
+      user,
+      collection,
+      access
+    );
     // instr treats the search literally, including SQL wildcard characters.
     const search = query.q?.trim().toLowerCase();
 
@@ -167,13 +188,17 @@ export const listIndexedEntries = <U>(
   });
 
 export const getIndexedEntry = <U>(
-  _user: Named<U, UserId>,
+  user: Named<U, UserId>,
   collection: string,
   slug: string,
   access: CanBrowseContent<U>
 ) =>
   Effect.gen(function* () {
-    const { db, now, filter } = yield* collectionScope(collection, access);
+    const { db, now, filter } = yield* collectionScope(
+      user,
+      collection,
+      access
+    );
     const [row] = yield* db
       .select()
       .from(contentEntries)

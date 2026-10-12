@@ -4,8 +4,9 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { SqliteClient } from '@effect/sql-sqlite-node';
 import * as SqliteDrizzle from 'drizzle-orm/effect-sqlite-node';
 import { Clock, Effect, Layer, Option } from 'effect';
+import { SqlClient } from 'effect/sql';
 import { KeyValue } from '../src/auth';
-import { Database } from '../src/database';
+import { AtomicWrites, AtomicWriteError, Database } from '../src/database';
 
 const DRIZZLE = new URL('../drizzle/', import.meta.url);
 
@@ -17,7 +18,7 @@ const MIGRATIONS = readdirSync(DRIZZLE)
     )
   );
 
-export const testDatabase = Layer.effect(
+const databaseLayer = Layer.effect(
   Database,
   Effect.gen(function* () {
     const db = yield* SqliteDrizzle.makeWithDefaults({});
@@ -28,7 +29,36 @@ export const testDatabase = Layer.effect(
 
     return db;
   })
-).pipe(Layer.provide(SqliteClient.layer({ filename: ':memory:' })));
+);
+
+const atomicLayer = Layer.effect(
+  AtomicWrites,
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+
+    return {
+      run: (
+        statements: ReadonlyArray<{
+          sql: string;
+          params: ReadonlyArray<unknown>;
+        }>
+      ) =>
+        sql
+          .withTransaction(
+            Effect.forEach(
+              statements,
+              statement => sql.unsafe(statement.sql, statement.params),
+              { discard: true }
+            )
+          )
+          .pipe(Effect.mapError(cause => new AtomicWriteError({ cause })))
+    };
+  })
+);
+
+export const testDatabase = Layer.merge(databaseLayer, atomicLayer).pipe(
+  Layer.provide(SqliteClient.layer({ filename: ':memory:' }))
+);
 
 /** Expiring strings in a Map, timed by Effect's Clock so tests can move time. */
 export const memoryKeyValue = Layer.sync(KeyValue, () => {

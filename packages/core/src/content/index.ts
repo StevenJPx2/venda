@@ -11,7 +11,19 @@ export {
   type StoredFile
 } from './services';
 
+export type { ContentCommit } from './services';
+
 export { getSite, siteSettings } from './site';
+
+export {
+  getWorkingCopy,
+  saveWorkingCopy,
+  discardWorkingCopy,
+  rebaseWorkingCopy,
+  assignEntryOwner
+} from './work';
+
+export { publishWorkingCopy } from './publish';
 
 export { syncAll, syncContent, type SyncReport } from './sync';
 

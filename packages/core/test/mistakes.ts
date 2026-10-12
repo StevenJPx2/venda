@@ -2,7 +2,7 @@
 // and never run: if any line below starts compiling, its `@ts-expect-error`
 // becomes an error and the check fails. Add the mistake you almost made.
 import { name } from '@gdp-ts/core';
-import type { Actor, TokenId } from '@venda/contract';
+import type { Actor, TokenId, EntryRef } from '@venda/contract';
 import { Effect } from 'effect';
 import {
   acceptInvitation,
@@ -16,8 +16,13 @@ import {
   signedInInPerson,
   updateUser
 } from '../src/auth';
+import { canEditEntry } from '../src/auth';
 import { canBrowseContent } from '../src/auth/proofs/can-browse-content';
-import { getIndexedEntry } from '../src/content';
+import {
+  getIndexedEntry,
+  saveWorkingCopy,
+  publishWorkingCopy
+} from '../src/content';
 
 declare const actor: Actor;
 
@@ -26,6 +31,8 @@ declare const other: Actor;
 declare const tokenId: TokenId;
 
 declare const joinSecret: string;
+
+declare const entryRef: EntryRef;
 
 export const mistakes = [
   // Listing people without checking the caller is an administrator.
@@ -84,6 +91,36 @@ export const mistakes = [
     Effect.flatMap(canBrowseContent(user), proof =>
       // @ts-expect-error a content proof is tied to the named user who was checked
       getIndexedEntry(differentUser, 'blog', 'draft', proof)
+    )
+  ),
+
+  name(actor.userId, entryRef, (user, entry) =>
+    Effect.flatMap(canEditEntry(user, entry), proof =>
+      // @ts-expect-error an edit proof does not allow publication
+      publishWorkingCopy(user, entry, 1, proof)
+    )
+  ),
+
+  name(actor.userId, entryRef, entryRef, (user, entry, differentEntry) =>
+    Effect.flatMap(canEditEntry(user, entry), proof =>
+      saveWorkingCopy(
+        user,
+        differentEntry,
+        { revision: 1, data: {}, publishedAt: null },
+        // @ts-expect-error the proof is bound to the exact entry
+        proof
+      )
+    )
+  ),
+
+  name(actor.userId, entryRef, (user, entry) =>
+    Effect.flatMap(canEditEntry(user, entry), () =>
+      // @ts-expect-error no proof skips authorization
+      saveWorkingCopy(user, entry, {
+        revision: 1,
+        data: {},
+        publishedAt: null
+      })
     )
   )
 ];

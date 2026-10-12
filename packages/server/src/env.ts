@@ -10,7 +10,8 @@ const ServerEnv = Schema.Struct({
   ),
   // Local development: read content from this folder server (scripts/content-server.mjs)
   // instead of the copy built into the Worker, and re-index whenever it changes.
-  VENDA_CONTENT_URL: Schema.optional(Schema.URLFromString)
+  VENDA_CONTENT_URL: Schema.optional(Schema.URLFromString),
+  VENDA_CONTENT_TOKEN: Schema.optional(Schema.NonEmptyString)
 });
 
 /** The environment as the host hands it over (`process.env`), before decoding. */

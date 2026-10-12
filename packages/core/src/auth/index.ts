@@ -34,6 +34,12 @@ export {
 
 export { ownsToken, type OwnsToken } from './proofs/owns-token';
 
+export { canEditEntry } from './proofs/can-edit-entry';
+
+export { canPublishEntry } from './proofs/can-publish-entry';
+
+export { canAssignOwner } from './proofs/can-assign-owner';
+
 export { KeyValue, KeyValueError, Owner } from './services';
 
 export {

@@ -3,7 +3,7 @@
 import type { EffectDrizzleQueryError } from 'drizzle-orm/effect-core/errors';
 import type { QueryEffectHKTBase } from 'drizzle-orm/effect-core/query-effect';
 import type { SQLiteEffectDatabase } from 'drizzle-orm/sqlite-core/effect';
-import { Context } from 'effect';
+import { Context, type Effect, Schema } from 'effect';
 
 // What every Drizzle Effect SQLite driver (D1, node:sqlite, libSQL, Durable Objects) shares.
 interface Queries extends QueryEffectHKTBase {
@@ -16,3 +16,23 @@ export type DrizzleDatabase = SQLiteEffectDatabase<Queries, unknown>;
 export class Database extends Context.Service<Database, DrizzleDatabase>()(
   'venda/core/Database'
 ) {}
+
+export interface SqlWrite {
+  readonly sql: string;
+  readonly params: ReadonlyArray<unknown>;
+}
+
+export class AtomicWriteError extends Schema.TaggedError<AtomicWriteError>()(
+  'AtomicWriteError',
+  { cause: Schema.Defect() }
+) {}
+
+/** A host's all-or-nothing write batch: D1 batch, SQLite transaction. */
+export class AtomicWrites extends Context.Service<
+  AtomicWrites,
+  {
+    readonly run: (
+      statements: ReadonlyArray<SqlWrite>
+    ) => Effect.Effect<void, AtomicWriteError>;
+  }
+>()('venda/core/AtomicWrites') {}
