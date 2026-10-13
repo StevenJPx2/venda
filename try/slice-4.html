@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Slice 4 · Try Venda</title>
+    <link rel="stylesheet" href="/try.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <a class="crumb" href="/">← Try Venda</a>
+          <h1>Slice 4 · Content in D1, and the venda CLI</h1>
+          <p class="lede">
+            The content files live in D1 with every version they have had.
+            Agents and scripts work on them with <code>venda</code>: pull a
+            folder, edit it, push it back. A push from an old pull is refused
+            whole, so nothing anyone published is ever written over.
+          </p>
+        </div>
+        <button class="primary" id="run-all">Run the checks</button>
+      </header>
+
+      <section class="check">
+        <div class="check-head">
+          <div>
+            <h2>Use it from your terminal</h2>
+            <p>
+              An owner's API token for this server. From the repository root:
+            </p>
+          </div>
+        </div>
+        <div class="extra">
+          <pre id="login">Loading…</pre>
+          <p class="note">
+            Then edit any file in <code>my-content</code>, run
+            <code>pnpm venda status ./my-content</code> and
+            <code>pnpm venda push ./my-content -m "What changed"</code>, and
+            open the admin to see it. <code>pnpm venda --help</code> lists every
+            command.
+          </p>
+        </div>
+      </section>
+
+      <section class="check">
+        <div class="check-head">
+          <div>
+            <h2>Run venda here</h2>
+            <p>
+              This page runs the built CLI as an agent would, with the token
+              above, in a folder of its own (<code>agent</code>).
+            </p>
+          </div>
+        </div>
+        <div class="extra">
+          <label
+            >venda
+            <input
+              id="args"
+              type="text"
+              value="history journal/a-quiet-start.md"
+          /></label>
+          <div class="actions"><button id="run">Run</button></div>
+          <pre id="console">
+Try: pull agent · status agent · site · show journal/config.ts</pre>
+        </div>
+      </section>
+
+      <div id="checks"></div>
+    </main>
+    <script type="module">
+      import { call, mount } from '/harness.js';
+
+      const FILE = 'journal/a-quiet-start.md';
+      const SITE_FILE = `/files/${FILE}`;
+      const AGENT_FILE = `/cli/agent/${FILE}`;
+
+      /** Runs `venda args…` on the page server; logs the command and what it printed. */
+      async function venda(log, ...args) {
+        const result = (await call('POST', '/cli/run', { body: { args } }))
+          .data;
+
+        log?.(
+          `$ ${result.command}  → exit ${result.code}`,
+          result.out + result.err
+        );
+
+        return result;
+      }
+
+      const retitle = (text, title) =>
+        text.replace(/^title: .*$/m, `title: ${title}`);
+
+      const titleOnSite = async () =>
+        (await call('GET', '/api/content/journal/a-quiet-start')).data?.data
+          ?.title;
+
+      /** Each check starts from a fresh pull, and puts the file back as it found it. */
+      async function fixture(log, test) {
+        const original = (await call('GET', SITE_FILE)).data;
+
+        await venda(log, 'pull', 'agent', '--discard');
+
+        try {
+          return await test(original);
+        } finally {
+          await call('PUT', SITE_FILE, { body: original });
+          await venda(undefined, 'pull', 'agent', '--discard');
+        }
+      }
+
+      const login = (await call('GET', '/cli/login')).data;
+
+      document.getElementById('login').textContent =
+        `export VENDA_URL=${login.url}\nexport VENDA_TOKEN=${login.token}\npnpm venda pull ./my-content`;
+
+      document.getElementById('run').addEventListener('click', async () => {
+        const out = document.getElementById('console');
+        const args = [
+          ...document.getElementById('args').value.matchAll(/"([^"]*)"|(\S+)/g)
+        ].map(match => match[1] ?? match[2]);
+        const result = await venda(undefined, ...args);
+
+        out.textContent = `$ ${result.command}  → exit ${result.code}\n${result.out}${result.err}`;
+      });
+
+      mount([
+        {
+          title: 'Pull the site into a folder',
+          description:
+            '<code>venda pull agent</code> writes every content file, and records the SHA each was pulled at in <code>agent/.venda/shas.json</code>.',
+          run: ({ log }) =>
+            fixture(log, async original => {
+              const pulled = (await call('GET', AGENT_FILE)).data;
+
+              return {
+                pass: pulled === original,
+                note:
+                  pulled === original
+                    ? `${FILE} in the folder matches the site`
+                    : 'the folder does not match the site'
+              };
+            })
+        },
+        {
+          title: 'Push a change: published at once',
+          description:
+            'Edits the file in the folder, then <code>venda push agent -m …</code>. The file, its revision and its index change in one write, so the next request serves it.',
+          run: ({ log }) =>
+            fixture(log, async original => {
+              await call('PUT', AGENT_FILE, {
+                body: retitle(original, 'Pushed from the try page')
+              });
+
+              const status = await venda(log, 'status', 'agent');
+              const pushed = await venda(
+                log,
+                'push',
+                'agent',
+                '-m',
+                'Retitled from the try page'
+              );
+              const title = await titleOnSite();
+
+              return {
+                pass:
+                  status.out.includes(`changed ${FILE}`) &&
+                  pushed.code === 0 &&
+                  title === 'Pushed from the try page',
+                note: `the site now serves “${title}”`
+              };
+            })
+        },
+        {
+          title: 'A push from an old pull writes nothing',
+          description:
+            'Changes the file in the folder and, meanwhile, on the site. The push is refused and says how to settle it: pull (your edit is kept), merge, <code>venda resolve</code>, push.',
+          run: ({ log }) =>
+            fixture(log, async original => {
+              await call('PUT', AGENT_FILE, {
+                body: retitle(original, 'Mine')
+              });
+              await call('PUT', SITE_FILE, {
+                body: retitle(original, 'Theirs')
+              });
+
+              const refused = await venda(log, 'push', 'agent');
+              const kept = await titleOnSite();
+              const pulled = await venda(log, 'pull', 'agent');
+
+              await venda(log, 'resolve', FILE, 'agent');
+
+              const pushed = await venda(log, 'push', 'agent');
+              const title = await titleOnSite();
+
+              return {
+                pass:
+                  refused.code === 1 &&
+                  kept === 'Theirs' &&
+                  pulled.out.includes('kept as yours') &&
+                  pushed.code === 0 &&
+                  title === 'Mine',
+                note: `refused while the site said “${kept}”; after resolving, “${title}”`
+              };
+            })
+        },
+        {
+          title: 'Every version is kept, and any can be restored',
+          description:
+            'Pushes a change, lists the file’s history, then <code>venda restore … --to</code> the version before it.',
+          run: ({ log }) =>
+            fixture(log, async original => {
+              const before = JSON.parse(
+                (await venda(log, 'show', FILE, '--json')).out
+              ).sha;
+
+              await call('PUT', AGENT_FILE, {
+                body: retitle(original, 'To be undone')
+              });
+              await venda(log, 'push', 'agent', '-m', 'A change to undo');
+
+              const history = await venda(log, 'history', FILE);
+              const restored = await venda(
+                log,
+                'restore',
+                FILE,
+                '--to',
+                before.slice(0, 7)
+              );
+              const now = (await call('GET', SITE_FILE)).data;
+
+              return {
+                pass:
+                  history.out.includes('A change to undo') &&
+                  restored.code === 0 &&
+                  now === original,
+                note: `restored ${before.slice(0, 7)}; the file is as it was`
+              };
+            })
+        },
+        {
+          title: 'Settings and entries, field by field',
+          description:
+            '<code>venda site</code> reads site.ts; <code>venda entry set</code> writes an entry against its model, with a Markdown body, and refuses a value the model does not allow.',
+          run: ({ log }) =>
+            fixture(log, async () => {
+              const site = await venda(log, 'site', '--json');
+
+              await call('PUT', '/cli/agent/scratch.md', {
+                body: 'Written with **venda entry set**.\n'
+              });
+
+              const created = await venda(
+                log,
+                'entry',
+                'set',
+                'journal',
+                'try-cli',
+                '--set',
+                'title=Written by venda',
+                '--set-json',
+                'tags=["cli"]',
+                '--markdown',
+                'body=agent/scratch.md'
+              );
+              const refused = await venda(
+                log,
+                'entry',
+                'set',
+                'journal',
+                'try-cli',
+                '--set',
+                'mood=furious'
+              );
+              const served = await call('GET', '/api/content/journal/try-cli');
+
+              await call('DELETE', '/files/journal/try-cli.md');
+
+              return {
+                pass:
+                  site.code === 0 &&
+                  created.code === 0 &&
+                  served.data?.data?.title === 'Written by venda' &&
+                  refused.code === 1,
+                note: `site “${JSON.parse(site.out).name}”; entry served, then removed; mood=furious refused`
+              };
+            })
+        }
+      ]);
+    </script>
+  </body>
+</html>

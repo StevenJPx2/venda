@@ -10,7 +10,9 @@ import {
   getPublished,
   importFiles,
   listPublished,
+  listRevisions,
   pushFiles,
+  revisionText,
   siteSettings,
   textSha,
   type FileChange
@@ -233,6 +235,39 @@ describe('the index after a removal or a clash', () => {
     expect((await problems()).map(problem => problem.path)).toEqual([
       'site.ts'
     ]);
+  });
+});
+
+describe('history', () => {
+  it('lists every version newest first, a deletion included, and keeps old texts', async () => {
+    const first = await sha('blog/second.md');
+
+    await h.outside('blog/second.md', post('Second, again'));
+    await h.outside('blog/second.md', null);
+
+    const { versions, older, text } = await h.run(
+      name(admin, user =>
+        Effect.gen(function* () {
+          const proof = yield* canEditFiles(user);
+          const all = yield* listRevisions('blog/second.md', undefined, proof);
+
+          return {
+            versions: all,
+            older: yield* listRevisions('blog/second.md', all[1]?.id, proof),
+            text: yield* revisionText('blog/second.md', first, proof)
+          };
+        })
+      )
+    );
+
+    expect(versions.map(each => each.sha === null)).toEqual([
+      true,
+      false,
+      false
+    ]);
+    expect(versions[2]?.sha).toBe(first);
+    expect(older).toHaveLength(1);
+    expect(text).toBe(post('Second'));
   });
 });
 

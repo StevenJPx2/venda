@@ -1,0 +1,27 @@
+{
+  "name": "@venda/cli",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The venda command: pull, push and edit a Venda site's content files over its API, for developers, scripts and agents.",
+  "type": "module",
+  "bin": {
+    "venda": "./dist/venda.mjs"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit && effect-language-service diagnostics --project tsconfig.json",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.3",
+    "@venda/content": "workspace:*",
+    "@venda/contract": "workspace:*",
+    "effect": "4.0.1",
+    "tsdown": "0.23.1",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.70.1",
+    "vitest": "5.0.2"
+  }
+}

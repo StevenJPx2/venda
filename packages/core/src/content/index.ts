@@ -5,11 +5,13 @@ export { getPublished, listPublished } from './read';
 
 export * as contentSchema from './schema';
 
-export { CONTENT_PATH, GuardRefused, type FileChange } from './files';
+export { GuardRefused, type FileChange } from './files';
 
-export { gitBlobSha, textSha } from './sha';
+export { textSha } from '@venda/content';
 
 export { importFiles, listFiles, pushFiles, readFile } from './transfer';
+
+export { listRevisions, revisionText } from './history';
 
 export { getSite, siteSettings } from './site';
 

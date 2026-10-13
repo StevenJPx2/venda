@@ -3,6 +3,7 @@
 // and a content folder.
 import type { Named } from '@gdp-ts/core';
 import type { UserId } from '@venda/contract';
+import { textSha } from '@venda/content';
 import { asc } from 'drizzle-orm';
 import { Effect, Option } from 'effect';
 import type { CanEditFiles } from '../auth/proofs/can-edit-files';
@@ -11,7 +12,6 @@ import { Database } from '../database';
 import { authorOf } from './author';
 import { currentShas, fileAt, writeFiles, type FileChange } from './files';
 import { contentFiles } from './schema';
-import { textSha } from './sha';
 
 /** Every file's path, SHA and size, A to Z. */
 export const listFiles = <A>(_proof: CanEditFiles<A>) =>

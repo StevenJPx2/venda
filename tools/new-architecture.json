@@ -12,6 +12,7 @@
     "packages/editor-kit",
     "packages/fields-core",
     "packages/editor-form",
-    "packages/editor-writer"
+    "packages/editor-writer",
+    "packages/cli"
   ]
 }

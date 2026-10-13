@@ -10,6 +10,7 @@ Venda is a file-first, Cloudflare-native CMS. Content and data models are files:
 - `packages/contract`: **`@venda/contract`**, the HTTP API in Effect Schema (`HttpApi`), shared by the server and every client.
 - `packages/core`: **`@venda/core`**, the domain in Effect: the content files, their revisions and index, working copies and the public reads (`/content`), and accounts (`/auth`), over one Drizzle database (`/database`; migrations in `packages/core/drizzle` from `pnpm --filter @venda/core db:generate`). Capability checks are compile-time proofs ([gdp-ts](https://github.com/rauchg/gdp-ts)) minted only in `src/auth/proofs/`; `test/mistakes.ts` lists code that must not compile.
 - `packages/server`: **`@venda/server`**, the Nitro 3 host. `pnpm --filter @venda/server build` builds the Cloudflare Worker (D1 for content and everything else, KV for sessions). Locally it runs on workerd through `wrangler dev` with local D1. Migrations apply at startup.
+- `packages/cli`: **`@venda/cli`**, the `venda` command: pull a site's content files into a folder, push changes back, history and restore, site settings and entries, over the files API with an API token. `pnpm venda --help` builds and runs it.
 - `packages/richtext`: **`@venda/richtext`**, the rich-text document format: validation, a safe HTML renderer and plain-text helpers.
 - `packages/nuxt`: **`@venda/nuxt`**, a Nuxt module any Nuxt 4 site can install to read Venda content (`useVendaCollection`, `useVendaEntry`, `<VendaContent>`). See [its README](packages/nuxt/README.md).
 - `packages/admin`: **`@venda/admin`**, the browser SDK and the provisional plugin contract, with a typed client built from `VendaApi`.
@@ -49,10 +50,26 @@ Signed in (the session cookie, or `Authorization: Bearer <API token>`):
 - `GET /api/tokens`, `POST /api/tokens` (`{ name }`; the secret is returned once), `DELETE /api/tokens/:id`: your own tokens; making one needs a signed-in session, not a token.
 - `GET /api/admin/collections`, `GET /api/admin/collections/:collection/entries` (cursor-paged, `?q=` to search), `GET /api/admin/collections/:collection/entries/:slug`: what the admin shows. Administrators and editors see drafts and future-dated entries; authors and contributors see published entries only.
 - `GET /api/admin/content-problems`: files that do not fit their model, with their line. Administrators only.
-- `GET /api/admin/files`, `GET /api/admin/files/read?path=`: every content file's path, SHA and size, and one file's text. `POST /api/admin/files` (`{ message, changes: [{ path, text | null, baseSha | null }] }`): writes up to 200 files at once, each from the SHA it was read at, all or none (`Conflict` names the first that moved). Administrators and editors.
+- `GET /api/admin/files`, `GET /api/admin/files/read?path=`: every content file's path, SHA and size, and one file's text. `GET /api/admin/files/revisions?path=` (`&before=<id>` for older): its versions, newest first; `GET /api/admin/files/revision?path=&sha=`: one version's text. `POST /api/admin/files` (`{ message, changes: [{ path, text | null, baseSha | null }] }`): writes up to 200 files at once, each from the SHA it was read at, all or none (`Conflict` names the first that moved). Administrators and editors.
 - `POST /api/admin/import` (`{ files: [{ path, text }] }`): brings up to 200 files in over whatever is there, keeping unreadable ones as problems. Administrators only.
 
 Entries come back as `{ collection, slug, publishedAt, data }`, with the rich-text field as a document. Errors are tagged JSON (`{ "_tag": "CollectionNotFound", ... }`) with one status code each. Roles are administrator, editor, author and contributor; administrators and editors see drafts in the admin (people and invitations stay administrator-only), and per-entry ownership arrives with the write path.
+
+## The venda CLI
+
+For developers, scripts and agents, with an API token (Account → API tokens):
+
+```sh
+pnpm venda login --url https://cms.example.com --token <token>   # or VENDA_URL and VENDA_TOKEN
+pnpm venda pull ./content                  # the site's files, and the SHA each was pulled at
+pnpm venda status ./content                # what changed here since
+pnpm venda push ./content -m "Retitle"     # all of it in one write, or none
+pnpm venda history journal/first-light.md  # every version; `show --at`, `restore --to`
+pnpm venda site set name="Hill Notes"
+pnpm venda entry set journal autumn --set title=Autumn --markdown body=autumn.md
+```
+
+A push from an old pull is refused whole, naming the file that moved: `venda pull` brings in the other changes (keeping yours), you merge, `venda resolve <path>`, and push again. Every command prints JSON with `--json` and exits non-zero on failure.
 
 ## Try the admin
 

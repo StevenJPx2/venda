@@ -6,6 +6,13 @@ import { HttpApiEndpoint, HttpApiGroup } from 'effect/http-api';
 import { Authentication, Forbidden } from './auth';
 import { Conflict, ContentTooLarge, InvalidContent } from './content-write';
 
+const NAME = '[a-z0-9][a-z0-9_-]*';
+
+/** A content file's path: `site.ts`, `<collection>/config.ts` or `<collection>/<slug>.md(x)`. */
+export const CONTENT_PATH = new RegExp(
+  `^(?:site\\.ts|${NAME}/config\\.ts|${NAME}/${NAME}\\.mdx?)$`
+);
+
 /** At most this many files in one write. */
 export const MAX_FILES_PER_WRITE = 200;
 
@@ -30,6 +37,18 @@ export class FileText extends Schema.Class<FileText>('venda/FileText')({
   path: Schema.String,
   text: Schema.String,
   sha: Schema.String
+}) {}
+
+/** One version of a file; `sha` is null for a deletion. */
+export class FileRevision extends Schema.Class<FileRevision>(
+  'venda/FileRevision'
+)({
+  id: Schema.Int,
+  sha: Schema.NullOr(Schema.String),
+  parentSha: Schema.NullOr(Schema.String),
+  message: Schema.String,
+  authorName: Schema.String,
+  createdAt: Schema.String
 }) {}
 
 export class FileNotFound extends Schema.TaggedError<FileNotFound>()(
@@ -75,6 +94,19 @@ export class ContentFilesApi extends HttpApiGroup.make('files')
     }),
     HttpApiEndpoint.get('read', '/admin/files/read', {
       query: { path: Schema.String },
+      success: FileText,
+      error: [Forbidden, FileNotFound]
+    }),
+    HttpApiEndpoint.get('revisions', '/admin/files/revisions', {
+      query: {
+        path: Schema.String,
+        before: Schema.optional(Schema.NumberFromString)
+      },
+      success: Schema.Array(FileRevision),
+      error: Forbidden
+    }),
+    HttpApiEndpoint.get('revision', '/admin/files/revision', {
+      query: { path: Schema.String, sha: Schema.String },
       success: FileText,
       error: [Forbidden, FileNotFound]
     }),

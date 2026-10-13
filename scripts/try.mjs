@@ -4,7 +4,7 @@
 // The local database (.try/data: content, people, sessions) is kept between
 // runs, so you stay signed in and your edits stay; an empty database gets
 // try/content imported. `pnpm try --fresh` wipes everything first.
-import { spawn } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { createWriteStream } from 'node:fs';
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
@@ -20,6 +20,15 @@ const FRESH = process.argv.includes('--fresh');
 // Imported into an empty database.
 const CONTENT = join(ROOT, 'try/content');
 const CONTENT_FILE = /^\/files\/(site\.ts|[a-z0-9-]+\/[a-z0-9-]+\.mdx?)$/;
+// The built `venda` the slice 4 page runs, in a scratch home (.try/cli) with a
+// folder an agent works in (.try/cli/agent), signed in with an owner's token
+// kept in .try/data so it survives runs with the database it belongs to.
+const CLI = join(ROOT, 'packages/cli/dist/venda.mjs');
+const CLI_HOME = join(STATE, 'cli');
+const CLI_TOKEN = join(DATA, 'cli-token');
+// scratch.md is not content: a body for `venda entry set --markdown`.
+const AGENT_FILE =
+  /^\/cli\/agent\/(site\.ts|scratch\.md|[a-z0-9-]+\/(?:config\.ts|[a-z0-9-]+\.mdx?))$/;
 const PORTS = { page: 8794, server: 8805 };
 // Its own build output, so `pnpm e2e` or a manual build cannot replace files this server is serving.
 const BUILD = join(STATE, 'build');
@@ -349,6 +358,94 @@ async function seed() {
   return 'imported';
 }
 
+let cliToken = '';
+
+/** An owner's API token for the page's `venda`: the kept one while the site still takes it. */
+async function cliLogin() {
+  const kept = await readFile(CLI_TOKEN, 'utf8').catch(() => '');
+  const valid =
+    kept &&
+    (
+      await fetch(`http://localhost:${PORTS.server}/api/auth/me`, {
+        headers: { authorization: `Bearer ${kept}` }
+      })
+    ).ok;
+
+  cliToken = valid
+    ? kept
+    : (await (await asOwner('/tokens', { name: 'Try page CLI' })).json())
+        .secret;
+  await writeFile(CLI_TOKEN, cliToken, { mode: 0o600 });
+  await mkdir(join(CLI_HOME, 'agent'), { recursive: true });
+}
+
+const json = (response, status, value) =>
+  response
+    .writeHead(status, {
+      'content-type': 'application/json',
+      'cache-control': 'no-store'
+    })
+    .end(JSON.stringify(value));
+
+/** Runs the built `venda` in .try/cli, as an agent would. */
+async function runCli(request, response) {
+  const { args } = JSON.parse(await readBody(request));
+
+  if (!Array.isArray(args) || !args.every(arg => typeof arg === 'string'))
+    return json(response, 400, { error: 'args must be a list of strings' });
+
+  const result = await new Promise(done =>
+    execFile(
+      process.execPath,
+      [CLI, ...args],
+      {
+        cwd: CLI_HOME,
+        env: {
+          ...process.env,
+          VENDA_URL: `http://localhost:${PORTS.server}`,
+          VENDA_TOKEN: cliToken,
+          XDG_CONFIG_HOME: join(CLI_HOME, 'config')
+        }
+      },
+      (error, out, err) =>
+        done({ code: error ? (error.code ?? 1) : 0, out, err })
+    )
+  );
+
+  json(response, 200, { command: `venda ${args.join(' ')}`, ...result });
+}
+
+/** The agent's folder, file by file: what it pulled, and its own edits. */
+async function agentFile(request, response, path) {
+  const file = AGENT_FILE.exec(path)?.[1];
+
+  if (!file) return void response.writeHead(404).end('Not found');
+
+  const full = join(CLI_HOME, 'agent', ...file.split('/'));
+
+  if (request.method === 'PUT') {
+    await mkdir(join(full, '..'), { recursive: true });
+    await writeFile(full, await readBody(request));
+
+    return void response.writeHead(204).end();
+  }
+
+  markdown(response, await readFile(full, 'utf8').catch(() => null));
+}
+
+/** The page server's own routes for the CLI. */
+const cliRoute = (request, response, path) =>
+  path === '/cli/run'
+    ? runCli(request, response)
+    : path === '/cli/login'
+      ? Promise.resolve(
+          json(response, 200, {
+            url: `http://localhost:${PORTS.server}`,
+            token: cliToken
+          })
+        )
+      : agentFile(request, response, path);
+
 function startPageServer() {
   createServer((request, response) => {
     const url = request.url ?? '/';
@@ -358,7 +455,9 @@ function startPageServer() {
         ? compileMistakes(response)
         : path.startsWith('/files/')
           ? files(request, response, path)
-          : page(path, response);
+          : path.startsWith('/cli/')
+            ? cliRoute(request, response, path)
+            : page(path, response);
     // The API and the admin belong to the Venda server; everything else is this page server.
     const handled = /^\/(api|admin)\//.test(url)
       ? proxy(request, response)
@@ -416,6 +515,7 @@ await step('build admin', 'pnpm', ['--filter', '@venda/admin-app', 'build']);
 await step('build the Worker', 'pnpm', ['exec', 'nitro', 'build'], {
   VENDA_OUTPUT_DIR: BUILD
 });
+await step('build the CLI', 'pnpm', ['--filter', '@venda/cli', 'build']);
 
 const vars = Object.entries(OWNER_ENV).flatMap(([key, value]) => [
   '--var',
@@ -439,6 +539,7 @@ await healthy(PORTS.server);
 
 const seeded = await seed();
 
+await cliLogin();
 startPageServer();
 
 console.log(`
@@ -452,6 +553,7 @@ console.log(`
       ? 'imported from try/content just now'
       : 'as you left it (`pnpm try --fresh` imports try/content again)'
   }
+  CLI: VENDA_URL=http://localhost:${PORTS.server} VENDA_TOKEN=${cliToken} pnpm venda pull ./my-content
   Data: .try/data, kept between runs, so you stay signed in. \`pnpm try --fresh\` starts clean.
   Logs: .try/*.log · Ctrl-C to stop
 `);

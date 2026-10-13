@@ -47,6 +47,8 @@ describe('VendaApi', () => {
       '/api/admin/collections/{collection}/entries/{slug}/owner',
       '/api/admin/files',
       '/api/admin/files/read',
+      '/api/admin/files/revisions',
+      '/api/admin/files/revision',
       '/api/admin/import'
     ]);
   });

@@ -5,11 +5,13 @@
 // either lands entirely or not at all.
 import {
   Conflict,
+  CONTENT_PATH,
   ContentTooLarge,
   InvalidContent,
   MAX_CONTENT_BYTES,
   type UserId
 } from '@venda/contract';
+import { gitBlobSha } from '@venda/content';
 import { inArray, like } from 'drizzle-orm';
 import { DateTime, Effect, Option, Schema } from 'effect';
 import {
@@ -20,16 +22,8 @@ import {
 } from '../database';
 import { reindex, type FileView } from './reindex';
 import { contentFiles } from './schema';
-import { gitBlobSha } from './sha';
 
 const encoder = new TextEncoder();
-
-const NAME = '[a-z0-9][a-z0-9_-]*';
-
-/** `site.ts`, `<collection>/config.ts` or `<collection>/<slug>.md(x)`. */
-export const CONTENT_PATH = new RegExp(
-  `^(?:site\\.ts|${NAME}/config\\.ts|${NAME}/${NAME}\\.mdx?)$`
-);
 
 /** A file to write (`text`), or to delete (`text: null`), from `baseSha` (null: it must not exist). */
 export interface FileChange {

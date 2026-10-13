@@ -14,6 +14,7 @@ import {
 import {
   checkEntryData,
   readEntry,
+  textSha,
   writeEntry,
   type CollectionModel
 } from '@venda/content';
@@ -21,7 +22,7 @@ import { Effect, Result } from 'effect';
 import type { CanPublishEntry } from '../auth/proofs/can-publish-entry';
 import { authorOf } from './author';
 import { guard, writeFiles } from './files';
-import { textSha } from './sha';
+
 import {
   dataFrom,
   modelFor,

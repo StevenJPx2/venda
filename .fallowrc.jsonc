@@ -8,6 +8,9 @@
     "packages/server/nitro.config.ts",
     "packages/server/src/targets/*.ts",
     "packages/core/drizzle.config.ts",
+    // The `venda` command and its bundler config.
+    "packages/cli/src/main.ts",
+    "packages/cli/tsdown.config.ts",
     // Type-level tests: type-checked mistakes that must not compile, never imported.
     "packages/*/test/mistakes.ts",
     "packages/*/eslint.config.mjs"
@@ -31,7 +34,8 @@
       { "name": "views", "patterns": ["packages/views-core/**"] },
       { "name": "pages", "patterns": ["packages/pages-core/**"] },
       { "name": "preset", "patterns": ["packages/preset-default/**"] },
-      { "name": "admin-app", "patterns": ["apps/admin/app/**"] }
+      { "name": "admin-app", "patterns": ["apps/admin/app/**"] },
+      { "name": "cli", "patterns": ["packages/cli/**"] }
     ],
     // Dependencies only point down: the server hosts the core, both speak the
     // contract and read files through content.
@@ -44,7 +48,8 @@
       { "from": "views", "allow": ["admin-sdk", "contract"] },
       { "from": "pages", "allow": ["admin-sdk", "contract"] },
       { "from": "preset", "allow": ["views", "pages"] },
-      { "from": "admin-app", "allow": ["admin-sdk", "preset", "contract"] }
+      { "from": "admin-app", "allow": ["admin-sdk", "preset", "contract"] },
+      { "from": "cli", "allow": ["contract", "content"] }
     ]
   }
 }

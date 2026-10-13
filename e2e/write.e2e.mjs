@@ -1,9 +1,9 @@
 // Write-path checks through the real Worker, D1 and KV.
 import assert from 'node:assert/strict';
 import {
+  addPerson,
   buildWorkers,
   check,
-  client,
   contentFiles,
   saveBody,
   signedIn,
@@ -147,29 +147,6 @@ async function revisionChecks(api) {
       })
     ).status === 400
   );
-}
-
-async function addPerson(api, role) {
-  const person = client();
-  const email = `${role}@venda.test`;
-  const invited = await api('/invitations', 'POST', { email, role });
-
-  assert.equal(invited.status, 200);
-  assert.equal(
-    (
-      await person(`/join/${invited.json.token}`, 'POST', {
-        name: role,
-        password: 'long-enough-password'
-      })
-    ).status,
-    200
-  );
-  await person('/auth/sign-in', 'POST', {
-    email,
-    password: 'long-enough-password'
-  });
-
-  return { api: person, id: (await person('/auth/me')).json.id };
 }
 
 async function sizeChecks(api) {

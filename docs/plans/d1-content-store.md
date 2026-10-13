@@ -1,6 +1,6 @@
 # The D1 content store and the agent CLI
 
-Status: **approved**; part 1 done. Builds on
+Status: **done**. Builds on
 [architecture.md](../architecture.md).
 
 Content lives in D1 as files: each entry a Markdown file, each model a
@@ -78,18 +78,31 @@ A protected contract group for administrators and editors (API tokens or a
 session; the existing capability proofs decide):
 
 ```bash
-venda pull ./content                       # every file, plus .venda/shas (path → SHA it was pulled at)
-venda push ./content -m "Retitle posts"    # changed, new and deleted files, in one batch
-# → 3 files published (rev 412)  or  Conflict: journal/first-light.md changed since you pulled
-venda history journal/first-light.md       # revisions, newest first
-venda restore journal/first-light.md --to 9f2c…
-venda site set name="Hill Notes"           # reads site.ts, writes it back with its SHA
-venda entry get journal first-light --json
-venda entry publish journal first-light --title "First light" --body-file body.md
+venda pull ./content                       # every file, plus .venda/shas.json (path → SHA it was pulled at)
+venda status ./content                     # changed, new and deleted since the pull
+venda push ./content -m "Retitle posts"    # all of them in one write, or none
+# → Published 3 files  or  journal/first-light.md changed on the site since you pulled it …
+venda resolve journal/first-light.md ./content   # after merging: replace the site's version
+venda history journal/first-light.md       # versions, newest first
+venda show journal/first-light.md --at 9f2c1ab
+venda restore journal/first-light.md --to 9f2c1ab
+venda site set name="Hill Notes"           # reads site.ts, writes it back from its SHA
+venda entry get journal first-light
+venda entry set journal first-light --set title="First light" --markdown body=body.md
 ```
 
-- `GET /api/admin/files` lists paths, SHAs and sizes; `GET /api/admin/files/<path>`
-  returns one file's text and SHA; `GET …/<path>/revisions` its history.
+- `GET /api/admin/files` lists paths, SHAs and sizes;
+  `GET /api/admin/files/read?path=` returns one file's text and SHA;
+  `GET /api/admin/files/revisions?path=` its versions, newest first, a
+  hundred at a time; `GET /api/admin/files/revision?path=&sha=` one version's
+  text.
+- A pull follows the site for files unchanged in the folder and keeps files
+  changed there; one changed on both sides is reported and left alone until
+  it is merged and resolved. `--discard` drops the folder's changes.
+- `entry set` reads the collection's `config.ts` and the entry, sets the
+  fields (`--set` text, `--set-json` values, `--markdown` rich text from a
+  file), checks them against the model and writes the file from its SHA,
+  creating the entry when it does not exist.
 - `POST /api/admin/files` takes `{ message, changes: [{ path, text | null,
   baseSha | null }] }`, at most 1 MB a file and 200 files a call, and applies
   them all in one batch or none. `null` text deletes; a `null` base creates.
@@ -146,6 +159,8 @@ venda entry publish journal first-light --title "First light" --body-file body.m
    revisions, import; the files API (list, read, write, import) and its
    `CanEditFiles` proof; local, try and the live suites on D1; removal of the
    GitHub, folder and sync code.
-2. The `venda` CLI (login, pull, push, history, restore, site, entry,
-   import, export), the revisions endpoints it needs, the live CLI suite and
+2. **Done.** The `venda` CLI (`packages/cli`, bundled by tsdown into
+   `dist/venda.mjs`): login, pull, status, push, resolve, history, show,
+   restore, site, entry, import and export; the revisions endpoints; unit
+   tests against a site in memory, the live `cli` suite and
    `try/slice-4.html`.

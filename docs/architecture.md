@@ -213,7 +213,7 @@ For three years every page on our site was rendered in a single region.
 | `@venda/blocks-core` | Paragraph, headings, lists, quote, code, image, divider, callout. | content, admin plugin API |
 | `@venda/fields-core` | Text, textarea, number, toggle, date and time, tags, select, JSON and rich text; image and relation as text until their slices. | editor-kit |
 | `@venda/nuxt` | Site module: typed reads, preview, `<VendaContent>`; can mount the server inside the site's own Nitro. | contract, richtext |
-| `venda` (CLI) | `login`, `pull`, `push`, `history`, `restore`, `site`, `entry`, `import`, `export`; then `init`, `types`, `build`, `deploy`. Over the files API with an API token. | contract, content |
+| `@venda/cli` (`venda`) | `login`, `pull`, `status`, `push`, `resolve`, `history`, `show`, `restore`, `site`, `entry`, `import`, `export`; then `init`, `types`, `build`, `deploy`. Over the files API with an API token; bundled by tsdown into one file. | contract, content |
 
 Dependencies only point down this table. `@venda/core` never imports Nitro,
 Vue or a Cloudflare type; Fallow boundary rules enforce it.
@@ -590,14 +590,17 @@ suites; it does not replace them.
    - `try/slice-3.html`: steps for the real admin, a title-editing console,
      and checks for save, publish, an outside edit, a new entry and General.
 4. **The D1 content store and the agent CLI**
-   ([plan](plans/d1-content-store.md)). Part 1 **done:**
+   ([plan](plans/d1-content-store.md)). **Done:**
    - The files live in `content_files` with every version in
      `content_revisions`; every write is one guarded batch with its index.
    - Publish, Settings → General, the files API and import all write that
      way; the GitHub, folder-server and sync code is removed.
    - `pnpm try` and the live suites import their content into D1.
-   Part 2: the `venda` CLI (pull, push, history, restore, site, entry) and
-   `try/slice-4.html`.
+   - The `venda` CLI (`packages/cli`): pull, status, push, resolve, history,
+     show, restore, site, entry, import and export, with an API token.
+   - `try/slice-4.html`: the commands to run from a terminal, a console that
+     runs the real CLI, and checks for pull, push, a stale push, restore,
+     settings and entries.
 5. **Lifecycle on files.** Scheduling, unpublish, trash and restore from
    revisions, preview, search.
 6. **Finish and freeze the plugin API and the default preset.** Every screen

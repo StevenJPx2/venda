@@ -6,12 +6,13 @@ import {
   readCollectionConfig,
   readEntry,
   readSiteConfig,
+  textSha,
   type CollectionModel
 } from '@venda/content';
 import type { EffectDrizzleQueryError } from 'drizzle-orm/effect-core/errors';
 import { Effect, Option, Result } from 'effect';
 import type { Database, SqlWrite } from '../database';
-import { textSha } from './sha';
+
 import { dropSite, saveSite, SITE_PATH } from './site';
 import {
   clearProblem,

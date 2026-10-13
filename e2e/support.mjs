@@ -255,6 +255,22 @@ export async function signedIn() {
   return api;
 }
 
+/** Invites someone with `role` through `api` (the owner's); resolves to their signed-in client and id. */
+export async function addPerson(api, role) {
+  const person = client();
+  const email = `${role}@venda.test`;
+  const invited = await api('/invitations', 'POST', { email, role });
+  const password = 'long-enough-password';
+
+  if (invited.status !== 200)
+    throw new Error(`Invitation answered ${invited.status}`);
+
+  await person(`/join/${invited.json.token}`, 'POST', { name: role, password });
+  await person('/auth/sign-in', 'POST', { email, password });
+
+  return { api: person, id: (await person('/auth/me')).json.id };
+}
+
 /** A save of `copy` with a new title. */
 export const saveBody = (copy, title) => ({
   revision: copy.revision,
