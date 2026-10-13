@@ -1,15 +1,18 @@
-// `pnpm try`: builds the server, runs it on local workerd and D1, and serves
-// the slice try pages (try/*.html) on one origin. Ctrl-C stops everything.
+// `pnpm try`: builds and watches the sources, runs the server on local workerd
+// and D1, and reloads the admin and slice pages after successful builds.
+// Ctrl-C stops the watcher and every process this run started.
 //
 // The local database (.try/data: content, people, sessions) is kept between
 // runs, so you stay signed in and your edits stay; an empty database gets
 // try/content imported. `pnpm try --fresh` wipes everything first.
-import { execFile, spawn } from 'node:child_process';
-import { createWriteStream } from 'node:fs';
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { processHost } from './try-process.mjs';
+import { tryBuilder } from './try-build.mjs';
+import { RELOAD_CLIENT, reloadHub } from './try-reload.mjs';
+import { rebuildQueue, watchSources } from './try-watch.mjs';
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const SERVER = join(ROOT, 'packages/server');
@@ -23,7 +26,7 @@ const CONTENT_FILE = /^\/files\/(site\.ts|[a-z0-9-]+\/[a-z0-9-]+\.mdx?)$/;
 // The built `venda` the slice 4 page runs, in a scratch home (.try/cli) with a
 // folder an agent works in (.try/cli/agent), signed in with an owner's token
 // kept in .try/data so it survives runs with the database it belongs to.
-const CLI = join(ROOT, 'packages/cli/dist/venda.mjs');
+let CLI;
 const CLI_HOME = join(STATE, 'cli');
 const CLI_TOKEN = join(DATA, 'cli-token');
 // scratch.md is not content: a body for `venda entry set --markdown`.
@@ -31,62 +34,27 @@ const AGENT_FILE =
   /^\/cli\/agent\/(site\.ts|scratch\.md|[a-z0-9-]+\/(?:config\.ts|[a-z0-9-]+\.mdx?))$/;
 const PORTS = { page: 8794, server: 8805 };
 // Its own build output, so `pnpm e2e` or a manual build cannot replace files this server is serving.
-const BUILD = join(STATE, 'build');
 // Throwaway local credentials for the recovery owner, for this machine only.
 const OWNER_ENV = {
   VENDA_OWNER_EMAIL: 'owner@venda.local',
   VENDA_OWNER_PASSWORD: 'try-venda-owner'
 };
-const children = [];
+const host = processHost(STATE, SERVER);
+const { step } = host;
+const reload = reloadHub();
+let worker;
+let pageServer;
+let stopping = false;
+let unwatch = () => {};
+let closeQueue = async () => {};
 
-function spawnLogged(name, command, args, options = {}) {
-  const log = createWriteStream(join(STATE, `${name}.log`));
-  const child = spawn(command, args, {
-    cwd: SERVER,
-    detached: true,
-    ...options,
-    env: { ...process.env, ...options.env },
-    stdio: ['ignore', 'pipe', 'pipe']
-  });
-
-  child.stdout.pipe(log);
-  child.stderr.pipe(log);
-
-  return child;
-}
-
-// Builds join the children too, so Ctrl-C during one stops it: a build left
-// running would hold Nuxt's build lock and fail the next `pnpm try`.
-function step(label, command, args, env) {
-  process.stdout.write(`  ${label}… `);
-
-  return new Promise((done, fail) => {
-    const child = spawnLogged(label.replaceAll(' ', '-'), command, args, {
-      env
-    });
-
-    children.push(child);
-    child.once('exit', code => {
-      children.splice(children.indexOf(child), 1);
-
-      if (code === 0) {
-        console.log('done');
-        done();
-        return;
-      }
-
-      console.log(`failed (see .try/${label.replaceAll(' ', '-')}.log)`);
-      fail(new Error(`${label} failed`));
-    });
-  });
-}
-
-function serve(name, command, args, options = {}) {
-  children.push(spawnLogged(name, command, args, options));
-}
-
-async function healthy(port) {
+async function healthy(port, child) {
   for (let attempt = 0; attempt < 120; attempt++) {
+    if (stopping || child.exitCode !== null || child.signalCode !== null)
+      throw new Error(
+        'Worker stopped before it was ready; see .try/server.log'
+      );
+
     if (
       await fetch(`http://localhost:${port}/api/health`).then(
         r => r.ok,
@@ -173,19 +141,14 @@ async function compileMistakes(response) {
     )
   );
 
-  const output = await new Promise(done => {
-    let text = '';
-    const child = spawn(
-      'npx',
-      ['tsc', '--noEmit', '--pretty', 'false', '-p', 'packages/core'],
-      { cwd: ROOT }
-    );
-
-    child.stdout.on('data', data => {
-      text += data;
-    });
-    child.on('exit', () => done(text));
-  });
+  const { out: output } = await host.capture('compile-mistakes', 'npx', [
+    'tsc',
+    '--noEmit',
+    '--pretty',
+    'false',
+    '-p',
+    join(ROOT, 'packages/core')
+  ]);
 
   await rm(UNCHECKED, { force: true });
 
@@ -219,12 +182,21 @@ async function page(name, response) {
   }
 
   try {
+    const body = await readFile(join(ROOT, 'try', file), 'utf8');
+
     response
       .writeHead(200, {
         'content-type': `${type}; charset=utf-8`,
         'cache-control': 'no-store'
       })
-      .end(await readFile(join(ROOT, 'try', file)));
+      .end(
+        type === 'text/html'
+          ? body.replace(
+              '</head>',
+              '<script defer src="/__try/reload.js"></script></head>'
+            )
+          : body
+      );
   } catch {
     response.writeHead(404).end('Not found');
   }
@@ -394,22 +366,16 @@ async function runCli(request, response) {
   if (!Array.isArray(args) || !args.every(arg => typeof arg === 'string'))
     return json(response, 400, { error: 'args must be a list of strings' });
 
-  const result = await new Promise(done =>
-    execFile(
-      process.execPath,
-      [CLI, ...args],
-      {
-        cwd: CLI_HOME,
-        env: {
-          ...process.env,
-          VENDA_URL: `http://localhost:${PORTS.server}`,
-          VENDA_TOKEN: cliToken,
-          XDG_CONFIG_HOME: join(CLI_HOME, 'config')
-        }
-      },
-      (error, out, err) =>
-        done({ code: error ? (error.code ?? 1) : 0, out, err })
-    )
+  const result = await host.capture(
+    'cli',
+    process.execPath,
+    [CLI, ...args],
+    {
+      VENDA_URL: `http://localhost:${PORTS.server}`,
+      VENDA_TOKEN: cliToken,
+      XDG_CONFIG_HOME: join(CLI_HOME, 'config')
+    },
+    CLI_HOME
   );
 
   json(response, 200, { command: `venda ${args.join(' ')}`, ...result });
@@ -447,9 +413,19 @@ const cliRoute = (request, response, path) =>
       : agentFile(request, response, path);
 
 function startPageServer() {
-  createServer((request, response) => {
+  pageServer = createServer((request, response) => {
     const url = request.url ?? '/';
     const path = url.split('?')[0];
+
+    if (path === '/__try/events') return reload.events(request, response);
+    if (path === '/__try/reload.js')
+      return void response
+        .writeHead(200, {
+          'content-type': 'text/javascript',
+          'cache-control': 'no-store'
+        })
+        .end(RELOAD_CLIENT);
+
     const local = () =>
       path === '/compile-mistakes'
         ? compileMistakes(response)
@@ -467,20 +443,26 @@ function startPageServer() {
   }).listen(PORTS.page);
 }
 
-function stopAll(code = 0) {
-  for (const child of children) {
-    try {
-      process.kill(-child.pid, 'SIGTERM');
-    } catch {
-      /* already gone */
-    }
-  }
+async function stopAll(code = 0) {
+  if (stopping) return;
 
+  stopping = true;
+  unwatch();
+  reload.close();
+  pageServer?.closeAllConnections();
+  pageServer?.close();
+  process.stdin.pause();
+  await host.close();
+  await closeQueue();
   process.exit(code);
 }
 
 // A crash must not leave the servers running on their ports for the next start.
 process.on('uncaughtException', error => {
+  console.error(error);
+  stopAll(1);
+});
+process.on('unhandledRejection', error => {
   console.error(error);
   stopAll(1);
 });
@@ -511,36 +493,85 @@ for (const entry of await readdir(STATE).catch(() => []))
 await mkdir(DATA, { recursive: true });
 console.log('Venda try: building and starting the server');
 
-await step('build admin', 'pnpm', ['--filter', '@venda/admin-app', 'build']);
-await step('build the Worker', 'pnpm', ['exec', 'nitro', 'build'], {
-  VENDA_OUTPUT_DIR: BUILD
-});
-await step('build the CLI', 'pnpm', ['--filter', '@venda/cli', 'build']);
-
 const vars = Object.entries(OWNER_ENV).flatMap(([key, value]) => [
   '--var',
   `${key}:${value}`
 ]);
 
-serve('server', 'npx', [
-  'wrangler',
-  'dev',
-  '--local',
-  '--persist-to',
-  DATA,
-  '--config',
-  join(BUILD, 'server/wrangler.json'),
-  '--port',
-  String(PORTS.server),
-  ...vars
-]);
+let currentWorkerDir;
 
-await healthy(PORTS.server);
+/** Only successful builds reach here; keep the last one for restart rollback. */
+async function install({ server, cli, workerDir, cliDir }) {
+  if (stopping) return;
+
+  if (server) {
+    await host.stop(worker);
+
+    try {
+      await startWorker(workerDir);
+    } catch (error) {
+      await host.stop(worker);
+
+      if (currentWorkerDir && !stopping) await startWorker(currentWorkerDir);
+
+      throw error;
+    }
+
+    currentWorkerDir = workerDir;
+  }
+
+  if (cli) CLI = join(cliDir, 'venda.mjs');
+
+  reload.changed();
+}
+
+async function startWorker(dir) {
+  worker = host.start('server', 'npx', [
+    'wrangler',
+    'dev',
+    '--local',
+    '--persist-to',
+    DATA,
+    '--config',
+    join(dir, 'server/wrangler.json'),
+    '--port',
+    String(PORTS.server),
+    ...vars
+  ]);
+  await healthy(PORTS.server, worker);
+}
+
+const build = tryBuilder(STATE, step, install);
+
+await build(new Set(['admin', 'server', 'cli']));
 
 const seeded = await seed();
 
 await cliLogin();
 startPageServer();
+const queue = rebuildQueue(
+  async kinds => {
+    if (stopping) return;
+
+    console.log(`Source changed: ${[...kinds].join(', ')}`);
+    await build(kinds);
+    console.log('Updated. Watching for changes.');
+  },
+  error => {
+    if (!stopping)
+      console.error(
+        `${error.message}. Keeping the last working build; save again to retry.`
+      );
+  }
+);
+closeQueue = queue.close;
+unwatch = watchSources(ROOT, queue);
+// `r` and Enter rebuilds everything without clearing data or the agent folder.
+process.stdin.setEncoding('utf8');
+process.stdin.on('data', text => {
+  if (text.trim() === 'r') queue.add(['admin', 'server', 'cli']);
+});
+process.on('SIGUSR2', () => queue.add(['admin', 'server', 'cli']));
 
 console.log(`
   Open http://localhost:${PORTS.page}
@@ -555,5 +586,6 @@ console.log(`
   }
   CLI: VENDA_URL=http://localhost:${PORTS.server} VENDA_TOKEN=${cliToken} pnpm venda pull ./my-content
   Data: .try/data, kept between runs, so you stay signed in. \`pnpm try --fresh\` starts clean.
+  Watching: admin, Worker, CLI and try pages. Type r + Enter to rebuild everything.
   Logs: .try/*.log · Ctrl-C to stop
 `);

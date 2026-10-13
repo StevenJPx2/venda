@@ -8,5 +8,6 @@ export default defineConfig({
   format: 'esm',
   fixedExtension: true,
   clean: true,
-  deps: { onlyBundle: false }
+  deps: { onlyBundle: false },
+  outDir: process.env.VENDA_CLI_OUTPUT_DIR ?? 'dist'
 });

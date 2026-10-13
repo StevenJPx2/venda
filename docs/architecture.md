@@ -192,6 +192,15 @@ For three years every page on our site was rendered in a single region.
 8. **Local development.** The Worker runs on local workerd with local D1;
    `pnpm try` and the live suites import their content folder into an empty
    database.
+   - `pnpm try` watches admin, Worker and CLI sources. Builds run one at a
+     time, with another pass for edits made during a build.
+   - New builds use inactive output folders. Only successful builds replace
+     the running Worker or CLI; a failed build leaves the last working one.
+   - The page server stays running through Worker restarts. It tells open
+     pages when to reload, and asks before reloading a page with entered text.
+   - Local D1, sessions and the agent's folder survive hot restarts. Type `r`
+     and press Enter to rebuild everything; `--fresh` resets data only when
+     starting a new run.
 
 ## Packages
 

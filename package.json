@@ -5,7 +5,7 @@
   "packageManager": "pnpm@10.15.0",
   "scripts": {
     "build": "pnpm --filter @venda/nuxt build && pnpm --filter @venda/landing build && pnpm --filter @venda/server build",
-    "test": "node --test scripts/spacing.test.mjs && pnpm --filter @venda/richtext test && pnpm --filter @venda/content test && pnpm --filter @venda/contract test && pnpm --filter @venda/core test && pnpm --filter @venda/server test && pnpm --filter @venda/cli test && pnpm --filter @venda/admin test && pnpm --filter @venda/views-core test && pnpm --filter @venda/editor-writer test && pnpm --filter @venda/admin-app test && pnpm --filter @venda/nuxt test",
+    "test": "node --test scripts/*.test.mjs && pnpm --filter @venda/richtext test && pnpm --filter @venda/content test && pnpm --filter @venda/contract test && pnpm --filter @venda/core test && pnpm --filter @venda/server test && pnpm --filter @venda/cli test && pnpm --filter @venda/admin test && pnpm --filter @venda/views-core test && pnpm --filter @venda/editor-writer test && pnpm --filter @venda/admin-app test && pnpm --filter @venda/nuxt test",
     "typecheck": "pnpm --filter @venda/richtext typecheck && pnpm --filter @venda/content typecheck && pnpm --filter @venda/contract typecheck && pnpm --filter @venda/core typecheck && pnpm --filter @venda/server typecheck && pnpm --filter @venda/cli typecheck && pnpm --filter @venda/nuxt typecheck && pnpm --filter @venda/admin typecheck && pnpm --filter @venda/admin-app typecheck && pnpm --filter @venda/landing typecheck",
     "format": "prettier --write .",
     "lint": "prettier --check . && pnpm --filter \"./apps/*\" --filter \"./packages/*\" run lint && eslint . && oxlint --deny-warnings",

@@ -34,8 +34,18 @@ export default defineNuxtConfig({
   modules: ['@nuxt/ui', '@nuxt/eslint'],
   css: ['~/assets/main.css'],
   ssr: false,
-  app: { baseURL: '/admin/' },
-  nitro: { output: { publicDir: 'dist' } },
+  buildDir: process.env.VENDA_ADMIN_BUILD_DIR ?? '.nuxt',
+  app: {
+    baseURL: '/admin/',
+    head: {
+      script: process.env.VENDA_TRY_RELOAD
+        ? [{ src: process.env.VENDA_TRY_RELOAD, defer: true }]
+        : []
+    }
+  },
+  nitro: {
+    output: { publicDir: process.env.VENDA_ADMIN_OUTPUT_DIR ?? 'dist' }
+  },
   // Pre-bundle ProseMirror so UEditor never loads two copies of a keyed plugin
   // (recommended by the Nuxt UI Editor docs).
   vite: {

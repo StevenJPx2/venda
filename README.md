@@ -25,6 +25,14 @@ It is in early development.
 - Each slice has its own page of checks you can run.
 - Each screen is a plugin, loaded when you open it. Permissions are checked by the API, not the screen.
 
+While it runs:
+
+- Changes to the admin, Worker or CLI rebuild what depends on them.
+- The Worker restarts after a successful build. A failed build keeps the last working version running; save again to retry.
+- Open admin and try pages reload when the new version is ready. If you entered text, they ask before reloading.
+- Type `r` and press Enter to rebuild everything without losing data.
+- Changes to `try/content` are imported only into an empty database. They do not overwrite content you edited in D1.
+
 Between runs:
 
 - `pnpm try` keeps the local database (`.try/data`): your content and its versions, the people and tokens you made, and your session.
