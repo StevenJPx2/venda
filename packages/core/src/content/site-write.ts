@@ -85,7 +85,7 @@ export const saveSiteFile = <A>(
         message: 'Update site settings',
         mode: 'strict'
       }
-    );
+    ).pipe(Effect.catchTag('EntryTrashed', Effect.die));
 
     return yield* getSiteDocument(admin);
   });

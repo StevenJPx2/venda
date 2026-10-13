@@ -34,6 +34,12 @@ export class EditedElsewhere extends Schema.TaggedError<EditedElsewhere>()(
   { httpApiStatus: 409 }
 ) {}
 
+export class EntryTrashed extends Schema.TaggedError<EntryTrashed>()(
+  'EntryTrashed',
+  entryFields,
+  { httpApiStatus: 409 }
+) {}
+
 export class SlugTaken extends Schema.TaggedError<SlugTaken>()(
   'SlugTaken',
   { slug: Schema.String },
@@ -71,6 +77,7 @@ const errors = [
   ContentTooLarge,
   CollectionNotFound,
   EntryNotFound,
+  EntryTrashed,
   Forbidden,
   EditedElsewhere,
   InvalidContent,

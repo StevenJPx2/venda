@@ -84,12 +84,16 @@ const writeFile = (work: () => Promise<void>) =>
       :dot="changed ? 'draft' : entry?.state"
       :can-publish="state.canPublish && !editing.readonly.value"
       :changed="changed"
+      :state="entry?.state"
       :editable="!editing.readonly.value"
       :is-new="copy?.baseSha === null"
       :busy="action.busy.value"
       :error="action.error.value"
       @publish="writeFile(editing.publish)"
+      @republish="writeFile(editing.republish)"
       @discard="writeFile(editing.discard)"
+      @unpublish="writeFile(editing.unpublish)"
+      @trash="run(editing.trash)"
     />
   </div>
 

@@ -105,6 +105,11 @@ Signed in, with the session cookie or `Authorization: Bearer <API token>`:
   - Administrators and editors also see drafts and future-dated entries.
   - Authors and contributors see published entries only.
 - `GET /api/admin/content-problems`: files that do not fit their model, with their line. Administrators only.
+- `POST /api/admin/collections/:collection/entries/:slug/unpublish` and `/republish` (`{ revision, sha }`): take an entry off the site as a draft, or put a clean draft back.
+- `POST …/trash` (`{ revision, sha }`) removes the entry's file. Its saved edits and owner are kept, and its slug stays reserved.
+- `POST …/restore` (`{ revision }`) brings a trashed entry back as a draft. `GET /api/admin/trash` lists trashed entries, paged.
+  - These need permission to publish the entry: administrators, editors, or the author it is assigned to.
+  - Each refuses a stale copy revision (`EditedElsewhere`) or file SHA (`Conflict`), and changes nothing.
 
 The content files, for administrators and editors:
 

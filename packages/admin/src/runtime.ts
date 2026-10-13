@@ -19,6 +19,8 @@ const MESSAGES = new Map([
   ['TokenNotFound', 'This token no longer exists.'],
   ['CollectionNotFound', 'This collection no longer exists.'],
   ['EntryNotFound', 'This entry is missing or is not visible to your role.'],
+  ['EntryTrashed', 'This entry is in Trash. Restore it there to keep editing.'],
+  ['EntryNotTrashed', 'This entry is no longer in Trash. Refresh the list.'],
   ['UserNotFound', 'This person no longer has an account.'],
   ['TooManyAttempts', 'Too many attempts. Try again in fifteen minutes.'],
   [

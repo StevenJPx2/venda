@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Slice 5 · Try Venda</title>
+    <link rel="stylesheet" href="/try.css" />
+    <style>
+      .trial {
+        display: grid;
+        grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
+        gap: 16px;
+        margin-bottom: 16px;
+      }
+      .panel {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 16px 18px;
+        display: grid;
+        gap: 12px;
+        align-content: start;
+      }
+      .panel h2 {
+        font-size: 15px;
+        margin: 0;
+      }
+      .state {
+        font-size: 22px;
+        font-weight: 600;
+      }
+      .reader {
+        background: var(--soft);
+        border-radius: 8px;
+        padding: 12px;
+        min-height: 72px;
+      }
+      .reader strong {
+        display: block;
+        font-size: 16px;
+      }
+      .buttons {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .tabs {
+        display: flex;
+        gap: 6px;
+      }
+      .tabs button[aria-pressed='true'] {
+        background: var(--ink);
+        color: var(--bg);
+      }
+      iframe {
+        width: 100%;
+        height: 640px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--bg);
+      }
+      @media (max-width: 860px) {
+        .trial {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <a class="crumb" href="/">← Try Venda</a>
+          <h1>Slice 5 · Unpublish, trash and restore</h1>
+          <p class="lede">
+            Take an entry off the site without losing anything. Unpublish keeps
+            the file as a draft; trash removes the file but keeps its saved
+            edits, owner and every version, and restoring brings it back as a
+            draft to publish when you are ready.
+          </p>
+        </div>
+        <button class="primary" id="run-all">Run the checks</button>
+      </header>
+
+      <div class="trial">
+        <section class="panel" aria-label="Practice entry">
+          <h2>A practice entry</h2>
+          <p class="note">
+            <code>journal/try-lifecycle.md</code>, made for this page so your
+            own content stays untouched.
+          </p>
+          <div>
+            <span class="note">Right now it is</span>
+            <div class="state" id="state" aria-live="polite">…</div>
+          </div>
+          <div>
+            <span class="note">What a reader sees</span>
+            <div class="reader" id="reader">…</div>
+          </div>
+          <div class="buttons">
+            <button id="make" class="primary">Make the practice entry</button>
+            <button id="unpublish">Unpublish</button>
+            <button id="republish">Publish again</button>
+            <button id="trash">Move to trash</button>
+            <button id="restore">Restore as draft</button>
+          </div>
+          <p class="note" id="message" role="status"></p>
+        </section>
+
+        <section class="panel" aria-label="The real admin">
+          <div class="row" style="justify-content: space-between">
+            <h2>The real admin</h2>
+            <div class="tabs">
+              <button data-screen="entry" aria-pressed="true">The entry</button>
+              <button data-screen="trash" aria-pressed="false">Trash</button>
+            </div>
+          </div>
+          <p class="note">
+            Sign in as <code>owner@venda.local</code> /
+            <code>try-venda-owner</code>. The entry's ⋯ menu has Unpublish and
+            Move to trash; Trash lists removed entries with Restore. Edit the
+            title first, then trash and restore it: your edit comes back.
+          </p>
+          <iframe id="admin" title="Venda admin"></iframe>
+        </section>
+      </div>
+
+      <div id="checks"></div>
+    </main>
+
+    <script type="module">
+      import { call, mount } from '/harness.js';
+
+      const AS = { as: 'slice-5' };
+      const SLUG = 'try-lifecycle';
+      const FILE = `journal/${SLUG}.md`;
+      const ENTRY = `/api/admin/collections/journal/entries/${SLUG}`;
+      const ADMIN = 'http://localhost:8805/admin';
+      const PRACTICE = `---\ntitle: Practice entry\nmood: calm\n---\n\nUnpublish me, trash me and bring me back.\n`;
+      const screens = {
+        entry: `${ADMIN}/content/journal/${SLUG}`,
+        trash: `${ADMIN}/trash`
+      };
+
+      async function signIn() {
+        const me = await call('GET', '/api/auth/me', AS);
+
+        if (me.ok) return;
+
+        const signed = await call('POST', '/api/auth/sign-in', {
+          ...AS,
+          body: { email: 'owner@venda.local', password: 'try-venda-owner' }
+        });
+
+        if (!signed.ok) throw new Error('Unable to sign in as the owner');
+      }
+
+      const request = (method, path, body, log) =>
+        call(method, path, { ...AS, body }).then(result => {
+          log?.(result.line, result.data);
+          return result;
+        });
+
+      /** The entry as Venda sees it: its copy, or its place in trash, or nothing. */
+      async function where(log) {
+        await signIn();
+
+        const copy = await request('GET', `${ENTRY}/copy`, undefined, log);
+
+        if (copy.ok) return { kind: 'active', copy: copy.data };
+
+        const bin = await request('GET', '/api/admin/trash', undefined, log);
+        const trashed = bin.data?.items?.find(item => item.slug === SLUG);
+
+        return trashed ? { kind: 'trashed', trashed } : { kind: 'missing' };
+      }
+
+      const base = copy => ({ revision: copy.revision, sha: copy.currentSha });
+
+      async function act(name, log) {
+        const now = await where(log);
+
+        if (name === 'restore') {
+          if (now.kind !== 'trashed') throw new Error('It is not in trash.');
+
+          return request(
+            'POST',
+            `${ENTRY}/restore`,
+            { revision: now.trashed.revision },
+            log
+          );
+        }
+
+        if (now.kind !== 'active')
+          throw new Error('Make or restore the entry first.');
+
+        return request('POST', `${ENTRY}/${name}`, base(now.copy), log);
+      }
+
+      /** Put the practice entry back to published, whatever state a check left it in. */
+      async function reset(log) {
+        let now = await where(log);
+
+        if (now.kind === 'missing') {
+          await call('PUT', `/files/${FILE}`, { body: PRACTICE });
+          now = await where(log);
+        }
+
+        if (now.kind === 'trashed') {
+          await act('restore', log);
+          now = await where(log);
+        }
+
+        if (now.copy.dirty)
+          await request(
+            'DELETE',
+            `${ENTRY}/copy`,
+            { revision: now.copy.revision },
+            log
+          );
+
+        const entry = await call('GET', `/api/content/journal/${SLUG}`);
+
+        if (!entry.ok) await act('republish', log);
+
+        return where(log);
+      }
+
+      // ── The trial ──────────────────────────────────────────────────────────
+      const $ = id => document.getElementById(id);
+      const frame = $('admin');
+
+      function show(screen) {
+        frame.src = screens[screen];
+
+        for (const tab of document.querySelectorAll('[data-screen]'))
+          tab.setAttribute(
+            'aria-pressed',
+            String(tab.dataset.screen === screen)
+          );
+      }
+
+      async function refresh() {
+        const now = await where().catch(() => ({ kind: 'missing' }));
+        const reader = await call('GET', `/api/content/journal/${SLUG}`);
+        const states = {
+          missing: 'Not made yet',
+          trashed: 'In trash',
+          active: reader.ok ? 'Published' : 'A draft'
+        };
+
+        $('state').textContent = states[now.kind];
+        $('reader').innerHTML = '';
+
+        if (reader.ok) {
+          const title = document.createElement('strong');
+
+          title.textContent = reader.data.data.title;
+          $('reader').append(title, 'Readers can open it.');
+        } else $('reader').textContent = 'Not found. Readers cannot see it.';
+
+        $('make').hidden = now.kind !== 'missing';
+        $('unpublish').disabled = !(now.kind === 'active' && reader.ok);
+        $('republish').disabled = !(now.kind === 'active' && !reader.ok);
+        $('trash').disabled = now.kind !== 'active';
+        $('restore').disabled = now.kind !== 'trashed';
+      }
+
+      const CONFIRM = {
+        trash: 'Move the practice entry to trash? You can restore it.',
+        unpublish:
+          'Unpublish the practice entry? Readers will no longer see it.'
+      };
+
+      async function run(name, work) {
+        if (CONFIRM[name] && !confirm(CONFIRM[name])) return;
+
+        $('message').textContent = 'Working…';
+
+        try {
+          const result = await work();
+
+          $('message').textContent =
+            result && !result.ok
+              ? (result.data?.message ??
+                result.data?._tag ??
+                `Refused (${result.status})`)
+              : 'Done. The admin beside shows the same entry.';
+        } catch (error) {
+          $('message').textContent = error.message;
+        }
+
+        await refresh();
+        show(name === 'trash' ? 'trash' : 'entry');
+      }
+
+      $('make').onclick = () => run('make', () => reset());
+
+      for (const name of ['unpublish', 'republish', 'trash', 'restore'])
+        $(name).onclick = () => run(name, () => act(name));
+
+      for (const tab of document.querySelectorAll('[data-screen]'))
+        tab.onclick = () => show(tab.dataset.screen);
+
+      show('entry');
+      await refresh();
+
+      // ── Technical checks ───────────────────────────────────────────────────
+      const published = async () =>
+        (await call('GET', `/api/content/journal/${SLUG}`)).ok;
+
+      mount([
+        {
+          title: 'Unpublishing hides the entry and keeps saved edits',
+          description:
+            'Saves an edit to the working copy, then unpublishes. The public API stops serving the entry, the file gains draft: true, and the saved edit is still in the copy.',
+          async run({ log }) {
+            const start = await reset(log);
+            const saved = await request(
+              'PUT',
+              `${ENTRY}/copy`,
+              {
+                revision: start.copy.revision,
+                data: { ...start.copy.data, title: 'Edited, not published' },
+                publishedAt: start.copy.publishedAt
+              },
+              log
+            );
+            const hidden = await request(
+              'POST',
+              `${ENTRY}/unpublish`,
+              base(saved.data),
+              log
+            );
+            const file = (await call('GET', `/files/${FILE}`)).data;
+            const pass =
+              hidden.ok &&
+              !(await published()) &&
+              String(file).includes('draft: true') &&
+              hidden.data.data.title === 'Edited, not published';
+
+            await reset(log);
+
+            return {
+              pass,
+              note: pass
+                ? 'Hidden from readers; the edit stayed'
+                : 'See the log'
+            };
+          }
+        },
+        {
+          title: 'Trash and restore keep the saved edit, and return a draft',
+          description:
+            'Saves an edit, moves the entry to trash (the file is removed, the entry is listed in Trash), then restores it. It comes back as a draft with the edit still in its copy.',
+          async run({ log }) {
+            const start = await reset(log);
+            const saved = await request(
+              'PUT',
+              `${ENTRY}/copy`,
+              {
+                revision: start.copy.revision,
+                data: { ...start.copy.data, title: 'Kept through trash' },
+                publishedAt: start.copy.publishedAt
+              },
+              log
+            );
+            const gone = await request(
+              'POST',
+              `${ENTRY}/trash`,
+              base(saved.data),
+              log
+            );
+            const removed =
+              (await call('GET', `/files/${FILE}`)).status === 404;
+            const back = await request(
+              'POST',
+              `${ENTRY}/restore`,
+              { revision: gone.data.revision },
+              log
+            );
+            const pass =
+              gone.ok &&
+              removed &&
+              back.ok &&
+              !(await published()) &&
+              back.data.data.title === 'Kept through trash';
+
+            await reset(log);
+
+            return {
+              pass,
+              note: pass
+                ? 'Removed, then back as a draft with the edit'
+                : 'See the log'
+            };
+          }
+        },
+        {
+          title: 'An old tab cannot trash or restore',
+          description:
+            'A trash request from a copy revision that has moved on is refused with EditedElsewhere, and nothing changes. So is a second restore of the same trashed entry.',
+          async run({ log }) {
+            const start = await reset(log);
+            const saved = await request(
+              'PUT',
+              `${ENTRY}/copy`,
+              {
+                revision: start.copy.revision,
+                data: { ...start.copy.data, title: 'A newer save' },
+                publishedAt: start.copy.publishedAt
+              },
+              log
+            );
+            const stale = await request(
+              'POST',
+              `${ENTRY}/trash`,
+              base(start.copy),
+              log
+            );
+            const gone = await request(
+              'POST',
+              `${ENTRY}/trash`,
+              base(saved.data),
+              log
+            );
+            const first = await request(
+              'POST',
+              `${ENTRY}/restore`,
+              { revision: gone.data.revision },
+              log
+            );
+            const second = await request(
+              'POST',
+              `${ENTRY}/restore`,
+              { revision: gone.data.revision },
+              log
+            );
+            const pass =
+              stale.status === 409 &&
+              stale.data._tag === 'EditedElsewhere' &&
+              first.ok &&
+              second.status === 409;
+
+            await reset(log);
+
+            return {
+              pass,
+              note: pass ? 'Both stale requests refused' : 'See the log'
+            };
+          }
+        }
+      ]);
+    </script>
+  </body>
+</html>

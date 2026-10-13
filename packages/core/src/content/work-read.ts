@@ -3,6 +3,7 @@
 import {
   CollectionNotFound,
   EntryNotFound,
+  EntryTrashed,
   InvalidContent,
   WorkingCopy,
   UserId,
@@ -63,7 +64,7 @@ export const snapshot = (ref: EntryRef, path: string) =>
     };
   });
 
-const workOf = (ref: EntryRef) =>
+export const workOf = (ref: EntryRef) =>
   Effect.gen(function* () {
     const db = yield* Database;
     const [row] = yield* db.select().from(contentWork).where(workKey(ref));
@@ -78,6 +79,8 @@ export const openWork = (ref: EntryRef) =>
     const known = yield* workOf(ref);
 
     if (known) {
+      if (known.status === 'trashed') return yield* new EntryTrashed(ref);
+
       if (known.baseSha === null && !known.dirty)
         return yield* new EntryNotFound(ref);
 

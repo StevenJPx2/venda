@@ -22,14 +22,10 @@ import { Effect, Result } from 'effect';
 import type { CanPublishEntry } from '../auth/proofs/can-publish-entry';
 import { authorOf } from './author';
 import { guard, writeFiles } from './files';
+import { lifecycleRefusal, modelGuard } from './lifecycle-state';
+import { lifecycleModel } from './lifecycle-file';
 
-import {
-  dataFrom,
-  modelFor,
-  openWork,
-  presentWork,
-  type WorkRow
-} from './work-read';
+import { dataFrom, openWork, presentWork, type WorkRow } from './work-read';
 
 const invalid = (error: { message: string }) =>
   new InvalidContent({ message: error.message });
@@ -79,7 +75,8 @@ export const publishWorkingCopy = <U, E>(
         message: 'There are no changes to publish'
       });
 
-    const file = yield* fileOf(row, yield* modelFor(entry.value));
+    const model = yield* lifecycleModel(entry.value);
+    const file = yield* fileOf(row, model.model);
     const sha = yield* Effect.promise(() => textSha(file.text));
     const where = 'collection = ? AND slug = ? AND revision = ?';
     const at = [row.collection, row.slug, row.revision];
@@ -91,7 +88,8 @@ export const publishWorkingCopy = <U, E>(
         message: `Publish ${row.collection}/${row.slug}`,
         mode: 'strict',
         guards: [
-          guard(`EXISTS (SELECT 1 FROM content_work WHERE ${where})`, at)
+          guard(`EXISTS (SELECT 1 FROM content_work WHERE ${where})`, at),
+          modelGuard(model)
         ],
         extra: [
           {
@@ -107,10 +105,8 @@ export const publishWorkingCopy = <U, E>(
         ]
       }
     ).pipe(
-      Effect.catchTag('GuardRefused', () =>
-        Effect.flatMap(openWork(entry.value), current =>
-          Effect.fail(new EditedElsewhere({ revision: current.revision }))
-        )
+      Effect.catchTag('GuardRefused', error =>
+        lifecycleRefusal(entry.value, row.revision, error, model)
       )
     );
 

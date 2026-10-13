@@ -16,14 +16,16 @@ import {
   signedInInPerson,
   updateUser
 } from '../src/auth';
-import { canEditEntry, canEditFiles } from '../src/auth';
+import { canEditEntry, canEditFiles, canPublishEntry } from '../src/auth';
 import { canBrowseContent } from '../src/auth/proofs/can-browse-content';
 import {
   getIndexedEntry,
   importFiles,
   pushFiles,
   saveWorkingCopy,
-  publishWorkingCopy
+  publishWorkingCopy,
+  trashEntry,
+  restoreEntry
 } from '../src/content';
 
 declare const actor: Actor;
@@ -139,6 +141,22 @@ export const mistakes = [
     Effect.flatMap(canEditFiles(me), proof =>
       // @ts-expect-error the proof is about `me`, not `them`
       pushFiles(them, 'Not mine', [], proof)
+    )
+  ),
+
+  // Saving permission does not grant permission to remove an entry's file.
+  name(actor.userId, entryRef, (user, entry) =>
+    Effect.flatMap(canEditEntry(user, entry), proof =>
+      // @ts-expect-error contributors may edit but not trash
+      trashEntry(user, entry, { revision: 1, sha: 'base' }, proof)
+    )
+  ),
+
+  // Restoring one entry with a publishing proof about another entry.
+  name(actor.userId, entryRef, entryRef, (user, entry, differentEntry) =>
+    Effect.flatMap(canPublishEntry(user, entry), proof =>
+      // @ts-expect-error the proof belongs to `entry`, not `differentEntry`
+      restoreEntry(user, differentEntry, 1, proof)
     )
   )
 ];

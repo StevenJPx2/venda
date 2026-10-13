@@ -49,7 +49,12 @@ describe('VendaApi', () => {
       '/api/admin/files/read',
       '/api/admin/files/revisions',
       '/api/admin/files/revision',
-      '/api/admin/import'
+      '/api/admin/import',
+      '/api/admin/collections/{collection}/entries/{slug}/unpublish',
+      '/api/admin/collections/{collection}/entries/{slug}/republish',
+      '/api/admin/collections/{collection}/entries/{slug}/trash',
+      '/api/admin/collections/{collection}/entries/{slug}/restore',
+      '/api/admin/trash'
     ]);
   });
 

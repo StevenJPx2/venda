@@ -4,7 +4,12 @@
 import { Schema } from 'effect';
 import { HttpApiEndpoint, HttpApiGroup } from 'effect/http-api';
 import { Authentication, Forbidden } from './auth';
-import { Conflict, ContentTooLarge, InvalidContent } from './content-write';
+import {
+  Conflict,
+  ContentTooLarge,
+  EntryTrashed,
+  InvalidContent
+} from './content-write';
 
 const NAME = '[a-z0-9][a-z0-9_-]*';
 
@@ -80,6 +85,7 @@ export class FilesImported extends Schema.Class<FilesImported>(
 }) {}
 
 const writeErrors = [
+  EntryTrashed,
   Forbidden,
   Conflict,
   InvalidContent,

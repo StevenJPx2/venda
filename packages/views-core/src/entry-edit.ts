@@ -19,6 +19,7 @@ import {
   type Data
 } from './autosave';
 import { isReadonly } from './edit-status';
+import { entryLifecycle } from './entry-lifecycle';
 
 const decodeRef = Schema.decodeUnknownSync(EntryRef);
 
@@ -118,18 +119,19 @@ export function useEntryEdit(
     copy.value = undefined;
     pending.value = false;
   };
-  const actions = copyActions({
-    admin,
-    params,
-    copy,
-    adopt,
-    clear,
-    flush,
-    settle,
-    load
-  });
+  const editor = { admin, params, copy, adopt, clear, flush, settle, load };
 
-  return { ...state, edit, readonly, action, load, flush, dispose, ...actions };
+  return {
+    ...state,
+    edit,
+    readonly,
+    action,
+    load,
+    flush,
+    dispose,
+    ...copyActions(editor),
+    ...entryLifecycle(admin, editor)
+  };
 }
 
 interface CopyActionsInput {

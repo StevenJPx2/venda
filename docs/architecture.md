@@ -181,8 +181,12 @@ For three years every page on our site was rendered in a single region.
    `Conflict` naming the first that moved. The index follows in the same
    batch; working copies based on an older SHA show "Changed outside Venda".
 4. **Schedule.** The minute tick publishes due entries the same way as (2).
-5. **Unpublish** sets `draft: true` in the file. **Trash** deletes the file;
-   its revisions keep every version, so it can be restored.
+5. **Unpublish** sets `draft: true` in the file; **Publish** on a clean
+   draft removes it. **Trash** deletes the file and marks the entry's
+   working record trashed, keeping its saved edits, owner and the file's
+   last SHA; its slug stays reserved. **Restore** writes that version back
+   as a draft. Each is one guarded batch, from the copy's revision and the
+   file's SHA ([plan](plans/slice-5-lifecycle.md)).
 6. **Edit a model.** Writing `config.ts` re-reads every entry of its
    collection in the same batch. Entries are not rewritten; entries that no
    longer fit are listed in Content problems.
@@ -257,7 +261,7 @@ type EntryState =
   | { _tag: 'Draft' }
   | { _tag: 'Scheduled'; publishAt: DateTime.Utc }
   | { _tag: 'Published'; publishedAt: DateTime.Utc; sha: string; changes: 'none' | 'pending'; unpublishAt?: DateTime.Utc }
-  | { _tag: 'Trashed'; deletedAt: DateTime.Utc; lastSha: string | null };
+  | { _tag: 'Trashed'; trashedAt: DateTime.Utc; lastSha: string; changes: 'none' | 'pending' };
 ```
 
 **Order:** the public API serves a collection newest first. The admin orders
@@ -610,8 +614,15 @@ suites; it does not replace them.
    - `try/slice-4.html`: the commands to run from a terminal, a console that
      runs the real CLI, and checks for pull, push, a stale push, restore,
      settings and entries.
-5. **Lifecycle on files.** Scheduling, unpublish, trash and restore from
-   revisions, preview, search.
+5. **Lifecycle on files** ([plan](plans/slice-5-lifecycle.md)).
+   Part 1 **done:**
+   - Unpublish and republish, trash and restore as a draft, each one
+     guarded batch; saved edits and ownership survive trash.
+   - Index writes guard the content revision they read from, so a model edit
+     cannot index a snapshot taken before a concurrent change.
+   - The entry's ⋯ menu and a paged Trash screen in the admin;
+     `try/slice-5.html` with a practice entry and the real admin beside it.
+   Then: scheduling, preview and search.
 6. **Finish and freeze the plugin API and the default preset.** Every screen
    arrives as a plugin from slice 2b on. What is left: the model editor that
    writes `config.ts`, any remaining slots, and one external test plugin

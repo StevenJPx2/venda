@@ -59,6 +59,12 @@ export const contentWork = sqliteTable(
     collection: text().notNull(),
     slug: text().notNull(),
     path: text().notNull().unique(),
+    status: text({ enum: ['active', 'trashed'] })
+      .notNull()
+      .default('active'),
+    trashSha: text('trash_sha'),
+    trashedAt: text('trashed_at'),
+    trashedBy: text('trashed_by'),
     // Null for an entry created in the admin that has no file yet.
     baseSha: text('base_sha'),
     dataJson: text('data_json').notNull(),
@@ -70,7 +76,24 @@ export const contentWork = sqliteTable(
     updatedBy: text('updated_by'),
     updatedAt: text('updated_at')
   },
-  table => [primaryKey({ columns: [table.collection, table.slug] })]
+  table => [
+    primaryKey({ columns: [table.collection, table.slug] }),
+    index('content_work_trash').on(
+      table.status,
+      table.trashedAt,
+      table.collection,
+      table.slug
+    ),
+    check(
+      'content_work_trash_state',
+      sql`
+      (${table.status} = 'active' AND ${table.trashSha} IS NULL
+        AND ${table.trashedAt} IS NULL AND ${table.trashedBy} IS NULL)
+      OR (${table.status} = 'trashed' AND ${table.trashSha} IS NOT NULL
+        AND ${table.trashedAt} IS NOT NULL AND ${table.trashedBy} IS NOT NULL)
+    `
+    )
+  ]
 );
 
 // The content itself: `site.ts`, each `<collection>/config.ts` and each entry

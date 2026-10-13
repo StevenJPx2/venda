@@ -13,6 +13,10 @@ export { importFiles, listFiles, pushFiles, readFile } from './transfer';
 
 export { listRevisions, revisionText } from './history';
 
+export { setEntryVisibility, trashEntry, restoreEntry } from './lifecycle';
+
+export { listTrash } from './trash-read';
+
 export { getSite, siteSettings } from './site';
 
 export {

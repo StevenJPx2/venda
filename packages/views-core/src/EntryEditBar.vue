@@ -1,36 +1,33 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed } from 'vue';
+import { republishesFile, type EntryActionState } from './entry-actions';
+import EntryActionsMenu from './EntryActionsMenu.vue';
 
 // The status line and the entry's actions: Publish, and Discard behind a
 // menu, with a confirmation, since discarding cannot be undone.
-defineProps<{
-  status: string;
-  dot: string | undefined;
-  /** Publish shows only to people who may publish. */
-  canPublish: boolean;
-  /** There are saved or unsaved changes to publish or discard. */
-  changed: boolean;
-  editable: boolean;
-  isNew: boolean;
-  busy: boolean;
-  error: string;
+const props = defineProps<
+  EntryActionState & {
+    status: string;
+    dot: string | undefined;
+    /** Publish shows only to people who may publish. */
+    canPublish: boolean;
+    /** There are saved or unsaved changes to publish or discard. */
+    changed: boolean;
+    editable: boolean;
+    isNew: boolean;
+    busy: boolean;
+    error: string;
+  }
+>();
+
+const emit = defineEmits<{
+  publish: [];
+  republish: [];
+  discard: [];
+  unpublish: [];
+  trash: [];
 }>();
-
-const emit = defineEmits<{ publish: []; discard: [] }>();
-const confirming = ref(false);
-
-const menu = [
-  [
-    {
-      label: 'Discard changes',
-      icon: 'i-lucide-undo-2',
-      color: 'error' as const,
-      onSelect: () => {
-        confirming.value = true;
-      }
-    }
-  ]
-];
+const republish = computed(() => republishesFile(props));
 </script>
 
 <template>
@@ -41,33 +38,23 @@ const menu = [
 
     <UButton
       v-if="canPublish"
-      :label="isNew ? 'Publish' : 'Publish changes'"
-      :disabled="!changed"
-      :loading="busy && changed"
-      @click="emit('publish')"
+      :label="isNew || republish ? 'Publish' : 'Publish changes'"
+      :disabled="!changed && !republish"
+      :loading="busy"
+      @click="republish ? emit('republish') : emit('publish')"
     />
 
-    <UDropdownMenu v-if="changed && editable" :items="menu">
-      <UButton
-        icon="i-lucide-ellipsis"
-        color="neutral"
-        variant="ghost"
-        aria-label="More actions"
-      />
-    </UDropdownMenu>
+    <EntryActionsMenu
+      :state="state"
+      :changed="changed"
+      :editable="editable"
+      :can-publish="canPublish"
+      :is-new="isNew"
+      :busy="busy"
+      :error="error"
+      @discard="emit('discard')"
+      @unpublish="emit('unpublish')"
+      @trash="emit('trash')"
+    />
   </div>
-
-  <AdminConfirm
-    v-model:open="confirming"
-    :title="isNew ? 'Discard this entry?' : 'Discard your changes?'"
-    :description="
-      isNew
-        ? 'This entry has never been published, so it is removed.'
-        : 'The entry goes back to the published file. This cannot be undone.'
-    "
-    label="Discard"
-    :busy="busy"
-    :error="error"
-    @confirm="emit('discard')"
-  />
 </template>

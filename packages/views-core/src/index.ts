@@ -14,8 +14,7 @@ export default {
       section: 'content',
       access: 'signed-in',
       load: () => import('./ContentView.vue'),
-      description:
-        'Writing, pages and structured content from your repository.',
+      description: 'Writing, pages and structured content.',
       nav: { label: 'Content', icon: 'i-lucide-files', items: collectionLinks }
     },
     {
@@ -33,6 +32,17 @@ export default {
       section: 'content',
       access: 'signed-in',
       load: () => import('./EntryScreen.vue')
+    },
+    {
+      id: 'content.trash',
+      path: 'trash',
+      title: 'Trash',
+      section: 'content',
+      access: 'signed-in',
+      load: () => import('./TrashView.vue'),
+      description:
+        'Removed entries, with their saved edits and ownership kept.',
+      nav: { label: 'Trash', icon: 'i-lucide-trash-2' }
     },
     {
       id: 'site.general',

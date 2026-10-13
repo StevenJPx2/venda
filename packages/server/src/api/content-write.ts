@@ -1,10 +1,5 @@
 import { name, type Named } from '@gdp-ts/core';
-import {
-  CurrentActor,
-  VendaApi,
-  type EntryRef,
-  type UserId
-} from '@venda/contract';
+import { CurrentActor, VendaApi, type UserId } from '@venda/contract';
 import {
   canAssignOwner,
   canCreateEntry,
@@ -28,22 +23,7 @@ import {
 import { Effect } from 'effect';
 import { HttpApiBuilder } from 'effect/http-api';
 import { domainRunner, type DomainServices } from '../infrastructure';
-
-const forEntry = <A, E>(
-  run: Effect.Success<typeof domainRunner>,
-  ref: EntryRef,
-  action: <U, K>(
-    user: Named<U, UserId>,
-    entry: Named<K, EntryRef>
-  ) => Effect.Effect<A, E, DomainServices>
-) =>
-  Effect.gen(function* () {
-    const actor = yield* CurrentActor;
-
-    return yield* run(
-      name(actor.userId, ref, (user, entry) => action(user, entry))
-    );
-  });
+import { forEntry } from './entry-action';
 
 type Run = Effect.Success<typeof domainRunner>;
 

@@ -4,6 +4,7 @@ import { AuthApi, InvitationsApi, TokensApi, UsersApi } from './auth';
 import { ContentApi } from './content';
 import { ContentFilesApi } from './content-files';
 import { ContentWriteApi } from './content-write';
+import { ContentLifecycleApi } from './content-lifecycle';
 import { SystemApi } from './system';
 
 export * from './auth';
@@ -13,6 +14,8 @@ export * from './admin-content';
 export * from './content-write';
 
 export * from './content-files';
+
+export * from './content-lifecycle';
 
 export {
   CollectionNotFound,
@@ -35,5 +38,6 @@ export class VendaApi extends HttpApi.make('venda')
   .add(AdminContentApi)
   .add(ContentWriteApi)
   .add(ContentFilesApi)
+  .add(ContentLifecycleApi)
   .prefix('/api')
   .annotateMerge(OpenApi.annotations({ title: 'Venda API' })) {}

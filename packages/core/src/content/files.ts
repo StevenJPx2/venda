@@ -22,6 +22,13 @@ import {
 } from '../database';
 import { reindex, type FileView } from './reindex';
 import { contentFiles } from './schema';
+import { assertActiveFiles, trashGuards, type Revival } from './files-trash';
+import {
+  checkVersion,
+  IndexChanged,
+  indexVersion,
+  versionGuard
+} from './index-version';
 
 const encoder = new TextEncoder();
 
@@ -41,10 +48,11 @@ export interface Author {
 /** One of the caller's own guards failed: what it guarded changed meanwhile. */
 export class GuardRefused extends Schema.TaggedError<GuardRefused>()(
   'GuardRefused',
-  {}
+  { cause: Schema.Defect() }
 ) {}
 
 interface WriteOptions {
+  readonly revival?: Revival;
   readonly author: Author;
   readonly message: string;
   /** `strict` refuses a changed file the index cannot read; `keep` stores it as a problem (imports). */
@@ -220,19 +228,12 @@ function fileStatements(
   ];
 }
 
-/**
- * After a batch was refused: a file that moved is a conflict; otherwise one of
- * the caller's guards, if it had any; otherwise the database failed.
- */
-const refusal = (
-  files: ReadonlyArray<Prepared>,
-  guarded: boolean,
-  error: AtomicWriteError
-) =>
+/** Fails with Conflict on the first file no longer at the SHA it was read at. */
+const unmoved = (changes: ReadonlyArray<FileChange>) =>
   Effect.gen(function* () {
-    const now = yield* currentShas(files.map(file => file.path));
-    const moved = files.find(
-      file => (now.get(file.path) ?? null) !== file.baseSha
+    const now = yield* currentShas(changes.map(change => change.path));
+    const moved = changes.find(
+      change => (now.get(change.path) ?? null) !== change.baseSha
     );
 
     if (moved)
@@ -240,43 +241,69 @@ const refusal = (
         path: moved.path,
         sha: now.get(moved.path) ?? null
       });
+  });
 
-    return guarded ? yield* new GuardRefused() : yield* error;
+/** In strict mode, refuses a written file the index cannot read. */
+const readable = (
+  files: ReadonlyArray<Prepared>,
+  problems: ReadonlyMap<string, string>,
+  mode: WriteOptions['mode']
+) => {
+  const unreadable =
+    mode === 'strict'
+      ? files.find(file => file.text !== null && problems.has(file.path))
+      : undefined;
+
+  return unreadable
+    ? Effect.fail(
+        new InvalidContent({
+          message: `${unreadable.path}: ${problems.get(unreadable.path) ?? ''}`
+        })
+      )
+    : Effect.void;
+};
+
+/**
+ * After a batch was refused: a file that moved is a conflict; a trashed entry
+ * or a newer index version answers as itself; otherwise one of the caller's
+ * guards, if it had any; otherwise the database failed.
+ */
+const refusal = (
+  files: ReadonlyArray<Prepared>,
+  options: WriteOptions,
+  indexedAt: number,
+  error: AtomicWriteError
+) =>
+  Effect.gen(function* () {
+    yield* unmoved(files);
+    yield* assertActiveFiles(files, options.revival);
+    yield* checkVersion(indexedAt);
+
+    return (options.guards ?? []).length > 0
+      ? yield* new GuardRefused({ cause: error })
+      : yield* error;
   });
 
 /** Writes `changes` atomically; resolves to each file's new SHA (null when deleted). */
-export const writeFiles = Effect.fnUntraced(function* (
+const writeAttempt = Effect.fnUntraced(function* (
   changes: ReadonlyArray<FileChange>,
   options: WriteOptions
 ) {
   yield* checked(changes);
+  yield* assertActiveFiles(changes, options.revival);
+  const indexedAt = (yield* indexVersion)?.id ?? 0;
 
   // A file that moved is reported before anything else about the write; the
   // batch's own guards still decide, should one move after this look.
-  const now = yield* currentShas(changes.map(change => change.path));
-  const moved = changes.find(
-    change => (now.get(change.path) ?? null) !== change.baseSha
-  );
-
-  if (moved)
-    return yield* new Conflict({
-      path: moved.path,
-      sha: now.get(moved.path) ?? null
-    });
+  yield* unmoved(changes);
 
   const files = yield* Effect.forEach(changes, prepare);
   const index = yield* reindex(
     viewWith(changes),
     changes.map(change => change.path)
   );
-  const unreadable = files.find(
-    file => file.text !== null && index.problems.has(file.path)
-  );
 
-  if (options.mode === 'strict' && unreadable)
-    return yield* new InvalidContent({
-      message: `${unreadable.path}: ${index.problems.get(unreadable.path) ?? ''}`
-    });
+  yield* readable(files, index.problems, options.mode);
 
   const at = DateTime.formatIso(yield* DateTime.now);
   const atomic = yield* AtomicWrites;
@@ -284,6 +311,8 @@ export const writeFiles = Effect.fnUntraced(function* (
   yield* atomic
     .run([
       ...files.map(baseGuard),
+      ...trashGuards(changes, options.revival),
+      versionGuard(indexedAt),
       ...(options.guards ?? []),
       ...files.flatMap(file => fileStatements(file, options, at)),
       ...index.writes,
@@ -292,9 +321,21 @@ export const writeFiles = Effect.fnUntraced(function* (
     ])
     .pipe(
       Effect.catchTag('AtomicWriteError', error =>
-        refusal(files, (options.guards ?? []).length > 0, error)
+        refusal(files, options, indexedAt, error)
       )
     );
 
   return files.map(file => ({ path: file.path, sha: file.sha }));
 });
+
+/** Re-read after a competing content write, at most twice; never retry a stale base. */
+export const writeFiles = (
+  changes: ReadonlyArray<FileChange>,
+  options: WriteOptions
+) =>
+  writeAttempt(changes, options).pipe(
+    Effect.retry({ times: 2, while: Schema.is(IndexChanged) }),
+    Effect.catchTag('IndexChanged', error =>
+      Effect.fail(new Conflict({ path: error.path, sha: error.sha }))
+    )
+  );

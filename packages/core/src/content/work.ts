@@ -42,7 +42,11 @@ const revisionIs = (row: WorkRow, expected: number) =>
     : Effect.fail(new EditedElsewhere({ revision: row.revision }));
 
 const idleRevision = (ref: EntryRef, revision: number) =>
-  and(workKey(ref), eq(contentWork.revision, revision));
+  and(
+    workKey(ref),
+    eq(contentWork.revision, revision),
+    eq(contentWork.status, 'active')
+  );
 
 const failedUpdate = (ref: EntryRef) =>
   Effect.flatMap(openWork(ref), row =>
