@@ -4,6 +4,8 @@ node_modules
 .data
 # `pnpm try` state and logs, and its temporary copy of the core's mistakes file
 .try
+# `pnpm try`'s Cloudflare Tunnel: hostnames and where its token is (README)
+.try-tunnel.json
 mistakes-unchecked.ts
 # Fallow's analysis cache
 .fallow

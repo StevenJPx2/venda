@@ -1,110 +1,98 @@
-// Quick tunnels for `pnpm try` (developers.cloudflare.com/tunnel/get-started/
-// quick-tunnels): a trycloudflare.com URL for the Worker and one for the try
-// pages. The try owner's password is public, so each tunnel is behind
-// Cloudflare's email one-time PIN (--allowed-mail); without an allowed
-// address, no tunnel starts. Quick tunnels carry no Server-Sent Events, so
-// hot reload stays on localhost.
-import { execFile } from 'node:child_process';
+// A public address for `pnpm try`: a remotely managed Cloudflare Tunnel whose
+// routes send one hostname to the Worker and one to the try pages. Its token
+// and hostnames come from the git-ignored .try-tunnel.json (README), so the
+// addresses stay the same from run to run. Anyone can open them; the try
+// page server's helpers that act on this machine answer only on localhost.
+import { readFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 
-// The quick-tunnel API host appears in cloudflared's error messages; it is
-// never a tunnel's own address.
-const TUNNEL_URL = /https:\/\/(?!api\.)[a-z0-9-]+\.trycloudflare\.com/;
+/** The tunnel's settings, or why there are none. */
+export function tunnelConfig(text, home) {
+  if (text === undefined)
+    return { note: 'no .try-tunnel.json (see the README to add one)' };
 
-/** The tunnel's address in cloudflared's output, once it has printed one. */
-export const tunnelUrl = text => TUNNEL_URL.exec(text)?.[0];
+  const config = JSON.parse(text);
+  const valid =
+    typeof config.tokenFile === 'string' &&
+    URL.canParse(config.worker) &&
+    URL.canParse(config.pages);
 
-/** Who may open the tunnels: VENDA_TRY_TUNNEL_EMAILS, comma-separated, else the git user's email. */
-export function allowedEmails(env, gitEmail) {
-  const listed = (env.VENDA_TRY_TUNNEL_EMAILS ?? gitEmail ?? '')
-    .split(',')
-    .map(email => email.trim())
-    .filter(Boolean);
+  if (!valid)
+    return {
+      note: '.try-tunnel.json needs tokenFile, worker and pages (see the README)'
+    };
 
-  return [...new Set(listed)];
+  return {
+    tokenFile: config.tokenFile.replace(/^~(?=\/)/, home),
+    worker: new URL(config.worker).origin,
+    pages: new URL(config.pages).origin
+  };
 }
 
-export const tunnelArgs = (port, emails) => [
-  'tunnel',
-  '--no-autoupdate',
-  '--url',
-  `http://localhost:${port}`,
-  ...emails.flatMap(email => ['--allowed-mail', email])
-];
+/** cloudflared's line for a connection to Cloudflare's edge: the tunnel is serving. */
+export const connected = text => /Registered tunnel connection/.test(text);
 
-const output = (command, args, cwd) =>
-  new Promise(done =>
-    execFile(command, args, { cwd }, (error, out) =>
-      done(error ? undefined : out.trim())
-    )
-  );
-
-/** Starts one tunnel; resolves to its URL, or undefined if none comes within `seconds`. */
-function openTunnel(host, name, port, emails, seconds = 45) {
+/** Starts cloudflared; resolves once it serves, or false after `seconds`. */
+function runTunnel(host, tokenFile, seconds = 45) {
   const child = host.start(
-    `tunnel-${name}`,
+    'tunnel',
     'cloudflared',
-    tunnelArgs(port, emails)
+    ['tunnel', '--no-autoupdate', 'run'],
+    // The token stays out of the process list.
+    { TUNNEL_TOKEN_FILE: tokenFile }
   );
 
   return new Promise(done => {
     let recent = '';
-    const finish = url => {
+    const finish = ok => {
       clearTimeout(timer);
-      done(url);
+      done(ok);
     };
-    const timer = setTimeout(() => finish(undefined), seconds * 1000);
-    // The address is printed once, early; only the last few KB are kept.
+    const timer = setTimeout(() => finish(false), seconds * 1000);
     const read = chunk => {
       recent = (recent + chunk).slice(-4096);
 
-      const url = tunnelUrl(recent);
-
-      if (url) finish(url);
+      if (connected(recent)) finish(true);
     };
 
     child.stdout.on('data', read);
     child.stderr.on('data', read);
     child.done.then(
-      () => finish(undefined),
-      () => finish(undefined)
+      () => finish(false),
+      () => finish(false)
     );
   });
 }
 
-/**
- * Opens a tunnel to each of `ports` ({ worker, page }), or says why none
- * opened. Never throws: `pnpm try` runs the same without them.
- */
-export async function openTunnels(host, root, env, ports) {
-  if ((await output('cloudflared', ['--version'], root)) === undefined)
-    return {
-      note: 'cloudflared is not installed (brew install cloudflared); pass --no-tunnel to skip'
-    };
-
-  const emails = allowedEmails(
-    env,
-    await output('git', ['config', 'user.email'], root)
+/** Opens the tunnel from `root`/.try-tunnel.json, or says why not. Never throws. */
+export async function openTunnel(host, root) {
+  const config = tunnelConfig(
+    await readFile(join(root, '.try-tunnel.json'), 'utf8').catch(
+      () => undefined
+    ),
+    homedir()
   );
 
-  if (emails.length === 0)
-    return {
-      note: 'no one to allow in: set VENDA_TRY_TUNNEL_EMAILS or git config user.email'
-    };
+  if (config.note) return config;
 
-  const [worker, page] = await Promise.all([
-    openTunnel(host, 'worker', ports.worker, emails),
-    openTunnel(host, 'page', ports.page, emails)
-  ]);
-
-  return { worker, page, emails };
+  return (await runTunnel(host, config.tokenFile))
+    ? config
+    : { note: 'cloudflared did not connect (see .try/tunnel.log)' };
 }
 
-/** The try pages' local Worker address, as a visitor through the page tunnel must reach it. */
-export function forVisitor(html, hostHeader, tunnels, localWorker) {
+/** The try pages' local Worker address, as a visitor through the tunnel must reach it. */
+export function forVisitor(html, hostHeader, tunnel, localWorker) {
   const throughTunnel =
-    tunnels?.page &&
-    tunnels.worker &&
-    hostHeader === new URL(tunnels.page).host;
+    tunnel?.pages && hostHeader === new URL(tunnel.pages).host;
 
-  return throughTunnel ? html.replaceAll(localWorker, tunnels.worker) : html;
+  return throughTunnel ? html.replaceAll(localWorker, tunnel.worker) : html;
 }
+
+/** The page server's helpers that act on this machine: the CLI, files, the compiler. */
+const MACHINE = /^\/(cli|files)\/|^\/compile-mistakes$/;
+
+/** Whether `path` must be refused to a request that did not come from this machine. */
+export const localOnly = (path, hostHeader) =>
+  MACHINE.test(path) &&
+  !/^(localhost|127\.0\.0\.1)(:\d+)?$/.test(hostHeader ?? '');

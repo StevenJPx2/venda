@@ -6,9 +6,9 @@
 // runs, so you stay signed in and your edits stay; an empty database gets
 // try/content imported. `pnpm try --fresh` wipes everything first.
 //
-// It also opens a Cloudflare quick tunnel to the Worker and one to the try
-// pages, each behind an email one-time PIN (try-tunnel.mjs). `--no-tunnel`
-// skips them.
+// With a .try-tunnel.json it also runs a Cloudflare Tunnel, giving the Worker
+// and the try pages public addresses that stay the same between runs
+// (try-tunnel.mjs). `--no-tunnel` skips it.
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { join, relative, resolve, sep } from 'node:path';
@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { processHost } from './try-process.mjs';
 import { tryBuilder } from './try-build.mjs';
 import { RELOAD_CLIENT, reloadHub } from './try-reload.mjs';
-import { forVisitor, openTunnels } from './try-tunnel.mjs';
+import { forVisitor, localOnly, openTunnel } from './try-tunnel.mjs';
 import { rebuildQueue, watchSources } from './try-watch.mjs';
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
@@ -50,8 +50,8 @@ const { step } = host;
 const reload = reloadHub();
 let worker;
 let pageServer;
-// The quick tunnels' addresses, once open.
-let tunnels;
+// The tunnel's public addresses, once it serves.
+let tunnel;
 let stopping = false;
 let unwatch = () => {};
 let closeQueue = async () => {};
@@ -205,7 +205,7 @@ async function page(name, request, response) {
                 '<script defer src="/__try/reload.js"></script></head>'
               ),
               request.headers.host,
-              tunnels,
+              tunnel,
               `http://localhost:${PORTS.server}`
             )
           : body
@@ -439,6 +439,12 @@ function startPageServer() {
         })
         .end(RELOAD_CLIENT);
 
+    // The tunnel makes this server public; what acts on this machine stays here.
+    if (localOnly(path, request.headers.host))
+      return void response
+        .writeHead(403, { 'content-type': 'text/plain; charset=utf-8' })
+        .end('This helper only answers on the machine running pnpm try.');
+
     const local = () =>
       path === '/compile-mistakes'
         ? compileMistakes(response)
@@ -554,17 +560,15 @@ async function startWorker(dir) {
   await healthy(PORTS.server, worker);
 }
 
-/** What the banner says about the tunnels: their addresses and who may open them, or why there are none. */
+/** What the banner says about the tunnel: its public addresses, or why there are none. */
 function tunnelLines() {
-  if (!TUNNEL) return 'Tunnels: off (--no-tunnel)';
-  if (tunnels.note) return `Tunnels: none, ${tunnels.note}`;
-
-  const address = url => url ?? 'did not open (see .try/tunnel-*.log)';
+  if (!TUNNEL) return 'Public: off (--no-tunnel)';
+  if (tunnel.note) return `Public: none, ${tunnel.note}`;
 
   return [
-    `Tunnel to the admin: ${address(tunnels.worker && `${tunnels.worker}/admin/`)}`,
-    `  Tunnel to the try pages: ${address(tunnels.page)}`,
-    `  Who can open them: ${tunnels.emails.join(', ')}, by a one-time PIN sent to that address`
+    `Public admin: ${tunnel.worker}/admin/`,
+    `  Public try pages: ${tunnel.pages}`,
+    '  Anyone with these addresses can open them, and sign in with the owner above.'
   ].join('\n');
 }
 
@@ -578,12 +582,9 @@ await cliLogin();
 startPageServer();
 
 if (TUNNEL) {
-  process.stdout.write('  open the tunnels… ');
-  tunnels = await openTunnels(host, ROOT, process.env, {
-    worker: PORTS.server,
-    page: PORTS.page
-  });
-  console.log(tunnels.note ? 'skipped' : 'done');
+  process.stdout.write('  open the tunnel… ');
+  tunnel = await openTunnel(host, ROOT);
+  console.log(tunnel.note ? 'skipped' : 'done');
 }
 
 const queue = rebuildQueue(

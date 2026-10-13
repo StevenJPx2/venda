@@ -1,85 +1,79 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  allowedEmails,
+  connected,
   forVisitor,
-  tunnelArgs,
-  tunnelUrl
+  localOnly,
+  tunnelConfig
 } from './try-tunnel.mjs';
 
-test('finds the tunnel address in cloudflared output, never the API host', () => {
-  assert.equal(
-    tunnelUrl(
-      'INF |  https://quiet-fern-river.trycloudflare.com                   |'
-    ),
-    'https://quiet-fern-river.trycloudflare.com'
-  );
-  assert.equal(
-    tunnelUrl(
-      'ERR failed to request quick Tunnel: Post "https://api.trycloudflare.com/tunnel"'
-    ),
-    undefined
-  );
-  assert.equal(tunnelUrl('INF Starting tunnel'), undefined);
-});
-
-test('allows the listed addresses, else the git user, and nobody by default', () => {
+test('reads the tunnel settings, or says what is missing', () => {
   assert.deepEqual(
-    allowedEmails(
-      { VENDA_TRY_TUNNEL_EMAILS: ' ann@a.test, *@team.test ,ann@a.test,' },
-      'me@git.test'
+    tunnelConfig(
+      JSON.stringify({
+        tokenFile: '~/.cloudflared/venda-try.token',
+        worker: 'https://venda.example.com/admin/',
+        pages: 'https://venda-try.example.com'
+      }),
+      '/home/ann'
     ),
-    ['ann@a.test', '*@team.test']
+    {
+      tokenFile: '/home/ann/.cloudflared/venda-try.token',
+      worker: 'https://venda.example.com',
+      pages: 'https://venda-try.example.com'
+    }
   );
-  assert.deepEqual(allowedEmails({}, 'me@git.test'), ['me@git.test']);
-  assert.deepEqual(allowedEmails({}, undefined), []);
-  assert.deepEqual(allowedEmails({ VENDA_TRY_TUNNEL_EMAILS: ' ' }, 'x'), []);
+  assert.match(tunnelConfig(undefined, '/h').note, /no \.try-tunnel\.json/);
+  assert.match(
+    tunnelConfig(JSON.stringify({ tokenFile: 'x', worker: 'not a url' }), '/h')
+      .note,
+    /needs tokenFile, worker and pages/
+  );
 });
 
-test('gates every tunnel by email', () => {
-  assert.deepEqual(tunnelArgs(8805, ['ann@a.test', 'bo@a.test']), [
-    'tunnel',
-    '--no-autoupdate',
-    '--url',
-    'http://localhost:8805',
-    '--allowed-mail',
-    'ann@a.test',
-    '--allowed-mail',
-    'bo@a.test'
-  ]);
+test('knows when cloudflared is serving', () => {
+  assert.equal(
+    connected('INF Registered tunnel connection connIndex=0 location=sin01'),
+    true
+  );
+  assert.equal(connected('INF Starting tunnel tunnelID=abc'), false);
 });
 
-test('points try pages at the Worker tunnel only for visitors through the page tunnel', () => {
-  const tunnels = {
-    worker: 'https://worker-x.trycloudflare.com',
-    page: 'https://page-y.trycloudflare.com'
+test('points try pages at the Worker’s public address only for visitors through the tunnel', () => {
+  const tunnel = {
+    worker: 'https://venda.example.com',
+    pages: 'https://venda-try.example.com'
   };
   const html = '<a href="http://localhost:8805/admin/">Admin</a>';
 
   assert.equal(
-    forVisitor(
-      html,
-      'page-y.trycloudflare.com',
-      tunnels,
-      'http://localhost:8805'
-    ),
-    '<a href="https://worker-x.trycloudflare.com/admin/">Admin</a>'
+    forVisitor(html, 'venda-try.example.com', tunnel, 'http://localhost:8805'),
+    '<a href="https://venda.example.com/admin/">Admin</a>'
   );
   assert.equal(
-    forVisitor(html, 'localhost:8794', tunnels, 'http://localhost:8805'),
+    forVisitor(html, 'localhost:8794', tunnel, 'http://localhost:8805'),
     html
   );
+  assert.equal(forVisitor(html, 'venda-try.example.com', undefined, 'x'), html);
+});
+
+test('keeps the helpers that act on this machine to this machine', () => {
+  for (const path of [
+    '/cli/run',
+    '/cli/login',
+    '/files/site.ts',
+    '/compile-mistakes'
+  ]) {
+    assert.equal(localOnly(path, 'venda-try.example.com'), true, path);
+    assert.equal(localOnly(path, 'localhost:8794'), false, path);
+    assert.equal(localOnly(path, '127.0.0.1:8794'), false, path);
+    assert.equal(localOnly(path, undefined), true, path);
+  }
+
+  assert.equal(localOnly('/slice-5', 'venda-try.example.com'), false);
   assert.equal(
-    forVisitor(
-      html,
-      'page-y.trycloudflare.com',
-      { page: tunnels.page },
-      'http://localhost:8805'
-    ),
-    html
+    localOnly('/api/content/journal', 'venda-try.example.com'),
+    false
   );
-  assert.equal(
-    forVisitor(html, 'page-y.trycloudflare.com', undefined, 'x'),
-    html
-  );
+  assert.equal(localOnly('/cli/run', 'localhost.evil.test'), true);
 });

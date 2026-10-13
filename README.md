@@ -31,9 +31,25 @@ While it runs:
 - The Worker restarts after a successful build. A failed build keeps the last working version running; save again to retry.
 - Open admin and try pages reload when the new version is ready. If you entered text, they ask before reloading.
 - Type `r` and press Enter to rebuild everything without losing data.
-- It opens two Cloudflare quick tunnels: public `trycloudflare.com` addresses for the admin and the try pages, printed when it starts. Hot reload works only on `localhost`.
-  - Only the addresses allowed can open them, by a one-time PIN emailed to that address. That is your `git config user.email`, or a comma-separated list in `VENDA_TRY_TUNNEL_EMAILS`. Without an address, no tunnel opens.
-  - Needs `cloudflared` (`brew install cloudflared`). Pass `--no-tunnel` to skip the tunnels.
+- With a `.try-tunnel.json`, it runs a Cloudflare Tunnel that gives the admin and the try pages public addresses. They stay the same between runs, and are printed when it starts.
+  - Anyone with the addresses can open them and sign in as the try owner, whose password is above. Share them with that in mind.
+  - The try pages' helpers that act on your machine (running `venda`, reading and writing files, the compiler check) answer only on `localhost`.
+  - Hot reload works only on `localhost`.
+  - Pass `--no-tunnel` to skip the tunnel.
+
+To set up the tunnel:
+
+1. In Cloudflare, create a tunnel managed in the dashboard, with two public hostnames: one to `http://localhost:8805` (the Worker) and one to `http://localhost:8794` (the try pages).
+2. Save its token in a file only you can read, such as `~/.cloudflared/venda-try.token`.
+3. Add `.try-tunnel.json` (git-ignored) at the repository root, and install `cloudflared`:
+
+```json
+{
+  "tokenFile": "~/.cloudflared/venda-try.token",
+  "worker": "https://venda.example.com",
+  "pages": "https://venda-try.example.com"
+}
+```
 - Changes to `try/content` are imported only into an empty database. They do not overwrite content you edited in D1.
 
 Between runs:

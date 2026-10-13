@@ -40,29 +40,44 @@ test('only source files trigger their dependent builds', () => {
     assert.deepEqual(affected(path), []);
 });
 
-test('the filesystem watcher sees new files and stops after close', async () => {
-  const root = await mkdtemp(join(tmpdir(), 'venda-watch-'));
+// macOS FSEvents can miss a write made just as a watcher starts, so the file
+// is written again until the watcher reports it; the test fails, not hangs.
+test(
+  'the filesystem watcher sees new files and stops after close',
+  { timeout: 10_000 },
+  async () => {
+    const root = await mkdtemp(join(tmpdir(), 'venda-watch-'));
 
-  for (const path of ['apps/admin', 'packages/core/src', 'try'])
-    await mkdir(join(root, path), { recursive: true });
+    for (const path of ['apps/admin', 'packages/core/src', 'try'])
+      await mkdir(join(root, path), { recursive: true });
 
-  const changed = deferred();
-  const close = watchSources(root, {
-    add(kinds) {
-      if (kinds.length) changed.resolve(kinds);
+    const changed = deferred();
+    const close = watchSources(root, {
+      add(kinds) {
+        if (kinds.length) changed.resolve(kinds);
+      }
+    });
+    let seen = false;
+
+    changed.promise.then(() => {
+      seen = true;
+    });
+
+    try {
+      for (let write = 0; !seen && write < 40; write++) {
+        await writeFile(
+          join(root, 'packages/core/src/new.ts'),
+          `export const value = ${write};`
+        );
+        await Promise.race([changed.promise, pause(200)]);
+      }
+
+      assert.deepEqual(await changed.promise, ['server']);
+    } finally {
+      close();
     }
-  });
-
-  try {
-    await writeFile(
-      join(root, 'packages/core/src/new.ts'),
-      'export const value = 1;'
-    );
-    assert.deepEqual(await changed.promise, ['server']);
-  } finally {
-    close();
   }
-});
+);
 
 test('a burst becomes one build; edits during it become one follow-up', async () => {
   const started = deferred();
