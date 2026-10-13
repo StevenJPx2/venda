@@ -169,7 +169,13 @@ Answers:
 - `app.venda.stevenjohn.co` and `api.venda.stevenjohn.co`: one Worker, `venda`. `/` opens the admin.
 - `venda.stevenjohn.co`: the landing site, reading the API.
 
-To deploy:
+GitHub Actions (`.github/workflows/ci.yml`):
+
+- Every push and pull request runs `pnpm check` and `pnpm e2e`.
+- A push to `main` that passes both deploys the Worker, then the landing.
+- Deploys need the `CLOUDFLARE_API_TOKEN` secret: an account API token from the "Edit Cloudflare Workers" template, plus D1 Edit, for this account and the `stevenjohn.co` zone. Add it with `gh secret set CLOUDFLARE_API_TOKEN`.
+
+To deploy by hand:
 
 - The Worker: `pnpm --filter @venda/landing run deploy:venda`. It builds with `apps/landing/venda.wrangler.json` and deploys.
 - The landing: `pnpm --filter @venda/landing run deploy`.
