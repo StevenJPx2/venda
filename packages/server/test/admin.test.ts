@@ -9,9 +9,11 @@ it('serves the shell for deep links, not missing assets, other paths or writes',
 
   expect(await response?.text()).toBe(shell);
   expect(response?.headers.get('cache-control')).toBe('no-store');
-  expect(adminResponse(request('/admin'), shell)?.headers.get('location')).toBe(
-    'https://site.test/admin/'
-  );
+
+  for (const path of ['/admin', '/'])
+    expect(adminResponse(request(path), shell)?.headers.get('location')).toBe(
+      'https://site.test/admin/'
+    );
   expect(adminResponse(request('/admin/_nuxt/no.js'), shell)?.status).toBe(404);
   expect(adminResponse(request('/admin/file.css'), shell)?.status).toBe(404);
   expect(

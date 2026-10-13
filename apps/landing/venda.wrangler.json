@@ -1,0 +1,19 @@
+{
+  "name": "venda",
+  "account_id": "7bb7dff27822397d46162181bfedf38d",
+  "d1_databases": [
+    {
+      "binding": "VENDA_DB",
+      "database_name": "venda",
+      "database_id": "3396dcde-ccb1-4c53-aca6-e199396af718"
+    }
+  ],
+  "kv_namespaces": [
+    { "binding": "VENDA_KV", "id": "022051ca5929468890982a26c9e035ac" }
+  ],
+  "routes": [
+    { "pattern": "app.venda.stevenjohn.co", "custom_domain": true },
+    { "pattern": "api.venda.stevenjohn.co", "custom_domain": true }
+  ],
+  "vars": { "VENDA_OWNER_EMAIL": "stevenjpx2@gmail.com" }
+}

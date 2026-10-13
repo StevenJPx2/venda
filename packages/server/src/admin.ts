@@ -6,7 +6,8 @@ export function respondToAdminPath(
 ): Response | undefined {
   const path = new URL(request.url).pathname;
 
-  if (path === '/admin')
+  // The site's root has nothing of its own; it opens the admin.
+  if (path === '/admin' || path === '/')
     return Response.redirect(new URL('/admin/', request.url), 302);
   if (!path.startsWith('/admin/') || !['GET', 'HEAD'].includes(request.method))
     return;

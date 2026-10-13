@@ -31,6 +31,7 @@ While it runs:
 - The Worker restarts after a successful build. A failed build keeps the last working version running; save again to retry.
 - Open admin and try pages reload when the new version is ready. If you entered text, they ask before reloading.
 - Type `r` and press Enter to rebuild everything without losing data.
+- Changes to `try/content` are imported only into an empty database. They do not overwrite content you edited in D1.
 - With a `.try-tunnel.json`, it runs a Cloudflare Tunnel that gives the admin and the try pages public addresses. They stay the same between runs, and are printed when it starts.
   - Anyone with the addresses can open them and sign in as the try owner, whose password is above. Share them with that in mind.
   - The try pages' helpers that act on your machine (running `venda`, reading and writing files, the compiler check) answer only on `localhost`.
@@ -50,7 +51,6 @@ To set up the tunnel:
   "pages": "https://venda-try.example.com"
 }
 ```
-- Changes to `try/content` are imported only into an empty database. They do not overwrite content you edited in D1.
 
 Between runs:
 
@@ -109,6 +109,7 @@ Public:
 - `GET /api/site`: the site's name, address and screen descriptions.
 - `GET /api/content/:collection`: published entries, newest first.
 - `GET /api/content/:collection/:slug`: one published entry.
+  - These and `/api/site` allow any origin (`Access-Control-Allow-Origin: *`), so sites can read them from the browser.
 - `GET /api/join/:token` and `POST /api/join/:token` (`{ name, password }`): see and accept an invitation.
 - `POST /api/auth/sign-in` (`{ email, password }`): sets the `venda_session` cookie.
 
@@ -159,6 +160,21 @@ Answers:
 - Workers bindings:
   - `VENDA_DB` (D1): content, its index and people.
   - `VENDA_KV` (KV): sessions.
+- `VENDA_WRANGLER` (build only): a JSON file of the site's own Worker settings, laid over the local ones: name, account, database and KV IDs, domains and variables.
+
+## Deploying
+
+`venda.stevenjohn.co` runs on this repository:
+
+- `app.venda.stevenjohn.co` and `api.venda.stevenjohn.co`: one Worker, `venda`. `/` opens the admin.
+- `venda.stevenjohn.co`: the landing site, reading the API.
+
+To deploy:
+
+- The Worker: `pnpm --filter @venda/landing run deploy:venda`. It builds with `apps/landing/venda.wrangler.json` and deploys.
+- The landing: `pnpm --filter @venda/landing run deploy`.
+- The owner password is a Worker secret, set once with `wrangler secret put VENDA_OWNER_PASSWORD`.
+- The site's content started from `apps/landing/content`, brought in with `venda import`. The site holds the live copy; use `venda pull` to get it.
 
 ## Repository
 
@@ -187,7 +203,7 @@ Answers:
 - `packages/editor-kit`: the parts both rich-text editors share.
 - `packages/preset-default`: puts the first-party plugins together.
 - `apps/admin` (**`@venda/admin-app`**): a static Nuxt 4.6 shell. The Worker serves it at `/admin/`, on the API's own origin.
-- `apps/landing`: the Venda website, a Nuxt UI site built on `@venda/nuxt`.
+- `apps/landing`: the Venda website, a Nuxt UI site built on `@venda/nuxt`. Its CMS's starting content is in `content/`.
 
 The screen packages depend on the SDK, never on each other.
 

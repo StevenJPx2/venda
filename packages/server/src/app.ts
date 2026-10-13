@@ -26,6 +26,8 @@ export interface VendaApp {
 
 // Content is public; sites and CDNs may keep a read for a minute.
 const PUBLIC_CACHE = 'public, max-age=60';
+// The public reads: published content and the site's settings.
+const PUBLIC_READ = /^\/api\/(content\/|site$)/;
 
 async function build(
   target: Target,
@@ -67,11 +69,12 @@ async function build(
       if (bounded instanceof Response) return bounded;
 
       const response = await api.handler(bounded);
+      const path = new URL(request.url).pathname;
 
-      if (
-        response.ok &&
-        new URL(request.url).pathname.startsWith('/api/content/')
-      )
+      if (PUBLIC_READ.test(path))
+        // Sites on other origins read these from the browser; no cookies.
+        response.headers.set('Access-Control-Allow-Origin', '*');
+      if (response.ok && path.startsWith('/api/content/'))
         response.headers.set('Cache-Control', PUBLIC_CACHE);
 
       return response;

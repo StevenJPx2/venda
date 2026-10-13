@@ -44,6 +44,17 @@ describe('the server app', () => {
     );
 
     expect(list.headers.get('cache-control')).toBe('public, max-age=60');
+    expect(list.headers.get('access-control-allow-origin')).toBe('*');
+    expect(
+      (await app.fetch(request('/api/site'))).headers.get(
+        'access-control-allow-origin'
+      )
+    ).toBe('*');
+    expect(
+      (await app.fetch(request('/api/auth/me'))).headers.get(
+        'access-control-allow-origin'
+      )
+    ).toBeNull();
     expect(entries.map(entry => [entry.slug, entry.publishedAt])).toEqual([
       ['hello', '2026-01-01T00:00:00.000Z']
     ]);

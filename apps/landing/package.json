@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "postinstall": "nuxt prepare",
-    "deploy": "nuxt build && wrangler deploy"
+    "deploy": "nuxt build && wrangler deploy",
+    "deploy:venda": "VENDA_WRANGLER=$PWD/venda.wrangler.json pnpm --filter @venda/server build && pnpm --filter @venda/server exec wrangler deploy --config .output/server/wrangler.json"
   },
   "dependencies": {
     "@nuxt/ui": "4.11.2",

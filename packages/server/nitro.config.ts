@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -9,6 +10,11 @@ const here = (path: string) => fileURLToPath(new URL(path, import.meta.url));
 const fromContent = createRequire(here('../content/package.json'));
 const adminDir =
   process.env.VENDA_ADMIN_OUTPUT_DIR ?? here('../../apps/admin/dist');
+// A deployed site's own Worker settings (name, account, database and KV ids,
+// domains, variables), laid over the local ones below.
+const site = process.env.VENDA_WRANGLER
+  ? JSON.parse(readFileSync(process.env.VENDA_WRANGLER, 'utf8'))
+  : {};
 
 export default defineConfig({
   preset: 'cloudflare_module',
@@ -40,7 +46,8 @@ export default defineConfig({
       d1_databases: [
         { binding: 'VENDA_DB', database_name: 'venda', database_id: 'local' }
       ],
-      kv_namespaces: [{ binding: 'VENDA_KV', id: 'local' }]
+      kv_namespaces: [{ binding: 'VENDA_KV', id: 'local' }],
+      ...site
     }
   }
 });
