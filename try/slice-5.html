@@ -45,6 +45,7 @@
       }
       .tabs {
         display: flex;
+        align-items: center;
         gap: 6px;
       }
       .tabs button[aria-pressed='true'] {
@@ -112,6 +113,9 @@
             <div class="tabs">
               <button data-screen="entry" aria-pressed="true">The entry</button>
               <button data-screen="trash" aria-pressed="false">Trash</button>
+              <a id="open" class="crumb" target="_blank" rel="noopener"
+                >Open in a new tab ↗</a
+              >
             </div>
           </div>
           <p class="note">
@@ -231,6 +235,7 @@
 
       function show(screen) {
         frame.src = screens[screen];
+        $('open').href = screens[screen];
 
         for (const tab of document.querySelectorAll('[data-screen]'))
           tab.setAttribute(

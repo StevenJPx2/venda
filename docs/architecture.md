@@ -205,6 +205,12 @@ For three years every page on our site was rendered in a single region.
    - Local D1, sessions and the agent's folder survive hot restarts. Type `r`
      and press Enter to rebuild everything; `--fresh` resets data only when
      starting a new run.
+   - It opens a Cloudflare quick tunnel to the Worker and one to the try
+     pages, each behind an email one-time PIN (`--allowed-mail`: the git
+     user's email, or `VENDA_TRY_TUNNEL_EMAILS`), since the try owner's
+     password is public. Without an allowed address no tunnel opens;
+     `--no-tunnel` skips them. Tunnels survive Worker restarts, and the page
+     server points try pages opened through its tunnel at the Worker's.
 
 ## Packages
 

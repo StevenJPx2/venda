@@ -5,6 +5,10 @@
 // The local database (.try/data: content, people, sessions) is kept between
 // runs, so you stay signed in and your edits stay; an empty database gets
 // try/content imported. `pnpm try --fresh` wipes everything first.
+//
+// It also opens a Cloudflare quick tunnel to the Worker and one to the try
+// pages, each behind an email one-time PIN (try-tunnel.mjs). `--no-tunnel`
+// skips them.
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { join, relative, resolve, sep } from 'node:path';
@@ -12,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { processHost } from './try-process.mjs';
 import { tryBuilder } from './try-build.mjs';
 import { RELOAD_CLIENT, reloadHub } from './try-reload.mjs';
+import { forVisitor, openTunnels } from './try-tunnel.mjs';
 import { rebuildQueue, watchSources } from './try-watch.mjs';
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
@@ -20,6 +25,7 @@ const STATE = join(ROOT, '.try');
 // D1 and KV under wrangler: content, people, tokens and sessions.
 const DATA = join(STATE, 'data');
 const FRESH = process.argv.includes('--fresh');
+const TUNNEL = !process.argv.includes('--no-tunnel');
 // Imported into an empty database.
 const CONTENT = join(ROOT, 'try/content');
 const CONTENT_FILE = /^\/files\/(site\.ts|[a-z0-9-]+\/[a-z0-9-]+\.mdx?)$/;
@@ -44,6 +50,8 @@ const { step } = host;
 const reload = reloadHub();
 let worker;
 let pageServer;
+// The quick tunnels' addresses, once open.
+let tunnels;
 let stopping = false;
 let unwatch = () => {};
 let closeQueue = async () => {};
@@ -168,7 +176,7 @@ const SHARED = new Map([
   ['/harness.js', 'text/javascript']
 ]);
 
-async function page(name, response) {
+async function page(name, request, response) {
   const file = SHARED.has(name)
     ? name.slice(1)
     : name === '/'
@@ -191,9 +199,14 @@ async function page(name, response) {
       })
       .end(
         type === 'text/html'
-          ? body.replace(
-              '</head>',
-              '<script defer src="/__try/reload.js"></script></head>'
+          ? forVisitor(
+              body.replace(
+                '</head>',
+                '<script defer src="/__try/reload.js"></script></head>'
+              ),
+              request.headers.host,
+              tunnels,
+              `http://localhost:${PORTS.server}`
             )
           : body
       );
@@ -433,7 +446,7 @@ function startPageServer() {
           ? files(request, response, path)
           : path.startsWith('/cli/')
             ? cliRoute(request, response, path)
-            : page(path, response);
+            : page(path, request, response);
     // The API and the admin belong to the Venda server; everything else is this page server.
     const handled = /^\/(api|admin)\//.test(url)
       ? proxy(request, response)
@@ -541,6 +554,20 @@ async function startWorker(dir) {
   await healthy(PORTS.server, worker);
 }
 
+/** What the banner says about the tunnels: their addresses and who may open them, or why there are none. */
+function tunnelLines() {
+  if (!TUNNEL) return 'Tunnels: off (--no-tunnel)';
+  if (tunnels.note) return `Tunnels: none, ${tunnels.note}`;
+
+  const address = url => url ?? 'did not open (see .try/tunnel-*.log)';
+
+  return [
+    `Tunnel to the admin: ${address(tunnels.worker && `${tunnels.worker}/admin/`)}`,
+    `  Tunnel to the try pages: ${address(tunnels.page)}`,
+    `  Who can open them: ${tunnels.emails.join(', ')}, by a one-time PIN sent to that address`
+  ].join('\n');
+}
+
 const build = tryBuilder(STATE, step, install);
 
 await build(new Set(['admin', 'server', 'cli']));
@@ -549,6 +576,16 @@ const seeded = await seed();
 
 await cliLogin();
 startPageServer();
+
+if (TUNNEL) {
+  process.stdout.write('  open the tunnels… ');
+  tunnels = await openTunnels(host, ROOT, process.env, {
+    worker: PORTS.server,
+    page: PORTS.page
+  });
+  console.log(tunnels.note ? 'skipped' : 'done');
+}
+
 const queue = rebuildQueue(
   async kinds => {
     if (stopping) return;
@@ -587,5 +624,6 @@ console.log(`
   CLI: VENDA_URL=http://localhost:${PORTS.server} VENDA_TOKEN=${cliToken} pnpm venda pull ./my-content
   Data: .try/data, kept between runs, so you stay signed in. \`pnpm try --fresh\` starts clean.
   Watching: admin, Worker, CLI and try pages. Type r + Enter to rebuild everything.
+  ${tunnelLines()}
   Logs: .try/*.log · Ctrl-C to stop
 `);

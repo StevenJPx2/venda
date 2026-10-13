@@ -31,6 +31,9 @@ While it runs:
 - The Worker restarts after a successful build. A failed build keeps the last working version running; save again to retry.
 - Open admin and try pages reload when the new version is ready. If you entered text, they ask before reloading.
 - Type `r` and press Enter to rebuild everything without losing data.
+- It opens two Cloudflare quick tunnels: public `trycloudflare.com` addresses for the admin and the try pages, printed when it starts. Hot reload works only on `localhost`.
+  - Only the addresses allowed can open them, by a one-time PIN emailed to that address. That is your `git config user.email`, or a comma-separated list in `VENDA_TRY_TUNNEL_EMAILS`. Without an address, no tunnel opens.
+  - Needs `cloudflared` (`brew install cloudflared`). Pass `--no-tunnel` to skip the tunnels.
 - Changes to `try/content` are imported only into an empty database. They do not overwrite content you edited in D1.
 
 Between runs:
