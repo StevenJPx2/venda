@@ -9,7 +9,8 @@ import {
   gitBlobSha,
   listPublished,
   siteSettings,
-  syncContent
+  syncContent,
+  snapshotOf
 } from '../src/content';
 import { ContentReadOnly } from '@venda/contract';
 import { Database } from '../src/database';
@@ -32,6 +33,7 @@ let runtime: ManagedRuntime.ManagedRuntime<ContentStore | Database, unknown>;
 
 const store = Layer.succeed(ContentStore, {
   writable: false,
+  snapshot: Effect.suspend(() => snapshotOf(files)),
   commit: () => Effect.fail(new ContentReadOnly()),
   list: Effect.promise(() =>
     Promise.all(
@@ -149,6 +151,26 @@ describe('syncContent: indexing', () => {
       indexed: 2,
       remaining: 0
     });
+  });
+});
+
+describe('syncContent: limits', () => {
+  it('takes a file over 1 MB out of the index as a problem, without reading it', async () => {
+    await run(syncContent());
+    files.set(
+      'blog/hello.md',
+      post('Huge', `note: ${'x'.repeat(1_048_577)}\n`)
+    );
+
+    expect(await run(syncContent())).toMatchObject({ indexed: 1, problems: 1 });
+    expect(await problems()).toContainEqual({
+      path: 'blog/hello.md',
+      message: 'This file is over 1 MB',
+      line: null
+    });
+    expect((await run(listPublished('blog'))).map(entry => entry.slug)).toEqual(
+      ['older']
+    );
   });
 });
 

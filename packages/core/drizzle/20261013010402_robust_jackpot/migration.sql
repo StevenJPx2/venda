@@ -1,0 +1,1 @@
+ALTER TABLE `content_work` ADD `publish_author` text;

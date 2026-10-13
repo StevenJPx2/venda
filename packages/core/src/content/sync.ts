@@ -6,8 +6,13 @@ import {
   readEntry,
   readSiteConfig
 } from '@venda/content';
+import { MAX_CONTENT_BYTES } from '@venda/contract';
 import { Effect, Option, Result } from 'effect';
-import { ContentStore, type StoredFile } from './services';
+import {
+  ContentStore,
+  type ContentSnapshot,
+  type StoredFile
+} from './services';
 import { dropSite, saveSite, SITE_PATH } from './site';
 import {
   clearProblem,
@@ -67,10 +72,9 @@ const done = (file: StoredFile) =>
 /** Indexes a collection's config; its entries are read again against the new model. */
 const indexConfig = Effect.fnUntraced(function* (
   file: StoredFile,
-  collection: string
+  collection: string,
+  snapshot: ContentSnapshot
 ) {
-  const store = yield* ContentStore;
-
   yield* staleEntries(collection, file.path);
 
   if (!COLLECTION_NAME.test(collection)) {
@@ -83,7 +87,7 @@ const indexConfig = Effect.fnUntraced(function* (
   }
 
   const model = yield* Effect.result(
-    readCollectionConfig(file.path, yield* store.read(file.path))
+    readCollectionConfig(file.path, yield* snapshot.read(file.path))
   );
 
   if (Result.isFailure(model)) {
@@ -98,10 +102,12 @@ const indexConfig = Effect.fnUntraced(function* (
 });
 
 /** Indexes the site's settings; an invalid file leaves the site with none. */
-const indexSite = Effect.fnUntraced(function* (file: StoredFile) {
-  const store = yield* ContentStore;
+const indexSite = Effect.fnUntraced(function* (
+  file: StoredFile,
+  snapshot: ContentSnapshot
+) {
   const settings = yield* Effect.result(
-    readSiteConfig(file.path, yield* store.read(file.path))
+    readSiteConfig(file.path, yield* snapshot.read(file.path))
   );
 
   if (Result.isFailure(settings))
@@ -116,13 +122,15 @@ const indexSite = Effect.fnUntraced(function* (file: StoredFile) {
 });
 
 /** A settings file: the site's, or a collection's config. */
-const indexSettings = (file: StoredFile) =>
+const indexSettings = (file: StoredFile, snapshot: ContentSnapshot) =>
   file.path === SITE_PATH
-    ? indexSite(file)
-    : indexConfig(file, configCollection(file.path) ?? '');
+    ? indexSite(file, snapshot)
+    : indexConfig(file, configCollection(file.path) ?? '', snapshot);
 
-const indexEntry = Effect.fnUntraced(function* (file: StoredFile) {
-  const store = yield* ContentStore;
+const indexEntry = Effect.fnUntraced(function* (
+  file: StoredFile,
+  snapshot: ContentSnapshot
+) {
   const collection = file.path.split('/')[0] ?? '';
   const model = yield* modelOf(collection);
 
@@ -136,7 +144,7 @@ const indexEntry = Effect.fnUntraced(function* (file: StoredFile) {
     );
 
   const entry = yield* Effect.result(
-    readEntry(model.value, file.path, yield* store.read(file.path))
+    readEntry(model.value, file.path, yield* snapshot.read(file.path))
   );
 
   if (Result.isFailure(entry))
@@ -172,6 +180,19 @@ const forget = Effect.fnUntraced(function* (path: string) {
   yield* Effect.all([clearProblem(path), forgetFile(path)], { discard: true });
 });
 
+/** Within the size every write path enforces; a store may know it before reading. */
+const tooLarge = (file: StoredFile) =>
+  file.size !== undefined && file.size > MAX_CONTENT_BYTES;
+
+/** Indexes a file, or takes it out of the index as a problem if it is too large to read. */
+const indexWithin = <E, R>(
+  file: StoredFile,
+  index: Effect.Effect<boolean, E, R>
+) =>
+  tooLarge(file)
+    ? Effect.andThen(forget(file.path), problem(file, 'This file is over 1 MB'))
+    : index;
+
 const changedFiles = (
   files: ReadonlyArray<StoredFile>,
   known: ReadonlyMap<string, string>
@@ -180,7 +201,8 @@ const changedFiles = (
 /** One bounded sync run. Call again while `remaining` is above zero. */
 export const syncContent = Effect.fnUntraced(function* (limit = 200) {
   const store = yield* ContentStore;
-  const files = (yield* store.list).filter(file => isContentFile(file.path));
+  const snapshot = yield* store.snapshot;
+  const files = snapshot.files.filter(file => isContentFile(file.path));
   const present = new Set(files.map(file => file.path));
   const gone = [...(yield* knownFiles).keys()].filter(
     path => !present.has(path)
@@ -191,14 +213,15 @@ export const syncContent = Effect.fnUntraced(function* (limit = 200) {
   const configs = changedFiles(files, yield* knownFiles)
     .filter(file => isSettings(file.path))
     .slice(0, limit);
-  const configResults = yield* Effect.forEach(configs, indexSettings);
+  const configResults = yield* Effect.forEach(configs, file =>
+    indexWithin(file, indexSettings(file, snapshot))
+  );
   const entries = changedFiles(files, yield* knownFiles).filter(file =>
     ENTRY.test(file.path)
   );
   const budget = Math.max(0, limit - configs.length);
-  const entryResults = yield* Effect.forEach(
-    entries.slice(0, budget),
-    indexEntry
+  const entryResults = yield* Effect.forEach(entries.slice(0, budget), file =>
+    indexWithin(file, indexEntry(file, snapshot))
   );
   const results = [...configResults, ...entryResults];
   const remaining = changedFiles(files, yield* knownFiles).length;

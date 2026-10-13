@@ -5,53 +5,17 @@ import { join } from 'node:path';
 import {
   buildWorkers,
   check,
+  client,
   liveContent,
-  OWNER,
+  saveBody,
+  signedIn,
   startWorkers,
   suite,
-  WORKERS,
   workersState
 } from './support.mjs';
 
 const entry = '/admin/collections/field-notes/entries/first-light';
 const file = 'field-notes/first-light.md';
-
-function client() {
-  let cookie = '';
-
-  return async (path, method = 'GET', body, origin) => {
-    const response = await fetch(`${WORKERS}/api${path}`, {
-      method,
-      headers: {
-        cookie,
-        'content-type': 'application/json',
-        ...(origin ? { origin } : {})
-      },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) })
-    });
-    const session = response.headers
-      .getSetCookie()
-      .find(value => value.startsWith('venda_session='));
-
-    if (session) cookie = session.split(';')[0];
-
-    return { status: response.status, json: await response.json() };
-  };
-}
-
-async function signedIn() {
-  const api = client();
-
-  assert.equal((await api('/auth/sign-in', 'POST', OWNER)).status, 200);
-
-  return api;
-}
-
-const saveBody = (copy, title) => ({
-  revision: copy.revision,
-  data: { ...copy.data, title },
-  publishedAt: copy.publishedAt
-});
 
 async function saveAndPublish(api, live) {
   const original = await readFile(join(live, file), 'utf8');

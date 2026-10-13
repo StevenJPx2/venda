@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { serveContent } from '../scripts/content-server.mjs';
+import { simulateRepository } from '../scripts/github-simulator.mjs';
 
 export const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 
@@ -174,6 +175,94 @@ export async function startWorkers(state, live) {
   await waitFor(`${WORKERS}/api/health`, 'Workers');
 
   return stopBoth;
+}
+
+/** An API client that keeps the session cookie it is given. */
+export function client() {
+  let cookie = '';
+
+  return async (path, method = 'GET', body, origin) => {
+    const headers = { cookie, 'content-type': 'application/json' };
+
+    if (origin) headers.origin = origin;
+
+    const init = { method, headers };
+
+    if (body !== undefined) init.body = JSON.stringify(body);
+
+    const response = await fetch(`${WORKERS}/api${path}`, init);
+    const session = response.headers
+      .getSetCookie()
+      .find(value => value.startsWith('venda_session='));
+
+    if (session) cookie = session.split(';')[0];
+
+    // A server error may have no body.
+    const text = await response.text();
+
+    return { status: response.status, json: text ? JSON.parse(text) : null };
+  };
+}
+
+/** A client signed in as the recovery owner. */
+export async function signedIn() {
+  const api = client();
+  const answer = await api('/auth/sign-in', 'POST', OWNER);
+
+  if (answer.status !== 200)
+    throw new Error(`Sign-in answered ${answer.status}`);
+
+  return api;
+}
+
+/** A save of `copy` with a new title. */
+export const saveBody = (copy, title) => ({
+  revision: copy.revision,
+  data: { ...copy.data, title },
+  publishedAt: copy.publishedAt
+});
+
+const GITHUB_PORT = 8797;
+
+export const GITHUB_AUTHOR_EMAIL = 'venda@users.noreply.venda.test';
+
+/**
+ * Starts the built Worker reading the fixture content from the GitHub
+ * simulator, as a deployment reads its repository. Resolves to the simulator
+ * and a function that stops both.
+ */
+export async function startGitHubWorkers(state) {
+  const { github, env: githubEnv } = await simulateRepository({
+    folder: CONTENT_FIXTURES,
+    port: GITHUB_PORT,
+    authorEmail: GITHUB_AUTHOR_EMAIL
+  });
+  const env = { ...OWNER_ENV, ...githubEnv };
+  const child = start('workers', 'npx', [
+    'wrangler',
+    'dev',
+    '--local',
+    '--persist-to',
+    state,
+    '--config',
+    '.output/server/wrangler.json',
+    '--port',
+    '8795',
+    ...Object.entries(env).flatMap(([key, value]) => [
+      '--var',
+      `${key}:${value}`
+    ])
+  ]);
+
+  closers.push(github.stop);
+  await waitFor(`${WORKERS}/api/health`, 'Workers');
+
+  return {
+    github,
+    stop: async () => {
+      await Promise.all([stop(child), github.stop()]);
+    }
+  };
 }
 
 /** Runs a suite, always stopping servers and printing results. */

@@ -223,7 +223,7 @@ Vue or a Cloudflare type; Fallow boundary rules enforce it.
 
 | Service | Production | Local and tests |
 | --- | --- | --- |
-| `ContentStore`: read, list, commit with base SHA, changes since a cursor | GitHub App | a local folder served to the Worker over HTTP; in-memory |
+| `ContentStore`: list, read, a snapshot pinned for one sync pass, commit with base SHA, message and author | GitHub App (`src/github/`) | a local folder served to the Worker over HTTP; the GitHub simulator; in-memory |
 | `IndexDb`: a Drizzle SQLite database with Effect queries | D1 (`drizzle-orm/effect-d1` over `@effect/sql-d1`) | local D1 under `wrangler dev`; node:sqlite (`@effect/sql-sqlite-node`) in the tests |
 | `ObjectStore` | R2 through a Nitro storage mount | filesystem; memory |
 | `KeyValue` | KV through a Nitro storage mount | memory |
@@ -260,8 +260,8 @@ Sync stores that order as each entry's `sort_key`, so the admin pages by
 Changing a collection's kind or title field re-reads its entries, which
 rewrites their keys.
 
-**Bounds:** sync takes at most 200 files per run; GitHub calls retry with an
-exponential `Schedule` of at most 3 attempts within 10 seconds; the tick keeps
+**Bounds:** sync takes at most 200 files per run; GitHub reads retry at most
+3 attempts within 10 seconds, and writes not at all; the tick keeps
 its per-run batch limits; request bodies are capped at 1 MB for entries and
 25 MB for media.
 
@@ -271,10 +271,15 @@ its per-run batch limits; request bodies are capped at 1 MB for entries and
 platform: Cloudflare Workers (`cloudflare_module`), in production and locally
 on workerd through `wrangler dev`, with local D1 and KV. Nitro supplies the
 bindings, storage mounts and server assets; `src/cloudflare.ts` names the D1
-client for the Drizzle index and where content comes from:
+client for the Drizzle index and where content comes from. Content comes from
+exactly one source (`src/app.ts` refuses two):
 
-- **Deployed:** the content folder is built into the Worker as server assets
-  (until the GitHub store), so it is read-only.
+- **GitHub:** with every `VENDA_GITHUB_*` variable set, the Worker reads one
+  branch's content folder through a GitHub App installation and publishes by
+  committing to it (`src/github/`). A half-configured repository is refused,
+  never replaced by the bundled copy. Details below.
+- **Bundled:** without a repository, the content folder built into the Worker
+  as server assets is served read-only, and Publish explains why it cannot.
 - **Local development:** a Worker cannot read the disk, so
   `scripts/content-server.mjs` serves a content folder over HTTP on
   127.0.0.1, and `VENDA_CONTENT_URL` points the Worker at it
@@ -285,8 +290,42 @@ client for the Drizzle index and where content comes from:
   index serving. `pnpm try` creates a per-run `VENDA_CONTENT_TOKEN` for
   conditional writes; the folder server rejects browser Origins, paths
   escaping the folder, symlink targets and payloads over 1 MB. A local URL
-  without that token remains read-only. This is the shape the GitHub store takes in slice 4: content
-  over HTTP, re-indexed when its source says it changed.
+  without that token remains read-only.
+
+**The GitHub store** (`src/github/`):
+
+| Variable | Holds |
+| --- | --- |
+| `VENDA_GITHUB_REPOSITORY`, `VENDA_GITHUB_REPOSITORY_ID` | `owner/name`, and its ID, checked once per isolate |
+| `VENDA_GITHUB_BRANCH`, `VENDA_GITHUB_CONTENT_DIR` | the branch, and the folder within it (default `content`) |
+| `VENDA_GITHUB_CLIENT_ID`, `VENDA_GITHUB_INSTALLATION_ID` | the App and its installation |
+| `VENDA_GITHUB_PRIVATE_KEY` (secret) | the App's key, PKCS#8 (`openssl pkcs8 -topk8 -nocrypt` converts GitHub's download) |
+| `VENDA_GITHUB_AUTHOR_EMAIL` | the git email on every commit, so no editor's address is published |
+| `VENDA_GITHUB_API_URL` | tests and `pnpm try --github` only: a simulator on this machine |
+
+- An RS256 App JWT (Web Crypto) is exchanged for an installation token scoped
+  to the repository's ID and to contents; one renewal runs at a time, five
+  minutes before expiry or half its life, whichever is later.
+- A sync snapshot pins the branch head: one Git tree (walked a level at a
+  time if GitHub truncates it), then blobs by SHA, so a push mid-sync cannot
+  mix two commits. Symlinks, submodules and files over 1 MB are not read;
+  an oversized file is a content problem.
+- Publish reads the file first: its own bytes already there finish a retried
+  intent with no second commit; anything but the base SHA is `Conflict`. It
+  then writes through the Contents API with that base SHA. A 409 or 422 is
+  checked again before it counts as a conflict; any other refusal (branch
+  protection, an outage) fails the request and keeps the intent. Commits read
+  "Publish journal/first-light" by "Ann Lee via Venda", frozen when the intent
+  is made.
+- Reads retry twice within 10 seconds, honouring a short `Retry-After`; writes
+  never retry inside a request. Redirects are refused, so the token is never
+  sent anywhere else.
+- Until webhook sync (slice 4, commit 2), a request checks the branch head at
+  most every 30 seconds, and after every write.
+- `scripts/github-simulator.mjs` answers the same endpoints, statuses and
+  token rules on 127.0.0.1. The server tests, `pnpm e2e github` and
+  `pnpm try --github` use it; a contract test against a real repository is
+  still to come.
 
 A Node target was built and tested until slice 2b and then removed: local
 workerd already gives a faithful local runtime, and Venda deploys only to
@@ -569,7 +608,8 @@ suites; it does not replace them.
    - `try/slice-3.html`: steps for the real admin, a title-editing console,
      and checks for save, publish, an outside edit, a new entry and General.
 4. **GitHub content store.** App authentication, commits, webhook sync; a
-   contract test against a real throwaway repository.
+   contract test against a real throwaway repository
+   ([plan](plans/slice-4-github-store.md)).
 5. **Lifecycle on files.** Scheduling, unpublish, trash and restore, revisions
    from git, preview, search.
 6. **Finish and freeze the plugin API and the default preset.** Every screen

@@ -18,6 +18,9 @@ import { eq } from 'drizzle-orm';
 import { Effect, Result } from 'effect';
 import type { IsAdministrator } from '../auth/proofs/is-administrator';
 import { ContentStore, ContentStoreError, gitBlobSha } from './services';
+import type { Named } from '@gdp-ts/core';
+import type { UserId } from '@venda/contract';
+import { commitAuthor } from './commit-author';
 import { SITE_PATH } from './site';
 import { AtomicWrites, Database } from '../database';
 import { contentSite, contentProblems, contentFiles } from './schema';
@@ -73,7 +76,11 @@ function settingsOf(input: SiteInput): Json {
   ]);
 }
 
-export const saveSiteFile = <A>(input: SiteInput, admin: IsAdministrator<A>) =>
+export const saveSiteFile = <A>(
+  user: Named<A, UserId>,
+  input: SiteInput,
+  admin: IsAdministrator<A>
+) =>
   Effect.gen(function* () {
     const store = yield* ContentStore;
 
@@ -93,12 +100,15 @@ export const saveSiteFile = <A>(input: SiteInput, admin: IsAdministrator<A>) =>
       });
 
     const sha = yield* Effect.promise(() => gitBlobSha(bytes));
+    const author = yield* commitAuthor(user.value);
 
     const committed = yield* store.commit({
       path: SITE_PATH,
       content,
       baseSha: input.baseSha,
-      sha
+      sha,
+      message: 'Update site settings',
+      author
     });
 
     if (committed.sha !== sha)

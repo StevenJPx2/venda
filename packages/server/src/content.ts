@@ -2,14 +2,16 @@
 import {
   ContentStore,
   ContentStoreError,
-  gitBlobSha,
+  snapshotOf,
   syncAll,
+  type ContentCommit,
+  type ContentFileStore,
   type SyncReport
 } from '@venda/core/content';
 import type { Database } from '@venda/core/database';
 import { Conflict, ContentReadOnly } from '@venda/contract';
 import { Effect, Layer, Predicate } from 'effect';
-import type { ContentSource, RawFile } from './target';
+import type { ContentFiles, ContentSource, RawFile } from './target';
 
 // Only these are read and hashed; images and other files beside them are skipped.
 const CONTENT_FILE = /^site\.ts$|(?:^|\/)(?:config\.ts|[^/]+\.mdx?)$/;
@@ -29,10 +31,46 @@ function bytesOf(raw: RawFile): Uint8Array {
 const storeError = (message: string) => (cause: unknown) =>
   new ContentStoreError({ message, cause });
 
-/** Content files over a storage mount; unstorage names `blog/hello.md` with the key `blog:hello.md`. */
-export const contentStoreLayer = (source: ContentSource) => {
-  const files = source.files;
-  const commit = source.commit;
+/** Folder and bundled sources capture bytes before advertising their SHAs. */
+const captureContent = (files: ContentFiles) =>
+  Effect.gen(function* () {
+    const keys = yield* Effect.tryPromise({
+      try: () => files.getKeys(),
+      catch: storeError('Could not list content files')
+    });
+    const paths = keys
+      .map(key => key.replaceAll(':', '/'))
+      .filter(path => CONTENT_FILE.test(path));
+    // A file that vanishes mid-capture fails the pass; the next one retries.
+    const texts = yield* Effect.forEach(
+      paths,
+      path =>
+        Effect.tryPromise({
+          try: async () => {
+            const raw = await files.getItemRaw(path.replaceAll('/', ':'));
+
+            if (raw === null) throw new Error(`${path} vanished while reading`);
+
+            return decoder.decode(bytesOf(raw));
+          },
+          catch: storeError(`Could not read ${path}`)
+        }),
+      { concurrency: 16 }
+    );
+
+    return yield* snapshotOf(
+      new Map(paths.map((path, at) => [path, texts[at] ?? '']))
+    );
+  });
+
+/**
+ * A store over a storage mount (the bundled folder, or the local content
+ * server); unstorage names `blog/hello.md` with the key `blog:hello.md`.
+ */
+export const filesStore = (
+  files: ContentFiles,
+  commit?: (input: ContentCommit) => Promise<{ readonly sha: string }>
+): ContentFileStore => {
   const bytes = (path: string) =>
     Effect.tryPromise({
       try: async () =>
@@ -40,8 +78,9 @@ export const contentStoreLayer = (source: ContentSource) => {
       catch: storeError(`Could not read ${path}`)
     });
 
-  return Layer.succeed(ContentStore, {
+  return {
     writable: commit !== undefined,
+    snapshot: captureContent(files),
     commit: input =>
       commit
         ? Effect.tryPromise({
@@ -55,30 +94,14 @@ export const contentStoreLayer = (source: ContentSource) => {
                   })
           })
         : Effect.fail(new ContentReadOnly()),
-    list: Effect.gen(function* () {
-      const keys = yield* Effect.tryPromise({
-        try: () => files.getKeys(),
-        catch: storeError('Could not list content files')
-      });
-      const paths = keys
-        .map(key => key.replaceAll(':', '/'))
-        .filter(path => CONTENT_FILE.test(path));
-
-      return yield* Effect.forEach(
-        paths,
-        path =>
-          Effect.flatMap(bytes(path), content =>
-            Effect.promise(async () => ({
-              path,
-              sha: await gitBlobSha(content)
-            }))
-          ),
-        { concurrency: 16 }
-      );
-    }),
+    // A folder's SHAs come from its bytes, so listing it is reading it.
+    list: Effect.map(captureContent(files), snapshot => snapshot.files),
     read: path => Effect.map(bytes(path), content => decoder.decode(content))
-  });
+  };
 };
+
+export const contentStoreLayer = (source: ContentSource) =>
+  Layer.succeed(ContentStore, source.store);
 
 /** Runs an effect against the app's content store and index. */
 export type RunContent = <A, E>(

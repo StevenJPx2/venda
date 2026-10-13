@@ -11,9 +11,11 @@ import { limitContentRequest } from './content-limit';
 import { decodeServerEnv, type RawEnv } from './env';
 import type { DomainServices } from './infrastructure';
 import { keyValueLayer, type KeyValueMount } from './key-value';
+import { githubConfig } from './github/config';
+import { githubContent } from './github/source';
 import { localContent } from './local-content';
 import { migrate, type MigrationFiles, readMigrations } from './migrations';
-import type { Target } from './target';
+import type { ContentSource, Target } from './target';
 
 /** The Nitro storage mounts the app reads, the same on every preset. */
 export interface Mounts {
@@ -30,21 +32,31 @@ export interface VendaApp {
 // Content is public; sites and CDNs may keep a read for a minute.
 const PUBLIC_CACHE = 'public, max-age=60';
 
+/** One place for content: a GitHub repository, a local folder, or the bundled copy. */
+function contentSource(target: Target, env: RawEnv): ContentSource {
+  const { VENDA_CONTENT_URL, VENDA_CONTENT_TOKEN } = decodeServerEnv(env);
+  const github = githubConfig(env);
+
+  if (github && VENDA_CONTENT_URL)
+    throw new Error(
+      'Content comes from one place: set VENDA_GITHUB_* or VENDA_CONTENT_URL, not both'
+    );
+
+  if (github) return githubContent(github);
+
+  return VENDA_CONTENT_URL
+    ? localContent(VENDA_CONTENT_URL, VENDA_CONTENT_TOKEN)
+    : target.content();
+}
+
 async function build(
   target: Target,
   mounts: Mounts,
   env: RawEnv
 ): Promise<VendaApp> {
-  const {
-    VENDA_VERSION,
-    VENDA_OWNER_EMAIL,
-    VENDA_OWNER_PASSWORD,
-    VENDA_CONTENT_URL,
-    VENDA_CONTENT_TOKEN
-  } = decodeServerEnv(env);
-  const content = VENDA_CONTENT_URL
-    ? localContent(VENDA_CONTENT_URL, VENDA_CONTENT_TOKEN)
-    : target.content();
+  const { VENDA_VERSION, VENDA_OWNER_EMAIL, VENDA_OWNER_PASSWORD } =
+    decodeServerEnv(env);
+  const content = contentSource(target, env);
   const owner = Layer.succeed(Owner, {
     email: VENDA_OWNER_EMAIL,
     password: Redacted.make(VENDA_OWNER_PASSWORD)

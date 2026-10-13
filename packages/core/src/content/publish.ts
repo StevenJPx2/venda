@@ -33,6 +33,7 @@ import {
   type WorkRow
 } from './work-read';
 import { failedUpdate, idleRevision } from './work';
+import { commitAuthor } from './commit-author';
 
 const invalid = (error: { message: string }) =>
   new InvalidContent({ message: error.message });
@@ -59,7 +60,7 @@ const sourceOf = (row: WorkRow, model: CollectionModel) =>
     return content;
   });
 
-const claimPublish = (ref: EntryRef, revision: number) =>
+const claimPublish = (ref: EntryRef, revision: number, userId: UserId) =>
   Effect.gen(function* () {
     const row = yield* openWork(ref);
 
@@ -79,13 +80,15 @@ const claimPublish = (ref: EntryRef, revision: number) =>
       return yield* new ContentTooLarge();
 
     const sha = yield* Effect.promise(() => gitBlobSha(bytes));
+    const author = yield* commitAuthor(userId);
     const db = yield* Database;
     const [claimed] = yield* db
       .update(contentWork)
       .set({
         publishText: text,
         publishSha: sha,
-        publishModelJson: JSON.stringify(model)
+        publishModelJson: JSON.stringify(model),
+        publishAuthor: author
       })
       .where(idleRevision(ref, revision))
       .returning();
@@ -208,7 +211,7 @@ function finalizeWrites(
     file,
     {
       sql: `UPDATE content_work SET base_sha = publish_sha, data_json = ?, published_at = ?,
-      revision = revision + 1, dirty = 0, publish_text = NULL, publish_sha = NULL, publish_model_json = NULL WHERE ${guard}`,
+       revision = revision + 1, dirty = 0, publish_text = NULL, publish_sha = NULL, publish_model_json = NULL, publish_author = NULL WHERE ${guard}`,
       params: [dataJson, publishedAt, ...guardParams(row)]
     }
   ];
@@ -224,6 +227,7 @@ const releaseConflict = (row: WorkRow) =>
         publishText: null,
         publishSha: null,
         publishModelJson: null,
+        publishAuthor: null,
         revision: row.revision + 1
       })
       .where(
@@ -236,7 +240,7 @@ const releaseConflict = (row: WorkRow) =>
   });
 
 export const publishWorkingCopy = <U, E>(
-  _user: Named<U, UserId>,
+  user: Named<U, UserId>,
   entry: Named<E, EntryRef>,
   revision: number,
   _proof: CanPublishEntry<U, E>
@@ -246,7 +250,7 @@ export const publishWorkingCopy = <U, E>(
 
     if (!store.writable) return yield* new ContentReadOnly();
 
-    const row = yield* claimPublish(entry.value, revision);
+    const row = yield* claimPublish(entry.value, revision, user.value);
 
     if (
       row.publishText === null ||
@@ -260,7 +264,10 @@ export const publishWorkingCopy = <U, E>(
         path: row.path,
         baseSha: row.baseSha,
         content: row.publishText,
-        sha: row.publishSha
+        sha: row.publishSha,
+        message: `Publish ${row.collection}/${row.slug}`,
+        // An intent frozen before attribution existed is credited to Venda.
+        author: row.publishAuthor ?? 'Venda'
       })
       .pipe(
         Effect.catchTag('Conflict', error =>

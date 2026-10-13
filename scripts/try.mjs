@@ -4,7 +4,8 @@
 //
 // The local database and sessions (.try/data) are kept between runs, so you
 // stay signed in; the build and the content copy start fresh every time.
-// `pnpm try --fresh` wipes everything first.
+// `pnpm try --fresh` wipes everything first. `pnpm try --github` reads the
+// content from a simulated GitHub repository instead, as a deployment does.
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
@@ -13,6 +14,7 @@ import { createServer } from 'node:http';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { serveContent } from './content-server.mjs';
+import { simulateRepository } from './github-simulator.mjs';
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const SERVER = join(ROOT, 'packages/server');
@@ -20,12 +22,15 @@ const STATE = join(ROOT, '.try');
 // D1 and KV under wrangler: people, tokens and sessions.
 const DATA = join(STATE, 'data');
 const FRESH = process.argv.includes('--fresh');
+const GITHUB = process.argv.includes('--github');
 // Built into the Worker as its fallback; the Worker reads the editable copy in
 // .try/content through the content server, so an edit shows on the next request.
 const CONTENT = join(ROOT, 'try/content');
 const LIVE_CONTENT = join(STATE, 'content');
 const CONTENT_FILE = /^\/files\/(site\.ts|[a-z0-9-]+\/[a-z0-9-]+\.mdx?)$/;
-const PORTS = { page: 8794, server: 8805, content: 8806 };
+const PORTS = { page: 8794, server: 8805, content: 8806, github: 8807 };
+// The simulated repository, with --github.
+let github;
 // Its own build output, so `pnpm e2e` or a manual build cannot replace files this server is serving.
 const BUILD = join(STATE, 'build');
 // Throwaway local credentials for the recovery owner, for this machine only.
@@ -234,6 +239,53 @@ async function readBody(request) {
   return Buffer.concat(chunks).toString('utf8');
 }
 
+const markdown = (response, text) =>
+  response
+    .writeHead(text === null ? 404 : 200, {
+      'content-type': 'text/markdown; charset=utf-8',
+      'cache-control': 'no-store'
+    })
+    .end(text ?? 'Not found');
+
+// With --github, an edit from the page is a push to the repository.
+async function repositoryFile(request, response, file) {
+  if (request.method === 'GET')
+    return markdown(response, github.file(file) ?? null);
+
+  github.push(
+    file,
+    request.method === 'PUT' ? await readBody(request) : null,
+    'Edited from the try page'
+  );
+  response.writeHead(204).end();
+}
+
+// The simulated repository's recent commits, and an outage on demand.
+function repositoryState(request, response) {
+  if (request.method === 'POST') github?.failWrites(502);
+
+  const commits = (github?.state.commits ?? []).slice(-20).reverse();
+
+  response
+    .writeHead(request.method === 'POST' ? 202 : 200, {
+      'content-type': 'application/json',
+      'cache-control': 'no-store'
+    })
+    .end(
+      JSON.stringify({
+        mode: github ? 'github' : 'folder',
+        head: github?.state.head ?? null,
+        tokensIssued: github?.state.tokensIssued ?? 0,
+        commits: commits.map(commit => ({
+          path: commit.path,
+          sha: commit.sha.slice(0, 7),
+          message: commit.message,
+          author: `${commit.author.name} <${commit.author.email}>`
+        }))
+      })
+    );
+}
+
 // A local-only helper for the try pages: read, write and remove the live
 // content files, as an agent or a developer editing the folder would.
 async function files(request, response, path) {
@@ -243,6 +295,8 @@ async function files(request, response, path) {
     response.writeHead(404).end('Not found');
     return;
   }
+
+  if (github) return repositoryFile(request, response, file);
 
   if (request.method === 'PUT') {
     await writeFile(join(LIVE_CONTENT, file), await readBody(request));
@@ -256,16 +310,10 @@ async function files(request, response, path) {
     return;
   }
 
-  const text = await readFile(join(LIVE_CONTENT, file), 'utf8').catch(
-    () => null
+  markdown(
+    response,
+    await readFile(join(LIVE_CONTENT, file), 'utf8').catch(() => null)
   );
-
-  response
-    .writeHead(text === null ? 404 : 200, {
-      'content-type': 'text/markdown; charset=utf-8',
-      'cache-control': 'no-store'
-    })
-    .end(text ?? 'Not found');
 }
 
 function startPageServer() {
@@ -275,9 +323,11 @@ function startPageServer() {
     const local = () =>
       path === '/compile-mistakes'
         ? compileMistakes(response)
-        : path.startsWith('/files/')
-          ? files(request, response, path)
-          : page(path, response);
+        : path === '/github'
+          ? Promise.resolve(repositoryState(request, response))
+          : path.startsWith('/files/')
+            ? files(request, response, path)
+            : page(path, response);
     // The API and the admin belong to the Venda server; everything else is this page server.
     const handled = /^\/(api|admin)\//.test(url)
       ? proxy(request, response)
@@ -340,13 +390,34 @@ await step('build the Worker', 'pnpm', ['exec', 'nitro', 'build'], {
   VENDA_OUTPUT_DIR: BUILD
 });
 
-const contentToken = randomUUID();
-stopContent = await serveContent(LIVE_CONTENT, PORTS.content, contentToken);
-const vars = Object.entries({
-  ...OWNER_ENV,
-  VENDA_CONTENT_URL: `http://127.0.0.1:${PORTS.content}/`,
-  VENDA_CONTENT_TOKEN: contentToken
-}).flatMap(([key, value]) => ['--var', `${key}:${value}`]);
+/** The content: a simulated GitHub repository, or the live folder. */
+async function contentEnv() {
+  if (GITHUB) {
+    const simulated = await simulateRepository({
+      folder: CONTENT,
+      port: PORTS.github,
+      authorEmail: 'venda@users.noreply.venda.local'
+    });
+
+    github = simulated.github;
+    stopContent = simulated.github.stop;
+
+    return simulated.env;
+  }
+
+  const contentToken = randomUUID();
+
+  stopContent = await serveContent(LIVE_CONTENT, PORTS.content, contentToken);
+
+  return {
+    VENDA_CONTENT_URL: `http://127.0.0.1:${PORTS.content}/`,
+    VENDA_CONTENT_TOKEN: contentToken
+  };
+}
+
+const vars = Object.entries({ ...OWNER_ENV, ...(await contentEnv()) }).flatMap(
+  ([key, value]) => ['--var', `${key}:${value}`]
+);
 
 serve('server', 'npx', [
   'wrangler',
@@ -370,7 +441,11 @@ console.log(`
   Owner: ${OWNER_ENV.VENDA_OWNER_EMAIL} / ${OWNER_ENV.VENDA_OWNER_PASSWORD} (local only)
   Admin: http://localhost:${PORTS.server}/admin/
   Server: Cloudflare Workers on local workerd, with local D1 and KV
-  Content: .try/content, live. Edit any file; the next request serves it.
+  Content: ${
+    GITHUB
+      ? 'a simulated GitHub repository (try/content); Publish makes commits'
+      : '.try/content, live. Edit any file; the next request serves it.'
+  }
   Data: .try/data, kept between runs, so you stay signed in. \`pnpm try --fresh\` starts clean.
   Logs: .try/*.log · Ctrl-C to stop
 `);

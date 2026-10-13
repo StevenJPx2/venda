@@ -70,7 +70,8 @@ export const contentWork = sqliteTable(
     // Frozen canonical publish payload; a retry completes this exact intent.
     publishText: text('publish_text'),
     publishSha: text('publish_sha'),
-    publishModelJson: text('publish_model_json')
+    publishModelJson: text('publish_model_json'),
+    publishAuthor: text('publish_author')
   },
   table => [primaryKey({ columns: [table.collection, table.slug] })]
 );

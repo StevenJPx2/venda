@@ -68,11 +68,16 @@ const create = (run: Run, collection: string, input: CreateInput) =>
 
 const asAdministrator = <A, E>(
   run: Run,
-  action: <U>(admin: IsAdministrator<U>) => Effect.Effect<A, E, DomainServices>
+  action: <U>(
+    user: Named<U, UserId>,
+    admin: IsAdministrator<U>
+  ) => Effect.Effect<A, E, DomainServices>
 ) =>
   Effect.flatMap(CurrentActor, actor =>
     run(
-      name(actor.userId, user => Effect.flatMap(isAdministrator(user), action))
+      name(actor.userId, user =>
+        Effect.flatMap(isAdministrator(user), proof => action(user, proof))
+      )
     )
   );
 
@@ -84,9 +89,12 @@ export const ContentWriteHandlers = HttpApiBuilder.group(
 
     return handlers.handleAll({
       create: ({ params, payload }) => create(run, params.collection, payload),
-      site: () => asAdministrator(run, getSiteDocument),
+      site: () =>
+        asAdministrator(run, (_user, proof) => getSiteDocument(proof)),
       saveSite: ({ payload }) =>
-        asAdministrator(run, admin => saveSiteFile(payload, admin)),
+        asAdministrator(run, (user, admin) =>
+          saveSiteFile(user, payload, admin)
+        ),
       copy: ({ params }) =>
         forEntry(run, params, (user, entry) =>
           Effect.flatMap(canEditEntry(user, entry), proof =>

@@ -19,7 +19,8 @@ import {
   discardWorkingCopy,
   publishWorkingCopy,
   rebaseWorkingCopy,
-  assignEntryOwner
+  assignEntryOwner,
+  snapshotOf
 } from '../src/content';
 import { AtomicWrites, Database } from '../src/database';
 import { testDatabase } from './support';
@@ -56,20 +57,22 @@ const person = (id: UserId, role: Role): typeof users.$inferInsert => ({
   createdAt: '2026-10-12T00:00:00Z'
 });
 
-export async function writeHarness() {
-  const files = new Map([
-    [
-      'blog/config.ts',
-      `export default defineCollection({ name: 'Blog', kind: 'posts', fields: {
-      title: { type: 'text', required: true, max: 40 }, body: { type: 'richtext', required: true }
-    } });`
-    ],
-    ['blog/hello.md', post('Hello')],
-    ['blog/second.md', post('Second')]
-  ]);
+interface Recorded {
+  readonly path: string;
+  readonly message: string;
+  readonly author: string;
+}
+
+/**
+ * Files in memory with the store's SHA rules; `lose()` makes the next write
+ * land but lose its answer, as a dropped connection would.
+ */
+function memoryStore(files: Map<string, string>, commits: Recorded[]) {
   let uncertain = false;
-  const store = Layer.succeed(ContentStore, {
+
+  const layer = Layer.succeed(ContentStore, {
     writable: true,
+    snapshot: Effect.suspend(() => snapshotOf(files)),
     list: Effect.promise(() =>
       Promise.all(
         [...files].map(async ([path, text]) => ({ path, sha: await sha(text) }))
@@ -92,6 +95,11 @@ export async function writeHarness() {
           return yield* new Conflict({ path: input.path, sha: current });
 
         files.set(input.path, input.content);
+        commits.push({
+          path: input.path,
+          message: input.message,
+          author: input.author
+        });
 
         if (uncertain) {
           uncertain = false;
@@ -104,7 +112,29 @@ export async function writeHarness() {
         return { sha: input.sha };
       })
   });
-  const runtime = ManagedRuntime.make(Layer.merge(testDatabase, store));
+
+  return {
+    layer,
+    lose: () => {
+      uncertain = true;
+    }
+  };
+}
+
+export async function writeHarness() {
+  const files = new Map([
+    [
+      'blog/config.ts',
+      `export default defineCollection({ name: 'Blog', kind: 'posts', fields: {
+      title: { type: 'text', required: true, max: 40 }, body: { type: 'richtext', required: true }
+    } });`
+    ],
+    ['blog/hello.md', post('Hello')],
+    ['blog/second.md', post('Second')]
+  ]);
+  const commits: Recorded[] = [];
+  const store = memoryStore(files, commits);
+  const runtime = ManagedRuntime.make(Layer.merge(testDatabase, store.layer));
   const run = <A, E>(effect: Effect.Effect<A, E, Services>) =>
     runtime.runPromise(effect);
 
@@ -125,11 +155,10 @@ export async function writeHarness() {
 
   return {
     files,
+    commits,
     run,
     close: () => runtime.dispose(),
-    uncertain: () => {
-      uncertain = true;
-    }
+    uncertain: store.lose
   };
 }
 

@@ -2,7 +2,7 @@
 // and where content files come from. Cloudflare Workers in production and in
 // local development (src/cloudflare.ts); an in-memory SQLite target in tests.
 import type { Database } from '@venda/core/database';
-import type { ContentCommit } from '@venda/core/content';
+import type { ContentFileStore } from '@venda/core/content';
 import type { Config, Effect, Layer, Schema } from 'effect';
 import type { SqlClient, SqlError, Statement } from 'effect/sql';
 
@@ -28,8 +28,7 @@ export interface ContentFiles {
 }
 
 export interface ContentSource {
-  readonly files: ContentFiles;
-  readonly commit?: (input: ContentCommit) => Promise<{ readonly sha: string }>;
+  readonly store: ContentFileStore;
   /** Force a fresh comparison after a mutation, including an uncertain write. */
   readonly invalidate?: () => void;
   /**

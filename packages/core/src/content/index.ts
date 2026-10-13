@@ -11,7 +11,11 @@ export {
   type StoredFile
 } from './services';
 
-export type { ContentCommit } from './services';
+export type {
+  ContentCommit,
+  ContentSnapshot,
+  ContentFileStore
+} from './services';
 
 export { getSite, siteSettings } from './site';
 
@@ -37,3 +41,5 @@ export {
   listContentProblems,
   listIndexedEntries
 } from './admin';
+
+export { snapshotOf } from './snapshot';

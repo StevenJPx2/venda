@@ -6,6 +6,7 @@ import { createStorage, type Storage } from 'unstorage';
 import memoryDriver from 'unstorage/drivers/memory';
 import { onTestFinished } from 'vitest';
 import { appLoader } from '../src/app';
+import { filesStore } from '../src/content';
 import type { MigrationFiles } from '../src/migrations';
 import type { Target } from '../src/target';
 import { sqliteDatabase } from './sqlite';
@@ -31,7 +32,7 @@ export function memoryTarget(files: Storage) {
   const target: Target = {
     database: sqliteDatabase(SqliteClient.layer({ filename: ':memory:' })),
     content: () => ({
-      files,
+      store: filesStore(files),
       changed: async () => {
         const was = dirty;
 

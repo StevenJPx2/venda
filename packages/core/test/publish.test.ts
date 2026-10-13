@@ -6,6 +6,7 @@ import { ContentStore, getPublished, syncAll } from '../src/content';
 import {
   assignOwner,
   contributor,
+  editor,
   post,
   publishCopy,
   readCopy,
@@ -35,6 +36,13 @@ it('publishes canonical bytes, preserves unknown frontmatter, and indexes withou
     changedOutside: false
   });
   expect(h.files.get('blog/hello.md')).toContain('custom: keep-me');
+  expect(h.commits).toEqual([
+    {
+      path: 'blog/hello.md',
+      message: 'Publish blog/hello',
+      author: 'admin via Venda'
+    }
+  ]);
   expect((await h.run(getPublished('blog', 'hello'))).data.title).toBe(
     'Published edit'
   );
@@ -116,7 +124,14 @@ it('resumes the same durable intent after a store wrote but its response was los
       await h.run(Effect.result(saveCopy(saved.revision, saved.data)))
     )
   ).toBe(true);
-  expect((await h.run(publishCopy(saved.revision))).publishing).toBe(false);
+  // Another editor finishes it, still credited to whoever pressed Publish.
+  expect((await h.run(publishCopy(saved.revision, editor))).publishing).toBe(
+    false
+  );
+  expect(h.commits.map(commit => commit.author)).toEqual([
+    'admin via Venda',
+    'admin via Venda'
+  ]);
 });
 
 it('keeps a durable intent when the atomic index finalization fails', async () => {

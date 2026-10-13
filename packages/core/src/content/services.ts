@@ -8,12 +8,17 @@ export interface ContentCommit {
   readonly baseSha: string | null;
   /** Same intent retried after an uncertain write; equivalent bytes are success. */
   readonly sha: string;
+  readonly message: string;
+  /** The publisher's display name; the host supplies a non-personal git email. */
+  readonly author: string;
 }
 
 /** A file in the content store and its git blob SHA. */
 export interface StoredFile {
   readonly path: string;
   readonly sha: string;
+  /** Bytes, when the store knows them without reading the file. */
+  readonly size?: number;
 }
 
 export class ContentStoreError extends Schema.TaggedError<ContentStoreError>()(
@@ -24,21 +29,33 @@ export class ContentStoreError extends Schema.TaggedError<ContentStoreError>()(
   }
 ) {}
 
+/** A listing and its matching bytes, held still for one sync pass. */
+export interface ContentSnapshot {
+  readonly files: ReadonlyArray<StoredFile>;
+  readonly read: (path: string) => Effect.Effect<string, ContentStoreError>;
+}
+
+/** What a content store does; each host source (folder, bundle, GitHub) supplies one. */
+export interface ContentFileStore {
+  /** Every file, with its SHA, as the source holds it now. */
+  readonly list: Effect.Effect<ReadonlyArray<StoredFile>, ContentStoreError>;
+  /** One consistent listing and its bytes, for a sync pass. */
+  readonly snapshot: Effect.Effect<ContentSnapshot, ContentStoreError>;
+  /** A file as the source holds it now. */
+  readonly read: (path: string) => Effect.Effect<string, ContentStoreError>;
+  readonly writable: boolean;
+  readonly commit: (
+    input: ContentCommit
+  ) => Effect.Effect<
+    { readonly sha: string },
+    Conflict | ContentReadOnly | ContentStoreError
+  >;
+}
+
 /** The content files: `<collection>/config.ts` and `<collection>/<slug>.md`. */
 export class ContentStore extends Context.Service<
   ContentStore,
-  {
-    /** Every file, with its SHA. */
-    readonly list: Effect.Effect<ReadonlyArray<StoredFile>, ContentStoreError>;
-    readonly read: (path: string) => Effect.Effect<string, ContentStoreError>;
-    readonly writable: boolean;
-    readonly commit: (
-      input: ContentCommit
-    ) => Effect.Effect<
-      { readonly sha: string },
-      Conflict | ContentReadOnly | ContentStoreError
-    >;
-  }
+  ContentFileStore
 >()('venda/core/content/ContentStore') {}
 
 const encoder = new TextEncoder();

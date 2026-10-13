@@ -8,6 +8,7 @@ import * as D1Drizzle from 'drizzle-orm/effect-d1';
 import { Effect, Layer, Predicate, Schema } from 'effect';
 import { useStorage } from 'nitro/storage';
 import type { Target } from './target';
+import { filesStore } from './content';
 
 const D1Binding = Schema.declare(
   (value: unknown): value is D1Database =>
@@ -38,5 +39,8 @@ export const target: Target = {
         Effect.asVoid(d1.batch(statements))
       )
   },
-  content: () => ({ files: useStorage('assets:content'), changed: undefined })
+  content: () => ({
+    store: filesStore(useStorage('assets:content')),
+    changed: undefined
+  })
 };
