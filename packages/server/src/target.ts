@@ -3,6 +3,7 @@
 // local development (src/cloudflare.ts); an in-memory SQLite target in tests.
 import type { Database } from '@venda/core/database';
 import type { ContentFileStore } from '@venda/core/content';
+import type { Delivery } from './github/webhook';
 import type { Config, Effect, Layer, Schema } from 'effect';
 import type { SqlClient, SqlError, Statement } from 'effect/sql';
 
@@ -27,19 +28,44 @@ export interface ContentFiles {
   getItemRaw(key: string): Promise<RawFile>;
 }
 
+/**
+ * A folder on this machine: before each request the app asks whether it
+ * changed, and re-indexes first if it did.
+ */
+export interface WatchedUpdates {
+  readonly kind: 'watched';
+  /** Resolves true when the files changed since the last call. */
+  readonly changed: () => Promise<boolean>;
+  /** Forces a fresh comparison after a mutation, including an uncertain write. */
+  readonly invalidate: () => void;
+}
+
+/** Content built into the Worker: it changes only with a deploy. */
+export interface BuiltUpdates {
+  readonly kind: 'built';
+}
+
+/**
+ * A repository others push to: webhook deliveries and the scheduled check ask
+ * for a sync, which runs in the background.
+ */
+export interface PushedUpdates {
+  readonly kind: 'pushed';
+  /** The branch's current commit, for the scheduled check. */
+  readonly head: () => Promise<string>;
+  /** Reads and verifies a webhook delivery. */
+  readonly delivery: (request: Request) => Promise<Delivery>;
+}
+
 export interface ContentSource {
   readonly store: ContentFileStore;
-  /** Force a fresh comparison after a mutation, including an uncertain write. */
-  readonly invalidate?: () => void;
-  /**
-   * Where files can change while the app runs: resolves true when they have
-   * changed since the last call, so the app re-indexes before answering.
-   */
-  readonly changed: (() => Promise<boolean>) | undefined;
+  readonly updates: WatchedUpdates | BuiltUpdates | PushedUpdates;
 }
 
 export interface Target {
   readonly database: DatabaseDriver;
   /** The content built into the app; `VENDA_CONTENT_URL` replaces it in local development. */
   readonly content: () => ContentSource;
+  /** Keeps work running after the response (Workers' `waitUntil`). */
+  readonly background: (work: Promise<unknown>) => void;
 }

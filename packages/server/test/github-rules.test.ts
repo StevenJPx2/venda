@@ -1,12 +1,19 @@
 // The GitHub adapter's pure rules: configuration, encoding, the App's JWT,
 // which tree entries are content, conditional writes and read retries.
-import { generateKeyPairSync, verify } from 'node:crypto';
+import { createHmac, generateKeyPairSync, verify } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { GitHubError, renewalTime, retryDelay } from '../src/github/api';
 import { apiUrl, contentDir, githubConfig } from '../src/github/config';
 import { base64FromText, textFromBase64 } from '../src/github/encoding';
 import { appJwt, importPrivateKey, jwtClaims } from '../src/github/jwt';
-import { contentFiles, leadsTo, writeDecision } from '../src/github/tree';
+import {
+  afterRefusal,
+  contentFiles,
+  leadsTo,
+  MOVED_TRIES,
+  writeDecision
+} from '../src/github/tree';
+import { pushHere, readDelivery, signed } from '../src/github/webhook';
 
 const FULL = {
   VENDA_GITHUB_REPOSITORY: 'acme/site.web',
@@ -15,7 +22,15 @@ const FULL = {
   VENDA_GITHUB_CLIENT_ID: 'Iv1.test',
   VENDA_GITHUB_INSTALLATION_ID: '7',
   VENDA_GITHUB_PRIVATE_KEY: 'key',
+  VENDA_GITHUB_WEBHOOK_SECRET: 'secret',
   VENDA_GITHUB_AUTHOR_EMAIL: 'venda@example.com'
+};
+
+const FULL_CONFIG = {
+  ...(githubConfig({ ...FULL, VENDA_GITHUB_WEBHOOK_SECRET: 'shh' }) ??
+    expect.unreachable()),
+  repositoryId: 42,
+  branch: 'main'
 };
 
 describe('configuration', () => {
@@ -151,6 +166,76 @@ describe('conditional writes', () => {
     expect(writeDecision('theirs', 'base', 'new')).toBe('conflict');
     expect(writeDecision('theirs', null, 'new')).toBe('conflict');
     expect(writeDecision(null, 'base', 'new')).toBe('conflict');
+  });
+});
+
+describe('after a refused write', () => {
+  it('finishes when our bytes are there, retries a moved branch, and reports the rest', () => {
+    expect(afterRefusal(409, 'done', 1)).toBe('done');
+    expect(afterRefusal(422, 'done', 1)).toBe('done');
+    expect(afterRefusal(409, 'write', 1)).toBe('retry');
+    expect(afterRefusal(409, 'write', MOVED_TRIES)).toBe('refuse');
+    expect(afterRefusal(422, 'write', 1)).toBe('refuse');
+    expect(afterRefusal(403, null, 1)).toBe('refuse');
+  });
+});
+
+describe('webhook deliveries', () => {
+  const secret = 'shh';
+  const push = (ref: string, id = 42): Uint8Array<ArrayBuffer> =>
+    new TextEncoder().encode(
+      JSON.stringify({ ref, repository: { id }, after: 'abc' })
+    );
+  const sign = (body: Uint8Array) =>
+    `sha256=${createHmac('sha256', secret).update(body).digest('hex')}`;
+
+  it('accept only a signature made with the secret over these exact bytes', async () => {
+    const body = push('refs/heads/main');
+
+    expect(await signed(secret, body, sign(body))).toBe(true);
+    expect(await signed('other', body, sign(body))).toBe(false);
+    expect(await signed(secret, push('refs/heads/x'), sign(body))).toBe(false);
+    expect(await signed(secret, body, null)).toBe(false);
+    expect(await signed(secret, body, 'sha256=zz')).toBe(false);
+    expect(
+      await signed(secret, body, sign(body).replace('sha256', 'sha1'))
+    ).toBe(false);
+  });
+
+  it('count only a push to the configured repository and branch', () => {
+    expect(pushHere(FULL_CONFIG, push('refs/heads/main'))).toBe(true);
+    expect(pushHere(FULL_CONFIG, push('refs/heads/feature'))).toBe(false);
+    expect(pushHere(FULL_CONFIG, push('refs/tags/main'))).toBe(false);
+    expect(pushHere(FULL_CONFIG, push('refs/heads/main', 43))).toBe(false);
+    expect(pushHere(FULL_CONFIG, new TextEncoder().encode('not json'))).toBe(
+      false
+    );
+  });
+
+  it('are refused unsigned, ignored when not a push here, and read otherwise', async () => {
+    const deliver = (
+      body: Uint8Array<ArrayBuffer>,
+      event: string,
+      signature = sign(body)
+    ) =>
+      readDelivery(
+        FULL_CONFIG,
+        new Request('http://venda.test/api/webhooks/github', {
+          method: 'POST',
+          headers: {
+            'x-github-event': event,
+            'x-hub-signature-256': signature
+          },
+          body
+        })
+      );
+
+    expect(await deliver(push('refs/heads/main'), 'push')).toBe('push');
+    expect(await deliver(push('refs/heads/main'), 'ping')).toBe('ignored');
+    expect(await deliver(push('refs/heads/other'), 'push')).toBe('ignored');
+    expect(await deliver(push('refs/heads/main'), 'push', 'sha256=00')).toBe(
+      'refused'
+    );
   });
 });
 

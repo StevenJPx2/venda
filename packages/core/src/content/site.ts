@@ -9,17 +9,23 @@ import { Database } from '../database';
 
 export const SITE_PATH = 'site.ts';
 
+/** The statement that saves the site's settings, for a sync batch. */
 export const saveSite = (path: string, settings: SiteSettings) =>
-  Effect.flatMap(Database, db => {
+  Effect.map(Database, db => {
     const settingsJson = JSON.stringify(settings);
 
-    return db
-      .insert(contentSite)
-      .values({ path, settingsJson })
-      .onConflictDoUpdate({ target: contentSite.path, set: { settingsJson } });
+    return [
+      db
+        .insert(contentSite)
+        .values({ path, settingsJson })
+        .onConflictDoUpdate({ target: contentSite.path, set: { settingsJson } })
+        .toSQL()
+    ];
   });
 
-export const dropSite = Effect.flatMap(Database, db => db.delete(contentSite));
+export const dropSite = Effect.map(Database, db => [
+  db.delete(contentSite).toSQL()
+]);
 
 /** The settings as last indexed: none until `site.ts` exists and is valid. */
 export const siteSettings = Effect.gen(function* () {

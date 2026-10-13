@@ -2,15 +2,18 @@
 import {
   ContentStore,
   ContentStoreError,
+  contentSchema,
+  requestSync,
   snapshotOf,
+  sourceState,
   syncAll,
   type ContentCommit,
   type ContentFileStore,
   type SyncReport
 } from '@venda/core/content';
-import type { Database } from '@venda/core/database';
+import type { AtomicWrites, Database } from '@venda/core/database';
 import { Conflict, ContentReadOnly } from '@venda/contract';
-import { Effect, Layer, Predicate } from 'effect';
+import { Effect, Layer, type Option, Predicate } from 'effect';
 import type { ContentFiles, ContentSource, RawFile } from './target';
 
 // Only these are read and hashed; images and other files beside them are skipped.
@@ -105,49 +108,56 @@ export const contentStoreLayer = (source: ContentSource) =>
 
 /** Runs an effect against the app's content store and index. */
 export type RunContent = <A, E>(
-  effect: Effect.Effect<A, E, ContentStore | Database>
+  effect: Effect.Effect<A, E, ContentStore | Database | AtomicWrites>
 ) => Promise<A>;
 
 const describe = (report: SyncReport) =>
-  `indexed ${report.indexed}, removed ${report.removed}, ${report.problems} with problems`;
+  `${report.outcome}: indexed ${report.indexed}, removed ${report.removed}, ${report.problems} with problems, ${report.remaining} left`;
 
 export interface ContentSync {
-  /** Syncs the files into the index. Runs never overlap: a call during a run queues one more after it, so no change is missed. */
-  readonly run: () => Promise<void>;
-  /** Resolves once no run is in progress. */
+  /**
+   * Runs passes until the index has caught up. One run per isolate at a time
+   * (a call during a run shares it); across isolates the source's lease
+   * admits one pass at a time. Never rejects: a failure is logged and kept
+   * in the source's state for the next try.
+   */
+  readonly catchUp: () => Promise<void>;
+  /** Resolves once this isolate has no run in progress. */
   readonly settled: () => Promise<void>;
+  /** Asks for a pass: something changed at the source. */
+  readonly request: () => Promise<void>;
+  /** Where the index stands against the source. */
+  readonly state: () => Promise<SourceState>;
 }
+
+export type SourceState = Option.Option<
+  typeof contentSchema.contentSource.$inferSelect
+>;
 
 export function contentSync(run: RunContent): ContentSync {
   let running: Promise<void> | undefined;
-  let again = false;
 
   const once = () =>
-    run(syncAll()).then(
-      report => {
-        if (report.indexed || report.removed)
-          console.info(`[venda] content sync: ${describe(report)}`);
-      },
-      error => console.error('[venda] content sync failed', error)
-    );
-
-  const loop = async () => {
-    do {
-      again = false;
-      await once();
-    } while (again);
-
-    running = undefined;
-  };
+    run(syncAll())
+      .then(
+        report => {
+          if (report.indexed || report.removed || report.outcome === 'failed')
+            console.info(`[venda] content sync ${describe(report)}`);
+        },
+        error => console.error('[venda] content sync failed', error)
+      )
+      .finally(() => {
+        running = undefined;
+      });
 
   return {
-    run: () => {
-      if (running) again = true;
-
-      running ??= loop();
+    catchUp: () => {
+      running ??= once();
 
       return running;
     },
-    settled: () => running ?? Promise.resolve()
+    settled: () => running ?? Promise.resolve(),
+    request: () => run(Effect.asVoid(requestSync)),
+    state: () => run(sourceState)
   };
 }

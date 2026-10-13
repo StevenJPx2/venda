@@ -82,8 +82,8 @@ than fitting GitHub behind a mutable, path-only storage cache.
   a run cannot pair an old SHA with new bytes.
 - Extend the core store with an explicit snapshot operation used by sync.
   Current-file reads used by conflict resolution remain fresh reads. Local
-  and test stores implement the same contract, with tests for the read/list
-  race rather than assuming a folder is immutable.
+  and test stores implement the same contract and capture bytes before
+  hashing them, so a folder edited mid-pass cannot pair a SHA with other bytes.
 - Keep paths relative to the content root. Accept only the supported site,
   collection config and entry paths. Reject traversal, symlinks, submodules
   and writes outside that directory.
@@ -156,8 +156,8 @@ session API. It must run before normal content freshness/startup work.
   cross-isolate lock.
 - Each invocation indexes at most 200 files, with a separate external-request
   and wall-time budget. Smaller batches are allowed. Configs precede affected
-  entries. Persist continuation work rather than draining `syncAll()` in the
-  request that received the webhook.
+  entries. Continuation work is persisted; the request that received the
+  webhook only queues it.
 - Fence all index changes, including deletions and problem records. An expired
   job cannot write after another worker has claimed it. A publish or General
   save advances the source generation atomically with index finalization, so
@@ -186,6 +186,46 @@ The deployed GitHub integration initially targets Workers Paid. The existing
 subrequest limits. Verify Nitro's task wiring against the pinned version and
 its emitted Worker; use the preset's scheduled task support, not a parallel
 custom Worker entrypoint.
+
+## Concurrency
+
+Several editors, tabs and Worker isolates act at once, and GitHub delivers
+webhooks late, twice or out of order. No case may lose a write, write twice,
+or let an older state replace a newer one in the index.
+
+**Mechanism.**
+
+- One `content_source` row holds the source's state: a `generation` counter,
+  the sync lease (`fence`, `lease_until`), the `requested`/`handled` request
+  counters, the indexed head and progress, and the last error.
+- `content_files.generation` records which generation wrote each file marker.
+  Publish and Settings → General bump the generation in the same atomic batch
+  as their index writes and stamp it on the file.
+- A sync pass claims the lease with a conditional update that raises `fence`,
+  records the generation and `requested` it started at, then takes a pinned
+  snapshot.
+- Each file's index changes are one atomic batch (D1 `batch`, a transaction in
+  tests) that opens with a guard statement. The guard inserts into a
+  `content_guard` table whose `CHECK (ok = 1)` fails, aborting the batch,
+  unless this pass still holds `fence` and no marker for the path has a
+  generation newer than the pass's. An aborted pass ends early and asks for
+  another; nothing it read is written.
+- A finished pass stores the snapshot's head and sets `handled` to the
+  `requested` it started at. Any request that arrived meanwhile leaves
+  `requested > handled`, so another pass follows.
+
+| Case | Guard | Test |
+| --- | --- | --- |
+| A sync pass snapshotted before a publish finishes after it | the file's generation is newer than the pass, so its batch aborts | core: publish lands mid-pass; the index keeps the published entry |
+| Two isolates sync at once (webhook and cron) | the lease admits one; an expired runner's fence fails to match | core: two runners interleaved; one indexes, the other is refused |
+| A runner stalls past its lease, then wakes | fence mismatch aborts its next batch | core: lease expires, a second runner takes over, the first writes nothing |
+| A delete seen by an old snapshot races a newer publish of that path | the same generation guard on deletion | core |
+| Webhooks arrive twice, late or out of order | a webhook only raises `requested`; a pass reads the current head | live: duplicate and reversed deliveries index the newest commit once |
+| A push lands during a pass | `requested` rises during the pass, so another pass follows | core |
+| Two editors publish one entry at once | the revision guard claims one intent | live: exactly one commit, the other answer is `EditedElsewhere` |
+| Two publishes to different files race on one branch | GitHub's 409 with the file still at its base is a moved branch, retried up to 3 times; the write stays conditional on the file's SHA | adapter: a moved-branch 409 then success; live: concurrent publishes all commit |
+| Publish while GitHub answers slowly and the tab retries | the frozen intent and the store's "own bytes already there" finish it once | adapter and live: no second commit |
+| A webhook for another repository, branch or forged body | signature, repository ID and exact ref are checked before anything changes | live |
 
 ## API and admin
 
@@ -234,9 +274,10 @@ Settings → Repository is a lazy page in `@venda/views-core`:
   authorize repository/App creation and a tunnel before performing them.
 - **`try/slice-4.html`:** API console, links to Repository and the editor, and
   pass/fail checks for publish, outside push, conflict, duplicate webhook and
-  outage/recovery. A labelled local GitHub simulator is the default; the page
-  and admin still present one origin and never expose test credentials. An
-  explicit GitHub mode can target only a confirmed throwaway repository.
+  outage/recovery, against the local GitHub simulator that
+  `pnpm try --github` starts; plain `pnpm try` keeps serving `.try/content`
+  live from disk. The page and admin present one origin and never expose
+  credentials.
 - Run `pnpm lint:fix`, `pnpm check` and `pnpm e2e` before every commit. Keep the
   function-size, Fallow and Worker bundle gates unchanged.
 
@@ -256,12 +297,17 @@ blocker, not permission to declare the slice done with only a simulator.
   - Commit attribution is frozen with the publish intent (`publish_author`).
   - `scripts/github-simulator.mjs`; server tests (25), `pnpm e2e github` (8
     checks on workerd) and `try/slice-4.html` (4 checks) run against it.
-  - Change from the plan: the simulator is opt-in, `pnpm try --github`, so
-    plain `pnpm try` keeps serving `.try/content` live from disk.
-  - Interim until commit 2: a request checks the branch head at most every
-    30 seconds, and after writes.
-- Commit 2: durable sync jobs, fencing, verified webhook ingress, reconciliation
-  task and outage-safe startup, with concurrency and recovery tests.
+- Commit 2 (**done**, real run pending): durable sync, fencing, verified
+  webhook ingress, the minute task and outage-safe startup, with the
+  concurrency matrix above as tests.
+  - Core concurrency tests (6) fail with either half of the guard removed.
+  - `pnpm e2e github`: 13 checks, including duplicate and reversed webhooks,
+    a missed webhook caught by the minute task, and racing publishes.
+  - `pnpm contract:github` runs against the private
+    `StevenJPx2/venda-contract-test` and an App owned by StevenJPx2, created
+    by `scripts/github-contract-setup.mjs` from a manifest page (credentials
+    in the git-ignored `.venda-contract.json`), with a cloudflared quick tunnel
+    for real webhooks during the run only. It runs once the App is created.
 - Commit 3: repository contract/proofs and Settings → Repository; browser and
   try-page coverage, plus setup documentation.
 - Commit 4: real App/repository validation, fixes found there and final

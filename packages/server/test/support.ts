@@ -33,14 +33,21 @@ export function memoryTarget(files: Storage) {
     database: sqliteDatabase(SqliteClient.layer({ filename: ':memory:' })),
     content: () => ({
       store: filesStore(files),
-      changed: async () => {
-        const was = dirty;
+      updates: {
+        kind: 'watched',
+        invalidate: () => {},
+        changed: async () => {
+          const was = dirty;
 
-        dirty = false;
+          dirty = false;
 
-        return was;
+          return was;
+        }
       }
-    })
+    }),
+    background: work => {
+      void work;
+    }
   };
 
   return {

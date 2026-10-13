@@ -29,8 +29,9 @@ const CONTENT = join(ROOT, 'try/content');
 const LIVE_CONTENT = join(STATE, 'content');
 const CONTENT_FILE = /^\/files\/(site\.ts|[a-z0-9-]+\/[a-z0-9-]+\.mdx?)$/;
 const PORTS = { page: 8794, server: 8805, content: 8806, github: 8807 };
-// The simulated repository, with --github.
+// The simulated repository, with --github, and its webhook secret.
 let github;
+let githubSecret;
 // Its own build output, so `pnpm e2e` or a manual build cannot replace files this server is serving.
 const BUILD = join(STATE, 'build');
 // Throwaway local credentials for the recovery owner, for this machine only.
@@ -400,6 +401,7 @@ async function contentEnv() {
     });
 
     github = simulated.github;
+    githubSecret = simulated.webhookSecret;
     stopContent = simulated.github.stop;
 
     return simulated.env;
@@ -433,6 +435,11 @@ serve('server', 'npx', [
 ]);
 
 await healthy(PORTS.server);
+// Pushes reach the Worker as signed webhooks, as GitHub would send them.
+github?.deliverTo(
+  `http://127.0.0.1:${PORTS.server}/api/webhooks/github`,
+  githubSecret
+);
 startPageServer();
 
 console.log(`

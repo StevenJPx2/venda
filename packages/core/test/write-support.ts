@@ -65,14 +65,29 @@ interface Recorded {
 
 /**
  * Files in memory with the store's SHA rules; `lose()` makes the next write
- * land but lose its answer, as a dropped connection would.
+ * land but lose its answer, as a dropped connection would. `during(work)`
+ * runs `work` right after the next snapshot is taken: someone else acting
+ * while a sync pass holds a snapshot that is now out of date.
  */
 function memoryStore(files: Map<string, string>, commits: Recorded[]) {
   let uncertain = false;
+  let interleaved: (() => Promise<void>) | undefined;
+
+  const afterSnapshot = <A>(snapshot: A) =>
+    Effect.promise(async () => {
+      const work = interleaved;
+
+      interleaved = undefined;
+      await work?.();
+
+      return snapshot;
+    });
 
   const layer = Layer.succeed(ContentStore, {
     writable: true,
-    snapshot: Effect.suspend(() => snapshotOf(files)),
+    snapshot: Effect.suspend(() =>
+      Effect.flatMap(snapshotOf(files), afterSnapshot)
+    ),
     list: Effect.promise(() =>
       Promise.all(
         [...files].map(async ([path, text]) => ({ path, sha: await sha(text) }))
@@ -117,6 +132,9 @@ function memoryStore(files: Map<string, string>, commits: Recorded[]) {
     layer,
     lose: () => {
       uncertain = true;
+    },
+    during: (work: () => Promise<void>) => {
+      interleaved = work;
     }
   };
 }
@@ -158,7 +176,8 @@ export async function writeHarness() {
     commits,
     run,
     close: () => runtime.dispose(),
-    uncertain: store.lose
+    uncertain: store.lose,
+    during: store.during
   };
 }
 

@@ -31,6 +31,8 @@ export class ContentStoreError extends Schema.TaggedError<ContentStoreError>()(
 
 /** A listing and its matching bytes, held still for one sync pass. */
 export interface ContentSnapshot {
+  /** What the snapshot is of: a commit SHA, or a digest of a folder's listing. */
+  readonly version: string;
   readonly files: ReadonlyArray<StoredFile>;
   readonly read: (path: string) => Effect.Effect<string, ContentStoreError>;
 }

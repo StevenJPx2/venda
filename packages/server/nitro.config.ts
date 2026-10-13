@@ -34,6 +34,10 @@ export default defineConfig({
     { baseName: 'migrations', dir: here('../core/drizzle') },
     { baseName: 'content', dir: CONTENT_DIR }
   ],
+  // The minute check that catches the index up with a repository whose
+  // webhook was missed (server/tasks/venda/tick.ts); a Cron Trigger on Workers.
+  experimental: { tasks: true },
+  scheduledTasks: { '* * * * *': ['venda:tick'] },
   // `kv` holds sessions and sign-in attempts.
   storage: { kv: { driver: 'cloudflare-kv-binding', binding: 'VENDA_KV' } },
   cloudflare: {

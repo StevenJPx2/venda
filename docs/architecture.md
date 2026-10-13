@@ -172,9 +172,10 @@ For three years every page on our site was rendered in a single region.
    If the file changed since (an agent pushed meanwhile), the commit fails with
    `Conflict` and the editor shows the outside change instead of overwriting it.
 3. **Outside edit.** A push to the repository reaches the server's webhook
-   (signature verified). Sync re-indexes the changed paths, at most 200 per
-   run, resuming from a stored cursor. Working copies based on an older SHA
-   are flagged "changed outside Venda".
+   (signature verified), which asks for a sync and answers at once; the
+   minute check catches any push whose webhook never came. Sync runs in
+   bounded passes of at most 200 files, one pass at a time across isolates.
+   Working copies based on an older SHA are flagged "changed outside Venda".
 4. **Schedule.** The minute tick publishes due entries the same way as (2).
 5. **Unpublish** sets `draft: true` in the file. **Trash** deletes the file and
    keeps a tombstone with its last SHA, so it can be restored for 30 days.
@@ -320,12 +321,52 @@ exactly one source (`src/app.ts` refuses two):
 - Reads retry twice within 10 seconds, honouring a short `Retry-After`; writes
   never retry inside a request. Redirects are refused, so the token is never
   sent anywhere else.
-- Until webhook sync (slice 4, commit 2), a request checks the branch head at
-  most every 30 seconds, and after every write.
-- `scripts/github-simulator.mjs` answers the same endpoints, statuses and
-  token rules on 127.0.0.1. The server tests, `pnpm e2e github` and
-  `pnpm try --github` use it; a contract test against a real repository is
-  still to come.
+- A 409 with the file still at its base means another commit moved the
+  branch under this one; the write, still conditional on the file's SHA, is
+  tried up to three times.
+- `POST /api/webhooks/github` (`VENDA_GITHUB_WEBHOOK_SECRET`) reads at most
+  25 MB, verifies `X-Hub-Signature-256` in constant time, and counts only a
+  push to the configured repository ID and exact branch ref. A push asks for
+  a sync and starts it after the response (`waitUntil`); the answer is 202.
+  A delivery is only a signal, so a late, repeated or reordered one is
+  harmless.
+- `server/tasks/venda/tick.ts` runs every minute (a Cron Trigger): it compares
+  the branch head with the indexed commit, asks for a sync if they differ,
+  and catches the index up.
+- A request waits for the index only before it has ever been built; after
+  that, a repository is followed in the background.
+- `scripts/github-simulator.mjs` answers the same endpoints, statuses, token
+  rules and signed push webhooks on 127.0.0.1. The server tests,
+  `pnpm e2e github` and `pnpm try --github` use it. `pnpm contract:github`
+  runs the built Worker against a real private repository and App
+  (`scripts/github-contract-setup.mjs` creates them; credentials in the
+  git-ignored `.venda-contract.json`), with webhooks through a cloudflared
+  quick tunnel for that run only.
+
+**Sync and concurrency** (`core/src/content/source-state.ts`, `sync.ts`).
+Several editors, tabs and isolates act at once, and webhooks arrive late,
+twice or out of order; nothing older may replace anything newer.
+
+- One `content_source` row holds a `generation` counter, the sync lease
+  (`fence`, `lease_until`, 30 seconds), `requested` and `handled` request
+  counters, the indexed version and progress, and the last error.
+- A pass claims the lease with a conditional update that raises `fence`, and
+  records the generation and `requested` it began at. It then reads one
+  pinned snapshot and indexes at most 200 files, configs first.
+- Each file's index changes are one atomic batch that opens with a guard: an
+  insert into `content_guard`, whose `CHECK (ok = 1)` aborts the batch unless
+  the pass still holds its fence and no newer generation wrote that file. A
+  refused pass ends as `superseded` and asks for another.
+- Publish and Settings → General raise the generation in the same batch as
+  their index writes and stamp it on the file, so a pass that began before
+  them never writes its older read over them. A config change blanks its
+  entries' SHAs to have them read again, keeping their generations.
+- A finished pass records its version and answers the requests before it; a
+  request that arrived meanwhile asks for another pass.
+- Each case has a test: a publish landing mid-pass, a deletion racing a
+  publish, two runners, a runner past its lease, a request mid-pass (core);
+  duplicate and reversed webhooks, a missed webhook, two publishes of
+  different entries and of one entry from two tabs (`pnpm e2e github`).
 
 A Node target was built and tested until slice 2b and then removed: local
 workerd already gives a faithful local runtime, and Venda deploys only to
@@ -335,8 +376,9 @@ and its module runner could not load the unified/unist ESM packages.
 
 On first use the app applies pending drizzle-kit migrations (each one atomic:
 a batch on D1, which has no transactions; a transaction on the tests'
-SQLite), syncs the content into the index, then serves the contract. Recurring work will use
-Nitro's `scheduledTasks` (a Cron Trigger on Workers) when a slice needs it.
+SQLite), indexes a folder or built-in content before answering, then serves
+the contract. Recurring work runs as Nitro `scheduledTasks` (Cron Triggers on
+Workers): `venda:tick` every minute.
 
 ## Admin and plugins
 

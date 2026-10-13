@@ -232,16 +232,22 @@ export const GITHUB_AUTHOR_EMAIL = 'venda@users.noreply.venda.test';
  * and a function that stops both.
  */
 export async function startGitHubWorkers(state) {
-  const { github, env: githubEnv } = await simulateRepository({
+  const {
+    github,
+    webhookSecret,
+    env: githubEnv
+  } = await simulateRepository({
     folder: CONTENT_FIXTURES,
     port: GITHUB_PORT,
     authorEmail: GITHUB_AUTHOR_EMAIL
   });
   const env = { ...OWNER_ENV, ...githubEnv };
+  // --test-scheduled exposes /cdn-cgi/local/scheduled, which runs the Cron Trigger.
   const child = start('workers', 'npx', [
     'wrangler',
     'dev',
     '--local',
+    '--test-scheduled',
     '--persist-to',
     state,
     '--config',
@@ -256,13 +262,35 @@ export async function startGitHubWorkers(state) {
 
   closers.push(github.stop);
   await waitFor(`${WORKERS}/api/health`, 'Workers');
+  github.deliverTo(`${WORKERS}/api/webhooks/github`, webhookSecret);
 
   return {
     github,
+    webhookSecret,
+    /** Runs the minute check now, as the Cron Trigger would. */
+    tick: () =>
+      fetch(`${WORKERS}/cdn-cgi/local/scheduled?cron=*+*+*+*+*`).then(
+        response => response.text()
+      ),
     stop: async () => {
       await Promise.all([stop(child), github.stop()]);
     }
   };
+}
+
+/** Polls `read` until `test` passes, for up to `seconds`; resolves to the last read. */
+export async function until(read, test, seconds = 10) {
+  let last;
+
+  for (const deadline = Date.now() + seconds * 1000; Date.now() < deadline;) {
+    last = await read();
+
+    if (test(last)) return last;
+
+    await new Promise(resolvePromise => setTimeout(resolvePromise, 200));
+  }
+
+  return last;
 }
 
 /** Runs a suite, always stopping servers and printing results. */

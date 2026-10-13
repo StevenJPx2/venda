@@ -3,7 +3,7 @@
 // VENDA_CONTENT_URL).
 import { D1Client } from '@effect/sql-d1';
 import { Database } from '@venda/core/database';
-import { env } from 'cloudflare:workers';
+import { env, waitUntil } from 'cloudflare:workers';
 import * as D1Drizzle from 'drizzle-orm/effect-d1';
 import { Effect, Layer, Predicate, Schema } from 'effect';
 import { useStorage } from 'nitro/storage';
@@ -41,6 +41,7 @@ export const target: Target = {
   },
   content: () => ({
     store: filesStore(useStorage('assets:content')),
-    changed: undefined
-  })
+    updates: { kind: 'built' }
+  }),
+  background: waitUntil
 };

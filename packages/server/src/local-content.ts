@@ -69,26 +69,31 @@ export function localContent(base: URL, token?: string): ContentSource {
 
   return {
     store: filesStore(files, token ? writer(base, token) : undefined),
-    invalidate: () => {
-      seen = undefined;
-    },
-    // The server's version changes whenever a file does; an unreachable server
-    // keeps the last index serving rather than failing the request.
-    changed: async () => {
-      const version = await get('version').then(
-        response => response.text(),
-        (error: Error) => {
-          console.error(`[venda] content server unreachable: ${error.message}`);
+    updates: {
+      kind: 'watched',
+      invalidate: () => {
+        seen = undefined;
+      },
+      // The server's version changes whenever a file does; an unreachable
+      // server keeps the last index serving rather than failing the request.
+      changed: async () => {
+        const version = await get('version').then(
+          response => response.text(),
+          (error: Error) => {
+            console.error(
+              `[venda] content server unreachable: ${error.message}`
+            );
 
-          return seen;
-        }
-      );
+            return seen;
+          }
+        );
 
-      if (version === seen) return false;
+        if (version === seen) return false;
 
-      seen = version;
+        seen = version;
 
-      return true;
+        return true;
+      }
     }
   };
 }

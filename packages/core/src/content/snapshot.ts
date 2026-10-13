@@ -17,7 +17,14 @@ export const snapshotOf = (source: ReadonlyMap<string, string>) =>
       })
     );
 
+    // A folder has no commit; its version is a digest of what it lists.
+    const listing = files
+      .map(file => `${file.path} ${file.sha}`)
+      .sort()
+      .join('\n');
+
     return {
+      version: await gitBlobSha(new TextEncoder().encode(listing)),
       files,
       read: path => {
         const text = texts.get(path);

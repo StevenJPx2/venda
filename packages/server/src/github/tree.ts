@@ -75,3 +75,24 @@ export function writeDecision(
 
   return current === baseSha ? 'write' : 'conflict';
 }
+
+/** Attempts at a write whose branch moved under it. */
+export const MOVED_TRIES = 3;
+
+/**
+ * After GitHub refused a write with `status`, and the file was compared
+ * again (`now`, for a 409 or 422): our bytes are there, the branch moved
+ * under an otherwise valid write (409 with the file still at its base), or a
+ * refusal to report. A conflict has already been thrown by the comparison.
+ */
+export function afterRefusal(
+  status: number,
+  now: WriteDecision | null,
+  attempt: number
+): 'done' | 'retry' | 'refuse' {
+  if (now === 'done') return 'done';
+
+  return status === 409 && now === 'write' && attempt < MOVED_TRIES
+    ? 'retry'
+    : 'refuse';
+}

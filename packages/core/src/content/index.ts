@@ -33,7 +33,14 @@ export { createEntry, type CreateInput } from './create';
 
 export { getSiteDocument, saveSiteFile } from './site-write';
 
-export { syncAll, syncContent, type SyncReport } from './sync';
+export {
+  syncAll,
+  syncContent,
+  type SyncOutcome,
+  type SyncReport
+} from './sync';
+
+export { requestSync, sourceState } from './source-state';
 
 export {
   getIndexedEntry,

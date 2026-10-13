@@ -23,7 +23,8 @@ import type { UserId } from '@venda/contract';
 import { commitAuthor } from './commit-author';
 import { SITE_PATH } from './site';
 import { AtomicWrites, Database } from '../database';
-import { contentSite, contentProblems, contentFiles } from './schema';
+import { contentSite, contentProblems } from './schema';
+import { stampWrite } from './source-state';
 import { currentSha } from './work-read';
 
 export interface SiteInput {
@@ -130,11 +131,7 @@ export const saveSiteFile = <A>(
         .delete(contentProblems)
         .where(eq(contentProblems.path, SITE_PATH))
         .toSQL(),
-      db
-        .insert(contentFiles)
-        .values({ path: SITE_PATH, sha })
-        .onConflictDoUpdate({ target: contentFiles.path, set: { sha } })
-        .toSQL()
+      ...stampWrite(SITE_PATH, sha)
     ]);
 
     return yield* getSiteDocument(admin);

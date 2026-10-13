@@ -18,6 +18,7 @@ import {
 import type { GitHubConfig } from './config';
 import { base64FromText, textFromBase64 } from './encoding';
 import {
+  afterRefusal,
   contentFiles,
   leadsTo,
   prefixOf,
@@ -62,6 +63,9 @@ const storeError = (message: string) => (cause: unknown) =>
 const segments = (path: string) =>
   path.split('/').map(encodeURIComponent).join('/');
 
+/** The wait before trying again a write whose branch moved under it. */
+const MOVED_WAIT_MS = 150;
+
 export function githubStore(
   config: GitHubConfig,
   api: GitHubApi
@@ -79,7 +83,8 @@ export function githubStore(
       try: () => tree.snapshot(),
       catch: storeError('Could not read the repository content')
     }).pipe(
-      Effect.map(({ files: listed, blob }) => ({
+      Effect.map(({ version, files: listed, blob }) => ({
+        version,
         files: listed,
         read: (path: string) =>
           Effect.tryPromise({
@@ -111,28 +116,30 @@ export function githubStore(
   };
 }
 
+/** The branch's current commit. */
+export async function branchHead(config: GitHubConfig, api: GitHubApi) {
+  const ref = await api.repo('GET', `git/ref/heads/${segments(config.branch)}`);
+
+  if (ref.status === 404)
+    throw new GitHubError(`The branch ${config.branch} does not exist`, 404);
+
+  return decode(Ref)(ref, 'the branch').object.sha;
+}
+
 /** Lists the branch's content at one commit, and reads blobs by their SHA. */
 function treeReader(config: GitHubConfig, api: GitHubApi) {
-  const decodeRef = decode(Ref);
   const decodeCommit = decode(Commit);
   const decodeTree = decode(Tree);
   const decodeBlob = decode(Blob);
 
   const rootTree = async () => {
-    const ref = await api.repo(
-      'GET',
-      `git/ref/heads/${segments(config.branch)}`
-    );
-
-    if (ref.status === 404)
-      throw new GitHubError(`The branch ${config.branch} does not exist`, 404);
-
-    const head = decodeRef(ref, 'the branch').object.sha;
-
-    return decodeCommit(
+    const head = await branchHead(config, api);
+    const commit = decodeCommit(
       await api.repo('GET', `git/commits/${head}`),
       'the commit'
-    ).tree.sha;
+    );
+
+    return { head, tree: commit.tree.sha };
   };
 
   // A tree too large for one answer is walked a level at a time, only where it leads to the content.
@@ -164,8 +171,9 @@ function treeReader(config: GitHubConfig, api: GitHubApi) {
   };
 
   const snapshot = async () => {
+    const root = await rootTree();
     const listed: StoredFile[] = contentFiles(
-      await entries(await rootTree()),
+      await entries(root.tree),
       config.dir
     );
     const shas = new Map(listed.map(file => [file.path, file.sha]));
@@ -180,7 +188,7 @@ function treeReader(config: GitHubConfig, api: GitHubApi) {
       return textFromBase64(body.content);
     };
 
-    return { files: listed, blob };
+    return { version: root.head, files: listed, blob };
   };
 
   return { snapshot };
@@ -219,31 +227,41 @@ function fileReader(config: GitHubConfig, api: GitHubApi) {
     return decision;
   };
 
-  const write = async (input: ContentCommit) => {
-    if ((await settle(input)) === 'done') return { sha: input.sha };
-
+  const bodyOf = (input: ContentCommit): FileWrite => {
     const fields = {
       message: input.message,
       content: base64FromText(input.content),
       branch: config.branch,
       author: { name: input.author, email: config.authorEmail }
     };
+
     // A new file is created without a SHA; GitHub refuses one that exists.
-    const body: FileWrite =
-      input.baseSha === null ? fields : { ...fields, sha: input.baseSha };
-    const reply = await api.repo('PUT', location(input.path), body);
+    return input.baseSha === null ? fields : { ...fields, sha: input.baseSha };
+  };
 
-    if (reply.status === 200 || reply.status === 201)
-      return { sha: decodeWritten(reply, input.path).content.sha };
+  const write = async (input: ContentCommit) => {
+    if ((await settle(input)) === 'done') return { sha: input.sha };
 
-    // GitHub says 409 or 422 when the file moved; anything else is not a conflict.
-    if (
-      (reply.status === 409 || reply.status === 422) &&
-      (await settle(input)) === 'done'
-    )
-      return { sha: input.sha };
+    for (let attempt = 1; ; attempt++) {
+      const reply = await api.repo('PUT', location(input.path), bodyOf(input));
 
-    throw new GitHubError(refusal(reply), reply.status);
+      if (reply.status === 200 || reply.status === 201)
+        return { sha: decodeWritten(reply, input.path).content.sha };
+
+      // 409 or 422: compare the file again (a change by someone else throws
+      // Conflict here). The write stays conditional on the file's SHA, so
+      // retrying a moved branch can never write over anyone.
+      const now = [409, 422].includes(reply.status)
+        ? await settle(input)
+        : null;
+      const next = afterRefusal(reply.status, now, attempt);
+
+      if (next === 'done') return { sha: input.sha };
+      if (next === 'refuse')
+        throw new GitHubError(refusal(reply), reply.status);
+
+      await new Promise(done => setTimeout(done, MOVED_WAIT_MS * attempt));
+    }
   };
 
   return { current, write };

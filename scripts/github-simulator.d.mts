@@ -16,10 +16,14 @@ export interface GitHubSimulator {
     tokensIssued: number;
     readonly commits: SimulatedCommit[];
     readonly requests: string[];
+    readonly deliveries: { id: string; after: string; status: number }[];
   };
-  push(path: string, text: string | null, message?: string): void;
+  push(path: string, text: string | null, message?: string): Promise<unknown>;
   fail(...statuses: number[]): void;
   failWrites(...statuses: number[]): void;
+  deliverTo(url: string | null, secret?: string): void;
+  hold(): void;
+  release(options?: { reverse?: boolean; twice?: boolean }): Promise<void>;
   file(path: string): string | undefined;
   stop(): Promise<void>;
 }
@@ -30,6 +34,7 @@ export function simulateRepository(options: {
   authorEmail: string;
 }): Promise<{
   github: GitHubSimulator;
+  webhookSecret: string;
   env: Readonly<Record<`VENDA_GITHUB_${string}`, string>>;
 }>;
 

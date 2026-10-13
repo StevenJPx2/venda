@@ -5,7 +5,9 @@
 // Local only: it listens on 127.0.0.1.
 import {
   createHash,
+  createHmac,
   generateKeyPairSync,
+  randomBytes,
   randomUUID,
   verify
 } from 'node:crypto';
@@ -272,6 +274,59 @@ async function answer(state, request, response) {
   );
 }
 
+/** Sends one push delivery, signed like GitHub's; records its answer. */
+async function send(state, delivery) {
+  const { url, secret } = state.hook;
+  const body = JSON.stringify(delivery.payload);
+  const status = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'user-agent': 'GitHub-Hookshot/simulated',
+      'x-github-event': delivery.event,
+      'x-github-delivery': delivery.id,
+      'x-hub-signature-256': `sha256=${createHmac('sha256', secret).update(body).digest('hex')}`
+    },
+    body
+  }).then(
+    response => response.status,
+    () => 0
+  );
+
+  state.deliveries.push({
+    id: delivery.id,
+    after: delivery.payload.after,
+    status
+  });
+
+  return status;
+}
+
+/** A push to the branch, delivered now or held for a test to release. */
+function announce(state, before) {
+  if (!state.hook) return Promise.resolve();
+
+  const delivery = {
+    id: randomUUID(),
+    event: 'push',
+    payload: {
+      ref: `refs/heads/${state.branch}`,
+      before,
+      after: state.head,
+      repository: { id: state.repositoryId, full_name: state.name },
+      installation: { id: state.installationId }
+    }
+  };
+
+  if (state.holding) {
+    state.held.push(delivery);
+
+    return Promise.resolve();
+  }
+
+  return send(state, delivery);
+}
+
 /**
  * Serves one repository on 127.0.0.1:`port` (0 picks a free port). `files`
  * maps repository paths to text. Resolves to the simulator's controls.
@@ -307,13 +362,21 @@ export async function startGitHubSimulator({
     failures: [],
     writeFailures: [],
     truncate: false,
+    hook: null,
+    holding: false,
+    held: [],
+    deliveries: [],
     relative: path => decodeURIComponent(path),
     commit(path, text, meta) {
+      const before = state.head;
+
       if (text === null) state.files.delete(path);
       else state.files.set(path, text);
 
       state.head = snapshot(state.files, objects, state.head);
       state.commits.push({ path, sha: state.head, ...meta });
+
+      return announce(state, before);
     }
   };
 
@@ -342,6 +405,27 @@ export async function startGitHubSimulator({
     /** The next writes answer these statuses instead, after reads succeed. */
     failWrites: (...statuses) => state.writeFailures.push(...statuses),
     file: path => state.files.get(`${dir ? `${dir}/` : ''}${path}`),
+    /** Where push webhooks go, signed with `secret`; null stops them. */
+    deliverTo: (url, secret) => {
+      state.hook = url ? { url, secret } : null;
+    },
+    /** Holds deliveries until `release`. */
+    hold: () => {
+      state.holding = true;
+    },
+    /** Sends the held deliveries, optionally newest first and each twice. */
+    release: async ({ reverse = false, twice = false } = {}) => {
+      const held = reverse ? state.held.reverse() : state.held;
+
+      state.holding = false;
+      state.held = [];
+
+      for (const delivery of held) {
+        await send(state, delivery);
+
+        if (twice) await send(state, delivery);
+      }
+    },
     stop: () => new Promise(done => server.close(done))
   };
 }
@@ -387,8 +471,11 @@ export async function simulateRepository({ folder, port = 0, authorEmail }) {
     files: await repositoryFrom(folder)
   });
 
+  const webhookSecret = randomBytes(24).toString('hex');
+
   return {
     github,
+    webhookSecret,
     env: {
       VENDA_GITHUB_REPOSITORY: 'venda-simulated/site',
       VENDA_GITHUB_REPOSITORY_ID: '42',
@@ -396,6 +483,7 @@ export async function simulateRepository({ folder, port = 0, authorEmail }) {
       VENDA_GITHUB_CLIENT_ID: 'Iv1.venda-simulated',
       VENDA_GITHUB_INSTALLATION_ID: '7',
       VENDA_GITHUB_PRIVATE_KEY: keys.privateKey,
+      VENDA_GITHUB_WEBHOOK_SECRET: webhookSecret,
       VENDA_GITHUB_AUTHOR_EMAIL: authorEmail,
       VENDA_GITHUB_API_URL: github.url
     }

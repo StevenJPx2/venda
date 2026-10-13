@@ -50,6 +50,7 @@ beforeEach(async () => {
     clientId: 'Iv1.test',
     installationId: 7,
     privateKey: keys.privateKey,
+    webhookSecret: 'test-webhook-secret',
     authorEmail: 'venda@users.noreply.example',
     apiUrl: new URL(sim.url)
   };
@@ -203,6 +204,38 @@ describe('publishing', () => {
     expect(sim.file('blog/hello.md')).toBe(HELLO);
     // The same intent, tried again once GitHub is back, goes through.
     expect((await Effect.runPromise(github.commit(input))).sha).toBe(input.sha);
+  });
+});
+
+describe('a branch that moves under a write', () => {
+  it('tries again while the file itself is unchanged, making one commit', async () => {
+    // Another publish committed a different file between our read and write.
+    sim.failWrites(409);
+
+    const input = await edit(
+      '---\ntitle: After a race\n---\n',
+      await sha(HELLO)
+    );
+    const written = await Effect.runPromise(store().commit(input));
+
+    expect(written.sha).toBe(input.sha);
+    expect(sim.file('blog/hello.md')).toBe(input.content);
+    expect(
+      sim.state.commits.filter(commit => commit.message === input.message)
+    ).toHaveLength(1);
+  });
+
+  it('gives up after three tries', async () => {
+    sim.failWrites(409, 409, 409);
+
+    const result = await Effect.runPromise(
+      Effect.result(store().commit(await edit('x', await sha(HELLO))))
+    );
+
+    expect(Result.isFailure(result) && result.failure._tag).toBe(
+      'ContentStoreError'
+    );
+    expect(sim.file('blog/hello.md')).toBe(HELLO);
   });
 });
 

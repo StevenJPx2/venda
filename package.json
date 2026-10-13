@@ -13,6 +13,7 @@
     "fallow": "node scripts/fallow-gate.mjs",
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm fallow",
     "e2e": "node e2e/run.mjs",
+    "contract:github": "pnpm --filter @venda/admin-app build && node e2e/github.contract.mjs",
     "try": "node scripts/try.mjs"
   },
   "devDependencies": {

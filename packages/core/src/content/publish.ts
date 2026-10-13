@@ -32,6 +32,7 @@ import {
   workKey,
   type WorkRow
 } from './work-read';
+import { stampWrite } from './source-state';
 import { failedUpdate, idleRevision } from './work';
 import { commitAuthor } from './commit-author';
 
@@ -198,17 +199,16 @@ function finalizeWrites(
 ): SqlWrite[] {
   const publishedAt = entry.publishedAt ?? null;
   const dataJson = JSON.stringify(entry.data);
-  const file = guardedUpsert(
-    'content_files',
-    ['path', 'sha'],
-    [row.path, row.publishSha],
-    'path',
-    row
-  );
+  // The file carries a new generation, so a sync pass that began before this
+  // publish never writes its older read over it.
+  const file = stampWrite(row.path, row.publishSha ?? '', {
+    sql: `EXISTS (SELECT 1 FROM content_work WHERE ${guard})`,
+    params: guardParams(row)
+  });
 
   return [
     ...indexChanges(row, model, current),
-    file,
+    ...file,
     {
       sql: `UPDATE content_work SET base_sha = publish_sha, data_json = ?, published_at = ?,
        revision = revision + 1, dirty = 0, publish_text = NULL, publish_sha = NULL, publish_model_json = NULL, publish_author = NULL WHERE ${guard}`,

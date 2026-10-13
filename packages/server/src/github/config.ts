@@ -12,6 +12,7 @@ export interface GitHubConfig {
   readonly clientId: string;
   readonly installationId: number;
   readonly privateKey: string;
+  readonly webhookSecret: string;
   readonly authorEmail: string;
   readonly apiUrl: URL;
 }
@@ -23,6 +24,7 @@ const REQUIRED = [
   'VENDA_GITHUB_CLIENT_ID',
   'VENDA_GITHUB_INSTALLATION_ID',
   'VENDA_GITHUB_PRIVATE_KEY',
+  'VENDA_GITHUB_WEBHOOK_SECRET',
   'VENDA_GITHUB_AUTHOR_EMAIL'
 ] as const;
 
@@ -87,6 +89,7 @@ export function githubConfig(env: GitHubEnv): GitHubConfig | undefined {
     clientId: env.VENDA_GITHUB_CLIENT_ID ?? '',
     installationId: decodeId(env.VENDA_GITHUB_INSTALLATION_ID),
     privateKey: env.VENDA_GITHUB_PRIVATE_KEY ?? '',
+    webhookSecret: env.VENDA_GITHUB_WEBHOOK_SECRET ?? '',
     authorEmail: env.VENDA_GITHUB_AUTHOR_EMAIL ?? '',
     apiUrl: apiUrl(env.VENDA_GITHUB_API_URL)
   };

@@ -13,7 +13,7 @@ import {
   snapshotOf
 } from '../src/content';
 import { ContentReadOnly } from '@venda/contract';
-import { Database } from '../src/database';
+import { AtomicWrites, Database } from '../src/database';
 import { testDatabase } from './support';
 
 const encoder = new TextEncoder();
@@ -29,7 +29,9 @@ const post = (title: string, extra = '') =>
 
 let files: Map<string, string>;
 
-let runtime: ManagedRuntime.ManagedRuntime<ContentStore | Database, unknown>;
+type Services = ContentStore | Database | AtomicWrites;
+
+let runtime: ManagedRuntime.ManagedRuntime<Services, unknown>;
 
 const store = Layer.succeed(ContentStore, {
   writable: false,
@@ -52,7 +54,7 @@ const store = Layer.succeed(ContentStore, {
   }
 });
 
-const run = <A, E>(effect: Effect.Effect<A, E, ContentStore | Database>) =>
+const run = <A, E>(effect: Effect.Effect<A, E, Services>) =>
   runtime.runPromise(effect);
 
 const problems = () =>
@@ -90,6 +92,7 @@ beforeEach(() => {
 describe('syncContent: indexing', () => {
   it('indexes valid files and records the rest as problems', async () => {
     expect(await run(syncContent())).toEqual({
+      outcome: 'done',
       indexed: 6,
       removed: 0,
       remaining: 0,
@@ -118,6 +121,7 @@ describe('syncContent: indexing', () => {
     await run(syncContent());
 
     expect(await run(syncContent())).toEqual({
+      outcome: 'done',
       indexed: 0,
       removed: 0,
       remaining: 0,
@@ -128,6 +132,7 @@ describe('syncContent: indexing', () => {
     files.delete('blog/older.md');
 
     expect(await run(syncContent())).toEqual({
+      outcome: 'done',
       indexed: 1,
       removed: 1,
       remaining: 0,

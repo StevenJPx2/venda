@@ -5,6 +5,7 @@
     // the per-preset target modules chosen through the `#venda/target` alias.
     "packages/server/server/server.ts",
     "packages/server/server/plugins/*.ts",
+    "packages/server/server/tasks/**/*.ts",
     "packages/server/nitro.config.ts",
     "packages/server/src/targets/*.ts",
     "packages/core/drizzle.config.ts",

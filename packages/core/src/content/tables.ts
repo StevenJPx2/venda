@@ -1,4 +1,6 @@
-// Reads and writes of the content index (schema.ts).
+// Reads of the content index (schema.ts), and the statements that change it.
+// Sync gathers a file's statements into one guarded batch (source-state.ts),
+// so the writes here build SQL rather than run it.
 import { modelFrom, type CollectionModel, type Entry } from '@venda/content';
 import { and, eq, like, ne } from 'drizzle-orm';
 import { DateTime, Effect, Option, Result, Schema } from 'effect';
@@ -9,7 +11,15 @@ import {
   contentProblems
 } from './schema';
 import { sortKey } from './order';
-import { Database } from '../database';
+import { Database, type DrizzleDatabase, type SqlWrite } from '../database';
+
+interface Statement {
+  toSQL(): SqlWrite;
+}
+
+/** Statements built against the index, not yet run. */
+const writes = (build: (db: DrizzleDatabase) => ReadonlyArray<Statement>) =>
+  Effect.map(Database, db => build(db).map(each => each.toSQL()));
 
 /** JSON the index stored, read back. */
 export const decodeJson = Schema.decodeUnknownOption(
@@ -24,37 +34,41 @@ export const knownFiles = Effect.gen(function* () {
   return new Map(rows.map(row => [row.path, row.sha]));
 });
 
-export const markFile = (path: string, sha: string) =>
-  Effect.flatMap(Database, db =>
+/** Marks a file read at `sha` by a pass of `generation`. */
+export const markFile = (path: string, sha: string, generation: number) =>
+  writes(db => [
     db
       .insert(contentFiles)
-      .values({ path, sha })
-      .onConflictDoUpdate({ target: contentFiles.path, set: { sha } })
-  );
+      .values({ path, sha, generation })
+      .onConflictDoUpdate({
+        target: contentFiles.path,
+        set: { sha, generation }
+      })
+  ]);
 
 export const forgetFile = (path: string) =>
-  Effect.flatMap(Database, db =>
-    db.delete(contentFiles).where(eq(contentFiles.path, path))
-  );
+  writes(db => [db.delete(contentFiles).where(eq(contentFiles.path, path))]);
 
 export const recordProblem = (
   path: string,
   message: string,
   line: number | undefined
 ) =>
-  Effect.flatMap(Database, db => {
+  writes(db => {
     const problem = { message, line: line ?? null };
 
-    return db
-      .insert(contentProblems)
-      .values({ path, ...problem })
-      .onConflictDoUpdate({ target: contentProblems.path, set: problem });
+    return [
+      db
+        .insert(contentProblems)
+        .values({ path, ...problem })
+        .onConflictDoUpdate({ target: contentProblems.path, set: problem })
+    ];
   });
 
 export const clearProblem = (path: string) =>
-  Effect.flatMap(Database, db =>
+  writes(db => [
     db.delete(contentProblems).where(eq(contentProblems.path, path))
-  );
+  ]);
 
 /** A collection's model as last indexed, if its config was valid. */
 export const modelOf = (collection: string) =>
@@ -88,42 +102,51 @@ export const saveCollection = (
   path: string,
   model: CollectionModel
 ) =>
-  Effect.gen(function* () {
-    const db = yield* Database;
+  writes(db => {
     const values = { path, modelJson: JSON.stringify(model) };
 
-    yield* db
-      .insert(contentCollections)
-      .values({ slug, ...values })
-      .onConflictDoUpdate({ target: contentCollections.slug, set: values });
+    return [
+      db
+        .insert(contentCollections)
+        .values({ slug, ...values })
+        .onConflictDoUpdate({ target: contentCollections.slug, set: values })
+    ];
   });
 
 // A collection's files other than its config.
 const entryFilesOf = (slug: string, configPath: string) =>
   and(like(contentFiles.path, `${slug}/%`), ne(contentFiles.path, configPath));
 
-/** Forgets the entry files of a collection, so the next sync reads them against its new model. */
+/**
+ * Asks for a collection's entries to be read again against its new model.
+ * Their markers stay, with the generation that wrote them, so a pass older
+ * than a publish still cannot write over it.
+ */
 export const staleEntries = (slug: string, configPath: string) =>
-  Effect.flatMap(Database, db =>
-    db.delete(contentFiles).where(entryFilesOf(slug, configPath))
-  );
+  writes(db => [
+    db
+      .update(contentFiles)
+      .set({ sha: '' })
+      .where(entryFilesOf(slug, configPath))
+  ]);
 
-/** Drops a collection and its entries, and forgets its entry files so they are read again against a new model. */
+/** Drops a collection and its entries; its entry files are read again against a new model. */
 export const dropCollection = (slug: string, configPath: string) =>
-  Effect.gen(function* () {
-    const db = yield* Database;
-
-    yield* db
-      .delete(contentCollections)
-      .where(eq(contentCollections.slug, slug));
-    yield* db.delete(contentEntries).where(eq(contentEntries.collection, slug));
-    yield* staleEntries(slug, configPath);
-  });
+  Effect.map(
+    Effect.all([
+      writes(db => [
+        db.delete(contentCollections).where(eq(contentCollections.slug, slug)),
+        db.delete(contentEntries).where(eq(contentEntries.collection, slug))
+      ]),
+      staleEntries(slug, configPath)
+    ]),
+    all => all.flat()
+  );
 
 export const dropEntry = (path: string) =>
-  Effect.flatMap(Database, db =>
+  writes(db => [
     db.delete(contentEntries).where(eq(contentEntries.path, path))
-  );
+  ]);
 
 /** The other file already using an entry's slug, if any (`a.md` and `a.mdx`). */
 export const slugOwner = (collection: string, slug: string, path: string) =>
@@ -157,7 +180,7 @@ export const saveEntry = (
   entry: Entry,
   model: CollectionModel
 ) =>
-  Effect.flatMap(Database, db => {
+  writes(db => {
     const publishedAt = utc(entry.publishedAt);
     const values = {
       slug: entry.slug,
@@ -168,8 +191,10 @@ export const saveEntry = (
       sortKey: sortKey(model, entry, publishedAt)
     };
 
-    return db
-      .insert(contentEntries)
-      .values({ collection: entry.collection, path, ...values })
-      .onConflictDoUpdate({ target: contentEntries.path, set: values });
+    return [
+      db
+        .insert(contentEntries)
+        .values({ collection: entry.collection, path, ...values })
+        .onConflictDoUpdate({ target: contentEntries.path, set: values })
+    ];
   });
