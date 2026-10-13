@@ -83,7 +83,7 @@ export interface EntryEdit {
   readonly slug: string;
   readonly data: Readonly<Record<string, FieldValue>>;
   readonly publishedAt: string | null;
-  /** Nothing may be changed: the person may only read it, or it is publishing. */
+  /** Nothing may be changed: the person may only read it, or an action is running. */
   readonly readonly: boolean;
   readonly set: (key: string, value: FieldValue | null) => void;
   readonly setPublishedAt: (value: string | null) => void;

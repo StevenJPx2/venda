@@ -34,18 +34,6 @@ export class EditedElsewhere extends Schema.TaggedError<EditedElsewhere>()(
   { httpApiStatus: 409 }
 ) {}
 
-export class PublishInProgress extends Schema.TaggedError<PublishInProgress>()(
-  'PublishInProgress',
-  {},
-  { httpApiStatus: 409 }
-) {}
-
-export class ContentReadOnly extends Schema.TaggedError<ContentReadOnly>()(
-  'ContentReadOnly',
-  {},
-  { httpApiStatus: 409 }
-) {}
-
 export class SlugTaken extends Schema.TaggedError<SlugTaken>()(
   'SlugTaken',
   { slug: Schema.String },
@@ -67,14 +55,12 @@ export class WorkingCopy extends Schema.Class<WorkingCopy>('venda/WorkingCopy')(
     data: Schema.Record(Schema.String, Schema.Json),
     publishedAt: Schema.NullOr(Schema.String),
     dirty: Schema.Boolean,
-    publishing: Schema.Boolean,
     changedOutside: Schema.Boolean,
     currentSha: Schema.NullOr(Schema.String),
     ownerId: Schema.NullOr(UserId),
     updatedBy: Schema.NullOr(UserId),
     updatedAt: Schema.NullOr(Schema.String),
     canPublish: Schema.Boolean,
-    writable: Schema.Boolean,
     indexProblem: Schema.NullOr(Schema.String)
   }
 ) {}
@@ -87,8 +73,6 @@ const errors = [
   EntryNotFound,
   Forbidden,
   EditedElsewhere,
-  PublishInProgress,
-  ContentReadOnly,
   InvalidContent,
   Conflict,
   SlugTaken
@@ -100,8 +84,7 @@ export class SiteDocument extends Schema.Class<SiteDocument>(
 )({
   settings: SiteSettings,
   /** Null while `site.ts` does not exist. */
-  sha: Schema.NullOr(Schema.String),
-  writable: Schema.Boolean
+  sha: Schema.NullOr(Schema.String)
 }) {}
 
 export class ContentWriteApi extends HttpApiGroup.make('contentWrite')
@@ -127,13 +110,7 @@ export class ContentWriteApi extends HttpApiGroup.make('contentWrite')
         screens: Schema.Record(Schema.String, Schema.String)
       }),
       success: SiteDocument,
-      error: [
-        Forbidden,
-        Conflict,
-        ContentReadOnly,
-        InvalidContent,
-        ContentTooLarge
-      ]
+      error: [Forbidden, Conflict, InvalidContent, ContentTooLarge]
     }),
     HttpApiEndpoint.get('copy', `${base}/copy`, {
       params: EntryRef,

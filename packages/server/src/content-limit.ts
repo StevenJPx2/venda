@@ -1,15 +1,24 @@
-import { ContentTooLarge, MAX_CONTENT_BYTES } from '@venda/contract';
+import {
+  ContentTooLarge,
+  MAX_CONTENT_BYTES,
+  MAX_WRITE_BYTES
+} from '@venda/contract';
 
-const isContentWrite = (url: string) => {
+/** How large a request body may be: one entry or the site's settings, or a batch of files. */
+const limitFor = (url: string) => {
   const path = new URL(url).pathname;
 
-  return (
-    path.startsWith('/api/admin/collections/') || path === '/api/admin/site'
-  );
+  if (path === '/api/admin/files' || path === '/api/admin/import')
+    return MAX_WRITE_BYTES;
+
+  return path.startsWith('/api/admin/collections/') ||
+    path === '/api/admin/site'
+    ? MAX_CONTENT_BYTES
+    : undefined;
 };
 
 /** A body's bytes, or null once it passes `max`: streamed, so a lying length cannot get past. */
-export async function boundedBody(
+async function boundedBody(
   body: ReadableStream<Uint8Array>,
   max: number
 ): Promise<Uint8Array<ArrayBuffer> | null> {
@@ -48,9 +57,11 @@ export async function boundedBody(
 export async function limitContentRequest(
   request: Request
 ): Promise<Request | Response> {
-  if (!request.body || !isContentWrite(request.url)) return request;
+  const max = limitFor(request.url);
 
-  const body = await boundedBody(request.body, MAX_CONTENT_BYTES);
+  if (!request.body || max === undefined) return request;
+
+  const body = await boundedBody(request.body, max);
 
   return body === null
     ? Response.json(new ContentTooLarge(), { status: 413 })

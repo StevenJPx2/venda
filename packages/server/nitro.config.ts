@@ -1,5 +1,5 @@
 import { createRequire } from 'node:module';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'nitro';
 
@@ -7,10 +7,6 @@ const here = (path: string) => fileURLToPath(new URL(path, import.meta.url));
 
 // Dependencies of @venda/content, resolved as it sees them.
 const fromContent = createRequire(here('../content/package.json'));
-
-// The content folder built into the Worker (until the GitHub store). Local
-// development serves a live folder instead, through VENDA_CONTENT_URL.
-const CONTENT_DIR = resolve(process.env.VENDA_CONTENT_DIR ?? 'content');
 
 export default defineConfig({
   preset: 'cloudflare_module',
@@ -30,14 +26,7 @@ export default defineConfig({
     { dir: here('../../apps/admin/dist'), baseURL: '/admin', fallthrough: true }
   ],
   // drizzle-kit's migrations, applied at startup.
-  serverAssets: [
-    { baseName: 'migrations', dir: here('../core/drizzle') },
-    { baseName: 'content', dir: CONTENT_DIR }
-  ],
-  // The minute check that catches the index up with a repository whose
-  // webhook was missed (server/tasks/venda/tick.ts); a Cron Trigger on Workers.
-  experimental: { tasks: true },
-  scheduledTasks: { '* * * * *': ['venda:tick'] },
+  serverAssets: [{ baseName: 'migrations', dir: here('../core/drizzle') }],
   // `kv` holds sessions and sign-in attempts.
   storage: { kv: { driver: 'cloudflare-kv-binding', binding: 'VENDA_KV' } },
   cloudflare: {

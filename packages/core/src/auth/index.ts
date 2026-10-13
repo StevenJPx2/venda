@@ -40,6 +40,8 @@ export { canCreateEntry } from './proofs/can-create-entry';
 
 export { canPublishEntry } from './proofs/can-publish-entry';
 
+export { canEditFiles, type CanEditFiles } from './proofs/can-edit-files';
+
 export { canAssignOwner } from './proofs/can-assign-owner';
 
 export { KeyValue, KeyValueError, Owner } from './services';

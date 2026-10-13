@@ -1,4 +1,5 @@
 import { CollectionNotFound, HealthStatus, PublicEntry } from '@venda/contract';
+import { textSha } from '@venda/core/content';
 import { Effect, Result, Schema } from 'effect';
 import { SqlClient } from 'effect/sql';
 import { createStorage } from 'unstorage';
@@ -22,9 +23,7 @@ async function setup() {
   );
   await files.setItemRaw('blog/draft.md', '---\ndraft: true\n---\n');
 
-  const { app, changed } = await startApp(files);
-
-  return { app, files, changed };
+  return startApp(files);
 }
 
 describe('the server app', () => {
@@ -65,47 +64,37 @@ describe('the server app', () => {
     ).toBe('podcasts');
   });
 
-  it('re-indexes a changed file before answering the next request', async () => {
-    const { app, files, changed } = await setup();
+  it('serves a written file at once, and refuses a write from a stale SHA', async () => {
+    const { app, write } = await setup();
     const title = async () =>
       Schema.decodeUnknownSync(PublicEntry)(
         await (await app.fetch(request('/api/content/blog/hello'))).json()
       ).data.title;
-
-    await files.setItemRaw('blog/hello.md', '---\ntitle: Changed\n---\n');
-
-    expect(await title()).toBe('Hello');
-
-    changed();
-
-    expect(await title()).toBe('Changed');
-  });
-
-  it('lets concurrent requests wait for the same re-index', async () => {
-    const { app, files, changed } = await setup();
-
-    await files.setItemRaw('blog/hello.md', '---\ntitle: Changed\n---\n');
-    changed();
-
-    const answers = await Promise.all(
-      [1, 2, 3].map(async () =>
-        Schema.decodeUnknownSync(PublicEntry)(
-          await (await app.fetch(request('/api/content/blog/hello'))).json()
-        )
-      )
+    const listed = await app.fetch(
+      new Request('http://venda.test/api/admin/files')
     );
-
-    expect(answers.map(entry => entry.data.title)).toEqual([
-      'Changed',
-      'Changed',
-      'Changed'
+    const changed = '---\ntitle: Changed\n---\n';
+    const base = await textSha(
+      '---\ntitle: Hello\npublishedAt: 2026-01-01T00:00:00Z\n---\n\nHi <sup>1</sup>.\n'
+    );
+    const written = await write([
+      { path: 'blog/hello.md', text: changed, baseSha: base }
     ]);
+    const stale = await write([
+      { path: 'blog/hello.md', text: 'x', baseSha: base }
+    ]);
+
+    expect(listed.status).toBe(401);
+    expect(written.status).toBe(200);
+    expect(await title()).toBe('Changed');
+    expect(stale.status).toBe(409);
+    expect(await title()).toBe('Changed');
   });
 });
 
 describe('migrate', () => {
   it('applies each migration once, atomically', async () => {
-    const { target } = memoryTarget(createStorage({ driver: memoryDriver() }));
+    const target = memoryTarget();
     const all = await readMigrations(migrations);
     const broken = {
       name: '99999999999999_broken',

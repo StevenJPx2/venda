@@ -1,15 +1,10 @@
 // Reads of the content index (schema.ts), and the statements that change it.
-// Sync gathers a file's statements into one guarded batch (source-state.ts),
-// so the writes here build SQL rather than run it.
+// A write gathers them into its one batch (files.ts), so these build SQL
+// rather than run it.
 import { modelFrom, type CollectionModel, type Entry } from '@venda/content';
-import { and, eq, like, ne } from 'drizzle-orm';
+import { and, eq, ne } from 'drizzle-orm';
 import { DateTime, Effect, Option, Result, Schema } from 'effect';
-import {
-  contentCollections,
-  contentEntries,
-  contentFiles,
-  contentProblems
-} from './schema';
+import { contentCollections, contentEntries, contentProblems } from './schema';
 import { sortKey } from './order';
 import { Database, type DrizzleDatabase, type SqlWrite } from '../database';
 
@@ -25,29 +20,6 @@ const writes = (build: (db: DrizzleDatabase) => ReadonlyArray<Statement>) =>
 export const decodeJson = Schema.decodeUnknownOption(
   Schema.fromJsonString(Schema.Json)
 );
-
-/** The SHA the index last saw for each path. */
-export const knownFiles = Effect.gen(function* () {
-  const db = yield* Database;
-  const rows = yield* db.select().from(contentFiles);
-
-  return new Map(rows.map(row => [row.path, row.sha]));
-});
-
-/** Marks a file read at `sha` by a pass of `generation`. */
-export const markFile = (path: string, sha: string, generation: number) =>
-  writes(db => [
-    db
-      .insert(contentFiles)
-      .values({ path, sha, generation })
-      .onConflictDoUpdate({
-        target: contentFiles.path,
-        set: { sha, generation }
-      })
-  ]);
-
-export const forgetFile = (path: string) =>
-  writes(db => [db.delete(contentFiles).where(eq(contentFiles.path, path))]);
 
 export const recordProblem = (
   path: string,
@@ -113,35 +85,12 @@ export const saveCollection = (
     ];
   });
 
-// A collection's files other than its config.
-const entryFilesOf = (slug: string, configPath: string) =>
-  and(like(contentFiles.path, `${slug}/%`), ne(contentFiles.path, configPath));
-
-/**
- * Asks for a collection's entries to be read again against its new model.
- * Their markers stay, with the generation that wrote them, so a pass older
- * than a publish still cannot write over it.
- */
-export const staleEntries = (slug: string, configPath: string) =>
+/** Takes a collection and its entries out of the index; a write that changes its config indexes them again. */
+export const dropCollection = (slug: string) =>
   writes(db => [
-    db
-      .update(contentFiles)
-      .set({ sha: '' })
-      .where(entryFilesOf(slug, configPath))
+    db.delete(contentCollections).where(eq(contentCollections.slug, slug)),
+    db.delete(contentEntries).where(eq(contentEntries.collection, slug))
   ]);
-
-/** Drops a collection and its entries; its entry files are read again against a new model. */
-export const dropCollection = (slug: string, configPath: string) =>
-  Effect.map(
-    Effect.all([
-      writes(db => [
-        db.delete(contentCollections).where(eq(contentCollections.slug, slug)),
-        db.delete(contentEntries).where(eq(contentEntries.collection, slug))
-      ]),
-      staleEntries(slug, configPath)
-    ]),
-    all => all.flat()
-  );
 
 export const dropEntry = (path: string) =>
   writes(db => [

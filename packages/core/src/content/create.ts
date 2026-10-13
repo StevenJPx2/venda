@@ -109,7 +109,7 @@ export const createEntry = <U, C>(
         target: [contentWork.collection, contentWork.slug],
         set: { ...values, revision: sql`${contentWork.revision} + 1` },
         // Only a discarded draft's hidden record may be reused.
-        setWhere: sql`${contentWork.baseSha} IS NULL AND ${contentWork.dirty} = 0 AND ${contentWork.publishText} IS NULL`
+        setWhere: sql`${contentWork.baseSha} IS NULL AND ${contentWork.dirty} = 0`
       })
       .returning();
 

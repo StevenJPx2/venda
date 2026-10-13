@@ -2,8 +2,6 @@
 import type { ScreenDraft, ScreenMode } from './general';
 
 // One screen's description: its plugin's words, the site's own, or none.
-defineProps<{ readonly: boolean }>();
-
 const draft = defineModel<ScreenDraft>({ required: true });
 
 const MODES = [
@@ -31,7 +29,6 @@ function choose(value: string) {
       <USelect
         :model-value="draft.mode"
         :items="MODES"
-        :disabled="readonly"
         :aria-label="`Description of ${draft.title}`"
         class="w-40"
         @update:model-value="value => choose(String(value))"
@@ -40,7 +37,6 @@ function choose(value: string) {
       <UTextarea
         v-if="draft.mode === 'own'"
         :model-value="draft.text"
-        :readonly="readonly"
         :placeholder="draft.fallback"
         maxlength="300"
         autoresize

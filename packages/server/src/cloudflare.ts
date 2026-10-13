@@ -1,14 +1,11 @@
-// Cloudflare Workers: the D1 binding named in nitro.config.ts, and the content
-// folder built into the Worker (read-only; local development replaces it with
-// VENDA_CONTENT_URL).
+// Cloudflare Workers: the D1 binding named in nitro.config.ts, which holds the
+// content as well as everything else.
 import { D1Client } from '@effect/sql-d1';
 import { Database } from '@venda/core/database';
-import { env, waitUntil } from 'cloudflare:workers';
+import { env } from 'cloudflare:workers';
 import * as D1Drizzle from 'drizzle-orm/effect-d1';
 import { Effect, Layer, Predicate, Schema } from 'effect';
-import { useStorage } from 'nitro/storage';
 import type { Target } from './target';
-import { filesStore } from './content';
 
 const D1Binding = Schema.declare(
   (value: unknown): value is D1Database =>
@@ -38,10 +35,5 @@ export const target: Target = {
       Effect.flatMap(D1Client.D1Client, d1 =>
         Effect.asVoid(d1.batch(statements))
       )
-  },
-  content: () => ({
-    store: filesStore(useStorage('assets:content')),
-    updates: { kind: 'built' }
-  }),
-  background: waitUntil
+  }
 };

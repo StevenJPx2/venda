@@ -110,7 +110,7 @@ it('starts a new entry as its creator’s copy, publishes it to a new file and i
   const copy = await h.run(createCopy('autumn', { title: 'Autumn' }, author));
 
   expect(copy).toMatchObject({ baseSha: null, dirty: true, ownerId: author });
-  expect(h.files.has('blog/autumn.md')).toBe(false);
+  expect(await h.file('blog/autumn.md')).toBeUndefined();
   expect((await h.run(browse(author))).items[0]).toMatchObject({
     slug: 'autumn',
     copy: 'new'
@@ -138,7 +138,7 @@ it('starts a new entry as its creator’s copy, publishes it to a new file and i
   );
 
   expect(published).toMatchObject({ dirty: false, changedOutside: false });
-  expect(h.files.get('blog/autumn.md')).toContain('title: Autumn');
+  expect(await h.file('blog/autumn.md')).toContain('title: Autumn');
   expect((await h.run(getPublished('blog', 'autumn'))).data.title).toBe(
     'Autumn'
   );
@@ -159,7 +159,7 @@ it('refuses a taken or malformed slug, and never overwrites a file that appears 
     createCopy('race', { title: 'Mine', body: { type: 'doc', content: [] } })
   );
 
-  h.files.set('blog/race.md', post('Pushed by an agent'));
+  await h.outside('blog/race.md', post('Pushed by an agent'));
 
   expect(
     Result.isFailure(
@@ -168,7 +168,7 @@ it('refuses a taken or malformed slug, and never overwrites a file that appears 
       )
     )
   ).toBe(true);
-  expect(h.files.get('blog/race.md')).toBe(post('Pushed by an agent'));
+  expect(await h.file('blog/race.md')).toBe(post('Pushed by an agent'));
 });
 
 it('discarding a new entry removes it, and a contributor’s entry waits for an editor', async () => {

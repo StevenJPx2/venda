@@ -29,11 +29,6 @@ const MESSAGES = new Map([
     'Conflict',
     'The file changed outside Venda since you started. Nothing was overwritten.'
   ],
-  ['PublishInProgress', 'This entry is being published. Try again shortly.'],
-  [
-    'ContentReadOnly',
-    'This server cannot publish yet: its content is read-only until it is connected to GitHub.'
-  ],
   [
     'ContentTooLarge',
     'This entry is larger than 1 MB, the most a file can hold.'

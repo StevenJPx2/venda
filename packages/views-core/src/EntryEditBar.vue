@@ -10,8 +10,6 @@ defineProps<{
   canPublish: boolean;
   /** There are saved or unsaved changes to publish or discard. */
   changed: boolean;
-  /** Nothing can be published here (a read-only server). */
-  blocked: boolean;
   editable: boolean;
   isNew: boolean;
   busy: boolean;
@@ -44,7 +42,7 @@ const menu = [
     <UButton
       v-if="canPublish"
       :label="isNew ? 'Publish' : 'Publish changes'"
-      :disabled="!changed || blocked"
+      :disabled="!changed"
       :loading="busy && changed"
       @click="emit('publish')"
     />

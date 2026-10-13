@@ -105,7 +105,7 @@ export function useEntryEdit(
   }
 
   const readonly = computed(() =>
-    isReadonly(copy.value, {
+    isReadonly(copy.value !== undefined, {
       forbidden: state.forbidden.value,
       elsewhere: state.elsewhere.value,
       busy: action.busy.value

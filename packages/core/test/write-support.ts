@@ -1,6 +1,7 @@
 import { name } from '@gdp-ts/core';
-import { Conflict, EntryRef, UserId, type Role } from '@venda/contract';
-import { Effect, Layer, ManagedRuntime, Schema } from 'effect';
+import { EntryRef, UserId, type Role } from '@venda/contract';
+import { asc } from 'drizzle-orm';
+import { Effect, ManagedRuntime, Option, Schema } from 'effect';
 import {
   canAssignOwner,
   canCreateEntry,
@@ -9,26 +10,23 @@ import {
 } from '../src/auth';
 import { users } from '../src/auth/schema';
 import {
-  ContentStore,
-  ContentStoreError,
+  contentSchema,
   createEntry,
-  gitBlobSha,
-  syncAll,
   getWorkingCopy,
   saveWorkingCopy,
   discardWorkingCopy,
   publishWorkingCopy,
   rebaseWorkingCopy,
-  assignEntryOwner,
-  snapshotOf
+  assignEntryOwner
 } from '../src/content';
+import { currentShas, fileAt, writeFiles } from '../src/content/files';
 import { AtomicWrites, Database } from '../src/database';
 import { testDatabase } from './support';
 
 const decodeId = Schema.decodeUnknownSync(UserId);
 const decodeRef = Schema.decodeUnknownSync(EntryRef);
 
-const admin = decodeId('admin');
+export const admin = decodeId('admin');
 
 export const author = decodeId('author');
 
@@ -43,9 +41,7 @@ const ref = decodeRef({ collection: 'blog', slug: 'hello' });
 export const post = (title: string) =>
   `---\ntitle: ${title}\ncustom: keep-me\n---\n\nHello **world**.\n`;
 
-const sha = (text: string) => gitBlobSha(new TextEncoder().encode(text));
-
-type Services = ContentStore | Database | AtomicWrites;
+type Services = Database | AtomicWrites;
 
 const person = (id: UserId, role: Role): typeof users.$inferInsert => ({
   id,
@@ -57,102 +53,43 @@ const person = (id: UserId, role: Role): typeof users.$inferInsert => ({
   createdAt: '2026-10-12T00:00:00Z'
 });
 
-interface Recorded {
-  readonly path: string;
-  readonly message: string;
-  readonly author: string;
-}
+export const BLOG = `export default defineCollection({ name: 'Blog', kind: 'posts', fields: {
+      title: { type: 'text', required: true, max: 40 }, body: { type: 'richtext', required: true }
+    } });`;
 
-/**
- * Files in memory with the store's SHA rules; `lose()` makes the next write
- * land but lose its answer, as a dropped connection would. `during(work)`
- * runs `work` right after the next snapshot is taken: someone else acting
- * while a sync pass holds a snapshot that is now out of date.
- */
-function memoryStore(files: Map<string, string>, commits: Recorded[]) {
-  let uncertain = false;
-  let interleaved: (() => Promise<void>) | undefined;
+/** Someone else changing a file directly (a push from the CLI): no copy, no checks. */
+const OUTSIDE = { id: null, name: 'Someone else' };
 
-  const afterSnapshot = <A>(snapshot: A) =>
-    Effect.promise(async () => {
-      const work = interleaved;
+/** Writes `text` (or deletes, with null) over whatever is there, as someone outside the copy. */
+const outsideWrite = (path: string, text: string | null) =>
+  Effect.gen(function* () {
+    const now = yield* currentShas([path]);
 
-      interleaved = undefined;
-      await work?.();
-
-      return snapshot;
+    yield* writeFiles([{ path, text, baseSha: now.get(path) ?? null }], {
+      author: OUTSIDE,
+      message: 'Outside edit',
+      mode: 'keep'
     });
-
-  const layer = Layer.succeed(ContentStore, {
-    writable: true,
-    snapshot: Effect.suspend(() =>
-      Effect.flatMap(snapshotOf(files), afterSnapshot)
-    ),
-    list: Effect.promise(() =>
-      Promise.all(
-        [...files].map(async ([path, text]) => ({ path, sha: await sha(text) }))
-      )
-    ),
-    read: path => {
-      const text = files.get(path);
-
-      return text === undefined
-        ? Effect.fail(new ContentStoreError({ message: 'No file' }))
-        : Effect.succeed(text);
-    },
-    commit: input =>
-      Effect.gen(function* () {
-        const text = files.get(input.path);
-        const current =
-          text === undefined ? null : yield* Effect.promise(() => sha(text));
-
-        if (current !== input.baseSha && current !== input.sha)
-          return yield* new Conflict({ path: input.path, sha: current });
-
-        files.set(input.path, input.content);
-        commits.push({
-          path: input.path,
-          message: input.message,
-          author: input.author
-        });
-
-        if (uncertain) {
-          uncertain = false;
-
-          return yield* new ContentStoreError({
-            message: 'Connection lost after write'
-          });
-        }
-
-        return { sha: input.sha };
-      })
   });
 
-  return {
-    layer,
-    lose: () => {
-      uncertain = true;
-    },
-    during: (work: () => Promise<void>) => {
-      interleaved = work;
-    }
-  };
-}
+const textAt = (path: string) =>
+  Effect.map(fileAt(path), found =>
+    Option.getOrUndefined(Option.map(found, file => file.text))
+  );
+
+const revisionsOf = Effect.flatMap(Database, db =>
+  db
+    .select({
+      path: contentSchema.contentRevisions.path,
+      message: contentSchema.contentRevisions.message,
+      author: contentSchema.contentRevisions.authorName
+    })
+    .from(contentSchema.contentRevisions)
+    .orderBy(asc(contentSchema.contentRevisions.id))
+);
 
 export async function writeHarness() {
-  const files = new Map([
-    [
-      'blog/config.ts',
-      `export default defineCollection({ name: 'Blog', kind: 'posts', fields: {
-      title: { type: 'text', required: true, max: 40 }, body: { type: 'richtext', required: true }
-    } });`
-    ],
-    ['blog/hello.md', post('Hello')],
-    ['blog/second.md', post('Second')]
-  ]);
-  const commits: Recorded[] = [];
-  const store = memoryStore(files, commits);
-  const runtime = ManagedRuntime.make(Layer.merge(testDatabase, store.layer));
+  const runtime = ManagedRuntime.make(testDatabase);
   const run = <A, E>(effect: Effect.Effect<A, E, Services>) =>
     runtime.runPromise(effect);
 
@@ -169,15 +106,23 @@ export async function writeHarness() {
         ])
     )
   );
-  await run(syncAll());
+  await run(outsideWrite('blog/config.ts', BLOG));
+  await run(outsideWrite('blog/hello.md', post('Hello')));
+  await run(outsideWrite('blog/second.md', post('Second')));
+
+  // Only what the test itself does counts as history.
+  const seeded = (await run(revisionsOf)).length;
 
   return {
-    files,
-    commits,
     run,
     close: () => runtime.dispose(),
-    uncertain: store.lose,
-    during: store.during
+    /** A file's text now, or undefined. */
+    file: (path: string) => run(textAt(path)),
+    /** Someone else writes the file directly; null deletes it. */
+    outside: (path: string, text: string | null) =>
+      run(outsideWrite(path, text)),
+    /** Revisions written since the harness started, oldest first. */
+    revisions: async () => (await run(revisionsOf)).slice(seeded)
   };
 }
 

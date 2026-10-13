@@ -1,6 +1,6 @@
-// The index of the content files (docs/architecture.md). Derived from the
-// files and disposable: a full sync rebuilds it. `drizzle-kit generate` turns
-// changes here into migrations.
+// The content files, their revisions, the index derived from them and the
+// operational state around them (docs/architecture.md). `drizzle-kit
+// generate` turns changes here into migrations.
 import { sql } from 'drizzle-orm';
 import {
   check,
@@ -68,44 +68,39 @@ export const contentWork = sqliteTable(
     dirty: integer({ mode: 'boolean' }).notNull().default(false),
     ownerId: text('owner_id'),
     updatedBy: text('updated_by'),
-    updatedAt: text('updated_at'),
-    // Frozen canonical publish payload; a retry completes this exact intent.
-    publishText: text('publish_text'),
-    publishSha: text('publish_sha'),
-    publishModelJson: text('publish_model_json'),
-    publishAuthor: text('publish_author')
+    updatedAt: text('updated_at')
   },
   table => [primaryKey({ columns: [table.collection, table.slug] })]
 );
 
-// Every file the index has looked at, valid or not, so unchanged files are
-// skipped. An empty SHA asks for a re-read. `generation` is the source
-// generation that wrote the marker: a sync pass that began earlier never
-// writes over it (source-state.ts).
+// The content itself: `site.ts`, each `<collection>/config.ts` and each entry
+// file, as text with its git blob SHA. Everything else here is derived from
+// these rows, in the same batch as each write (files.ts).
 export const contentFiles = sqliteTable('content_files', {
   path: text().primaryKey(),
+  text: text().notNull(),
   sha: text().notNull(),
-  generation: integer().notNull().default(0)
+  size: integer().notNull(),
+  updatedAt: text('updated_at').notNull(),
+  updatedBy: text('updated_by')
 });
 
-// One row (id 1): where the index stands against its content source, and the
-// lease that admits one sync pass at a time across isolates.
-export const contentSource = sqliteTable('content_source', {
-  id: integer().primaryKey(),
-  // Raised by every write Venda makes to the source (publish, site settings).
-  generation: integer().notNull().default(0),
-  // Raised by every claim; a pass's writes need the fence it claimed.
-  fence: integer().notNull().default(0),
-  leaseUntil: integer('lease_until'),
-  // Requests for a pass (webhooks, the scheduled check, outside edits) and the
-  // last one a complete pass answered.
-  requested: integer().notNull().default(1),
-  handled: integer().notNull().default(0),
-  indexedVersion: text('indexed_version'),
-  remaining: integer().notNull().default(0),
-  syncedAt: text('synced_at'),
-  lastError: text('last_error')
-});
+// Every version ever written, kept indefinitely; `text` is null for a deletion.
+export const contentRevisions = sqliteTable(
+  'content_revisions',
+  {
+    id: integer().primaryKey({ autoIncrement: true }),
+    path: text().notNull(),
+    sha: text(),
+    text: text(),
+    parentSha: text('parent_sha'),
+    message: text().notNull(),
+    authorId: text('author_id'),
+    authorName: text('author_name').notNull(),
+    createdAt: text('created_at').notNull()
+  },
+  table => [index('content_revisions_path').on(table.path, table.id)]
+);
 
 // Never holds a row: a guarded batch inserts `ok` and deletes it again, and
 // the CHECK aborts the whole batch when the guard's condition is false.

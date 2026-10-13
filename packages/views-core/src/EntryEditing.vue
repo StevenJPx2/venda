@@ -42,7 +42,6 @@ const state = computed(() =>
   )
 );
 const changed = computed(() => state.value.dirty || editing.pending.value);
-const blocked = computed(() => copy.value?.writable === false);
 
 // Leaving the screen saves what is typed; closing the tab first asks.
 const warnUnsaved = (event: BeforeUnloadEvent) => {
@@ -85,7 +84,6 @@ const writeFile = (work: () => Promise<void>) =>
       :dot="changed ? 'draft' : entry?.state"
       :can-publish="state.canPublish && !editing.readonly.value"
       :changed="changed"
-      :blocked="blocked"
       :editable="!editing.readonly.value"
       :is-new="copy?.baseSha === null"
       :busy="action.busy.value"
@@ -98,14 +96,11 @@ const writeFile = (work: () => Promise<void>) =>
   <EntryEditNotices
     :conflict="state.changedOutside && changed"
     :elsewhere="state.elsewhere"
-    :unfinished="state.publishing"
-    :read-only-server="blocked && changed"
     :index-problem="copy?.indexProblem ?? null"
     :error="action.error.value || editing.error.value"
     @keep-mine="run(editing.keepMine)"
     @discard-mine="writeFile(editing.discard)"
     @reload="run(editing.load)"
-    @finish="writeFile(editing.publish)"
   />
 
   <template v-if="copy || editing.forbidden.value">

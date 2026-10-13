@@ -27,8 +27,8 @@
             <h2>Write in the real admin</h2>
             <p>
               Sign in with <code>owner@venda.local</code> /
-              <code>try-venda-owner</code>. Every file you publish lands in
-              <code>.try/content</code>, which you can open beside the admin.
+              <code>try-venda-owner</code>. Every file you publish is stored in
+              D1, with a revision; the checks below read it back.
             </p>
           </div>
           <div class="actions">
@@ -53,9 +53,9 @@
               changes and open the file.
             </li>
             <li>
-              Save another change, then edit the same file on disk and press
-              Publish changes: Venda stops and offers to keep yours or take
-              theirs.
+              Save another change, then run the outside-change check below,
+              which changes the same file as an agent would, and press Publish
+              changes: Venda stops and offers to keep yours or take theirs.
             </li>
             <li>
               In Authors, press New record, fill it in and publish it. In Home,
@@ -95,9 +95,9 @@
           </div>
           <pre id="editor-result">Load to begin.</pre>
           <p class="note">
-            Edit <code>.try/content/journal/write-path.md</code> on disk between
-            Save and Publish to provoke a conflict. The checks below also make
-            and recover from that conflict, and restore the fixture afterward.
+            The checks below change <code>journal/write-path.md</code> as
+            someone else would between Save and Publish, recover from the
+            conflict, and restore the file afterward.
           </p>
         </div>
       </section>
@@ -277,7 +277,7 @@
         {
           title: 'An outside change is never silently replaced',
           description:
-            'Save a copy, edit the file on disk, get Conflict, then explicitly acknowledge that file’s SHA to publish your copy.',
+            'Save a copy, change the file as someone else would, get Conflict, then explicitly acknowledge that file’s SHA to publish your copy.',
           run: ({ log }) =>
             fixture(log, async (request, current, original) => {
               const saved = await request('PUT', `${ROOT}/copy`, {

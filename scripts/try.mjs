@@ -1,37 +1,26 @@
-// `pnpm try`: builds the server, runs it on local workerd with an editable
-// copy of the content served live, and serves the slice try pages (try/*.html)
-// on one origin. Ctrl-C stops everything.
+// `pnpm try`: builds the server, runs it on local workerd and D1, and serves
+// the slice try pages (try/*.html) on one origin. Ctrl-C stops everything.
 //
-// The local database and sessions (.try/data) are kept between runs, so you
-// stay signed in; the build and the content copy start fresh every time.
-// `pnpm try --fresh` wipes everything first. `pnpm try --github` reads the
-// content from a simulated GitHub repository instead, as a deployment does.
+// The local database (.try/data: content, people, sessions) is kept between
+// runs, so you stay signed in and your edits stay; an empty database gets
+// try/content imported. `pnpm try --fresh` wipes everything first.
 import { spawn } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
-import { cp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
-import { join, resolve } from 'node:path';
+import { join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { serveContent } from './content-server.mjs';
-import { simulateRepository } from './github-simulator.mjs';
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const SERVER = join(ROOT, 'packages/server');
 const STATE = join(ROOT, '.try');
-// D1 and KV under wrangler: people, tokens and sessions.
+// D1 and KV under wrangler: content, people, tokens and sessions.
 const DATA = join(STATE, 'data');
 const FRESH = process.argv.includes('--fresh');
-const GITHUB = process.argv.includes('--github');
-// Built into the Worker as its fallback; the Worker reads the editable copy in
-// .try/content through the content server, so an edit shows on the next request.
+// Imported into an empty database.
 const CONTENT = join(ROOT, 'try/content');
-const LIVE_CONTENT = join(STATE, 'content');
 const CONTENT_FILE = /^\/files\/(site\.ts|[a-z0-9-]+\/[a-z0-9-]+\.mdx?)$/;
-const PORTS = { page: 8794, server: 8805, content: 8806, github: 8807 };
-// The simulated repository, with --github, and its webhook secret.
-let github;
-let githubSecret;
+const PORTS = { page: 8794, server: 8805 };
 // Its own build output, so `pnpm e2e` or a manual build cannot replace files this server is serving.
 const BUILD = join(STATE, 'build');
 // Throwaway local credentials for the recovery owner, for this machine only.
@@ -248,47 +237,49 @@ const markdown = (response, text) =>
     })
     .end(text ?? 'Not found');
 
-// With --github, an edit from the page is a push to the repository.
-async function repositoryFile(request, response, file) {
-  if (request.method === 'GET')
-    return markdown(response, github.file(file) ?? null);
+// The owner's session for this page server's own calls: seeding and the
+// /files/ helper.
+let ownerCookie = '';
 
-  github.push(
-    file,
-    request.method === 'PUT' ? await readBody(request) : null,
-    'Edited from the try page'
-  );
-  response.writeHead(204).end();
-}
+async function asOwner(path, body) {
+  const call = () =>
+    fetch(`http://localhost:${PORTS.server}/api${path}`, {
+      method: body === undefined ? 'GET' : 'POST',
+      headers: { cookie: ownerCookie, 'content-type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body)
+    });
+  let answer = await call();
 
-// The simulated repository's recent commits, and an outage on demand.
-function repositoryState(request, response) {
-  if (request.method === 'POST') github?.failWrites(502);
-
-  const commits = (github?.state.commits ?? []).slice(-20).reverse();
-
-  response
-    .writeHead(request.method === 'POST' ? 202 : 200, {
-      'content-type': 'application/json',
-      'cache-control': 'no-store'
-    })
-    .end(
-      JSON.stringify({
-        mode: github ? 'github' : 'folder',
-        head: github?.state.head ?? null,
-        tokensIssued: github?.state.tokensIssued ?? 0,
-        commits: commits.map(commit => ({
-          path: commit.path,
-          sha: commit.sha.slice(0, 7),
-          message: commit.message,
-          author: `${commit.author.name} <${commit.author.email}>`
-        }))
-      })
+  if (answer.status === 401) {
+    const signedIn = await fetch(
+      `http://localhost:${PORTS.server}/api/auth/sign-in`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          email: OWNER_ENV.VENDA_OWNER_EMAIL,
+          password: OWNER_ENV.VENDA_OWNER_PASSWORD
+        })
+      }
     );
+
+    ownerCookie = signedIn.headers.getSetCookie()[0]?.split(';')[0] ?? '';
+    answer = await call();
+  }
+
+  return answer;
 }
 
-// A local-only helper for the try pages: read, write and remove the live
-// content files, as an agent or a developer editing the folder would.
+const fileAt = async path => {
+  const answer = await asOwner(
+    `/admin/files/read?path=${encodeURIComponent(path)}`
+  );
+
+  return answer.ok ? answer.json() : null;
+};
+
+// A local-only helper for the try pages: read, change and remove content
+// files through the files API, as an agent or `venda push` would.
 async function files(request, response, path) {
   const file = CONTENT_FILE.exec(path)?.[1];
 
@@ -297,24 +288,65 @@ async function files(request, response, path) {
     return;
   }
 
-  if (github) return repositoryFile(request, response, file);
+  if (request.method === 'GET')
+    return markdown(response, (await fileAt(file))?.text ?? null);
 
-  if (request.method === 'PUT') {
-    await writeFile(join(LIVE_CONTENT, file), await readBody(request));
-    response.writeHead(204).end();
-    return;
-  }
+  const written = await asOwner('/admin/files', {
+    message: 'Edited from the try page',
+    changes: [
+      {
+        path: file,
+        text: request.method === 'PUT' ? await readBody(request) : null,
+        baseSha: (await fileAt(file))?.sha ?? null
+      }
+    ]
+  });
 
-  if (request.method === 'DELETE') {
-    await rm(join(LIVE_CONTENT, file), { force: true });
-    response.writeHead(204).end();
-    return;
-  }
+  if (written.ok) return void response.writeHead(204).end();
 
-  markdown(
-    response,
-    await readFile(join(LIVE_CONTENT, file), 'utf8').catch(() => null)
+  response
+    .writeHead(written.status, { 'content-type': 'application/json' })
+    .end(await written.text());
+}
+
+/** try/content as `{ path, text }`. */
+async function tryContent() {
+  const entries = await readdir(CONTENT, {
+    recursive: true,
+    withFileTypes: true
+  });
+
+  return Promise.all(
+    entries
+      .filter(entry => entry.isFile())
+      .map(async entry => {
+        const path = join(entry.parentPath, entry.name);
+
+        return {
+          path: relative(CONTENT, path).split(sep).join('/'),
+          text: await readFile(path, 'utf8')
+        };
+      })
   );
+}
+
+/** Imports try/content into an empty database; a kept one keeps its edits. */
+async function seed() {
+  const listed = await (await asOwner('/admin/files')).json();
+
+  if (listed.length > 0) return 'kept';
+
+  const all = await tryContent();
+
+  for (let at = 0; at < all.length; at += 200) {
+    const answer = await asOwner('/admin/import', {
+      files: all.slice(at, at + 200)
+    });
+
+    if (!answer.ok) throw new Error(`Import answered ${answer.status}`);
+  }
+
+  return 'imported';
 }
 
 function startPageServer() {
@@ -324,11 +356,9 @@ function startPageServer() {
     const local = () =>
       path === '/compile-mistakes'
         ? compileMistakes(response)
-        : path === '/github'
-          ? Promise.resolve(repositoryState(request, response))
-          : path.startsWith('/files/')
-            ? files(request, response, path)
-            : page(path, response);
+        : path.startsWith('/files/')
+          ? files(request, response, path)
+          : page(path, response);
     // The API and the admin belong to the Venda server; everything else is this page server.
     const handled = /^\/(api|admin)\//.test(url)
       ? proxy(request, response)
@@ -371,10 +401,8 @@ if ((await portInUse(PORTS.page)) || (await portInUse(PORTS.server))) {
 }
 
 // Stopping at any point, even mid-build, stops everything this run started.
-let stopContent = async () => {};
-
-process.on('SIGINT', () => stopContent().finally(() => stopAll()));
-process.on('SIGTERM', () => stopContent().finally(() => stopAll()));
+process.on('SIGINT', () => stopAll());
+process.on('SIGTERM', () => stopAll());
 
 // Everything in .try/ except the data is rebuilt each run; --fresh drops the data too.
 for (const entry of await readdir(STATE).catch(() => []))
@@ -382,44 +410,17 @@ for (const entry of await readdir(STATE).catch(() => []))
     await rm(join(STATE, entry), { recursive: true, force: true });
 
 await mkdir(DATA, { recursive: true });
-await cp(CONTENT, LIVE_CONTENT, { recursive: true });
 console.log('Venda try: building and starting the server');
 
 await step('build admin', 'pnpm', ['--filter', '@venda/admin-app', 'build']);
 await step('build the Worker', 'pnpm', ['exec', 'nitro', 'build'], {
-  VENDA_CONTENT_DIR: CONTENT,
   VENDA_OUTPUT_DIR: BUILD
 });
 
-/** The content: a simulated GitHub repository, or the live folder. */
-async function contentEnv() {
-  if (GITHUB) {
-    const simulated = await simulateRepository({
-      folder: CONTENT,
-      port: PORTS.github,
-      authorEmail: 'venda@users.noreply.venda.local'
-    });
-
-    github = simulated.github;
-    githubSecret = simulated.webhookSecret;
-    stopContent = simulated.github.stop;
-
-    return simulated.env;
-  }
-
-  const contentToken = randomUUID();
-
-  stopContent = await serveContent(LIVE_CONTENT, PORTS.content, contentToken);
-
-  return {
-    VENDA_CONTENT_URL: `http://127.0.0.1:${PORTS.content}/`,
-    VENDA_CONTENT_TOKEN: contentToken
-  };
-}
-
-const vars = Object.entries({ ...OWNER_ENV, ...(await contentEnv()) }).flatMap(
-  ([key, value]) => ['--var', `${key}:${value}`]
-);
+const vars = Object.entries(OWNER_ENV).flatMap(([key, value]) => [
+  '--var',
+  `${key}:${value}`
+]);
 
 serve('server', 'npx', [
   'wrangler',
@@ -435,11 +436,9 @@ serve('server', 'npx', [
 ]);
 
 await healthy(PORTS.server);
-// Pushes reach the Worker as signed webhooks, as GitHub would send them.
-github?.deliverTo(
-  `http://127.0.0.1:${PORTS.server}/api/webhooks/github`,
-  githubSecret
-);
+
+const seeded = await seed();
+
 startPageServer();
 
 console.log(`
@@ -448,10 +447,10 @@ console.log(`
   Owner: ${OWNER_ENV.VENDA_OWNER_EMAIL} / ${OWNER_ENV.VENDA_OWNER_PASSWORD} (local only)
   Admin: http://localhost:${PORTS.server}/admin/
   Server: Cloudflare Workers on local workerd, with local D1 and KV
-  Content: ${
-    GITHUB
-      ? 'a simulated GitHub repository (try/content); Publish makes commits'
-      : '.try/content, live. Edit any file; the next request serves it.'
+  Content: in D1, ${
+    seeded === 'imported'
+      ? 'imported from try/content just now'
+      : 'as you left it (`pnpm try --fresh` imports try/content again)'
   }
   Data: .try/data, kept between runs, so you stay signed in. \`pnpm try --fresh\` starts clean.
   Logs: .try/*.log · Ctrl-C to stop

@@ -6,7 +6,6 @@ export interface EditState {
   readonly loaded: boolean;
   readonly forbidden: boolean;
   readonly elsewhere: boolean;
-  readonly publishing: boolean;
   readonly saving: boolean;
   readonly changedOutside: boolean;
   readonly dirty: boolean;
@@ -35,7 +34,6 @@ export function editStateOf(
     forbidden: flags.forbidden,
     elsewhere: flags.elsewhere,
     saving: flags.busy,
-    publishing: copy?.publishing === true,
     changedOutside: copy?.changedOutside === true,
     dirty: copy?.dirty === true,
     canPublish: copy?.canPublish === true,
@@ -44,13 +42,11 @@ export function editStateOf(
 }
 
 /**
- * Nothing changes without a loaded copy, while it publishes or an action runs,
- * for someone who may only read it, or once someone else's save made it stale.
+ * Nothing changes without a loaded copy, while an action runs, for someone
+ * who may only read it, or once someone else's save made it stale.
  */
-export const isReadonly = (
-  copy: Pick<WorkingCopy, 'publishing'> | undefined,
-  flags: Flags
-) => copy?.publishing !== false || Object.values(flags).some(Boolean);
+export const isReadonly = (loaded: boolean, flags: Flags) =>
+  !loaded || Object.values(flags).some(Boolean);
 
 // Checked in order: the first that holds is what the person needs to know.
 const RULES: ReadonlyArray<
@@ -59,7 +55,6 @@ const RULES: ReadonlyArray<
   [edit => edit.forbidden, edit => `${fileState(edit.state)} · read-only`],
   [edit => !edit.loaded, () => ''],
   [edit => edit.elsewhere, () => 'Edited elsewhere'],
-  [edit => edit.publishing, () => 'Publishing…'],
   [edit => edit.saving, () => 'Saving…'],
   [edit => edit.changedOutside, () => 'Changed outside Venda'],
   [

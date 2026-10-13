@@ -6,7 +6,7 @@ import {
   useAdminResource
 } from '@venda/admin';
 import type { SiteDocument } from '@venda/contract';
-import { computed, onMounted, ref, shallowRef } from 'vue';
+import { onMounted, ref, shallowRef } from 'vue';
 import { tagOf } from './autosave';
 import { screenDrafts, siteRequest, type ScreenDraft } from './general';
 import ScreenDescription from './ScreenDescription.vue';
@@ -41,8 +41,6 @@ async function load() {
 }
 
 onMounted(load);
-
-const readonly = computed(() => document.data.value?.writable === false);
 
 const write = () =>
   admin.request(
@@ -79,7 +77,7 @@ const submit = () =>
     <UButton
       label="Save"
       :loading="save.busy.value"
-      :disabled="readonly || !document.data.value"
+      :disabled="!document.data.value"
       @click="submit"
     />
   </AdminScreenHeader>
@@ -90,11 +88,6 @@ const submit = () =>
     :error="document.error.value"
     @retry="load"
   />
-
-  <p v-if="readonly" class="mb-6 max-w-xl text-sm text-muted">
-    This server's content is read-only until it is connected to GitHub. Edit
-    <code>content/site.ts</code> in your repository instead.
-  </p>
 
   <UAlert
     v-if="conflict"
@@ -116,19 +109,14 @@ const submit = () =>
       label="Site name"
       help="Shown in the sidebar and window titles."
     >
-      <UInput
-        v-model="name"
-        :readonly="readonly"
-        maxlength="60"
-        class="w-full"
-      />
+      <UInput v-model="name" maxlength="60" class="w-full" />
     </UFormField>
 
     <UFormField
       label="Address"
       help="Where the site lives, like https://example.com."
     >
-      <UInput v-model="url" :readonly="readonly" type="url" class="w-full" />
+      <UInput v-model="url" type="url" class="w-full" />
     </UFormField>
 
     <h2 class="mt-6 text-sm font-medium text-highlighted">
@@ -139,7 +127,6 @@ const submit = () =>
       v-for="(draft, index) in drafts"
       :key="draft.id"
       v-model="drafts[index]!"
-      :readonly="readonly"
     />
   </form>
 </template>

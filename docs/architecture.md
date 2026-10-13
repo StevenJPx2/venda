@@ -4,33 +4,38 @@ Status: **approved** (2026-10-05). This replaces the "Architecture decisions"
 in [roadmap.md](roadmap.md); the admin's look and behaviour stay in
 [redesign.md](redesign.md).
 
-Venda is a **file-first CMS**. Content and data models live as files in the
-site's git repository: one folder per collection, a `config.ts` describing its
-fields, and a Markdown or MDX file per entry. A Venda server keeps a live
-index of those files in SQL, so the admin, the public API, search, scheduling
-and previews work without rebuilding the site. Editors work in the admin;
-developers and agents edit the files. Both paths meet in git.
+Venda is a **file-first CMS**. Content and data models are files: one folder
+per collection, a `config.ts` describing its fields, and a Markdown or MDX
+file per entry. The files live in D1, each with its git blob SHA and every
+version it has had, next to an index derived from them in the same write, so
+the admin, the public API, search, scheduling and previews work without
+rebuilding the site. Editors work in the admin; developers and agents work on
+the files through the `venda` CLI (`pull`, `push`), and both are held to the
+same rule: a change made from an old read is refused, never written over.
 
 ## Principles
 
-1. **Files are the source of truth.** Everything in the database is either
-   derived from files (and can be rebuilt from them) or operational state that
-   has no place in git: sessions, autosaved working copies, schedules.
-2. **Repository files are data, never code, at runtime.** The server parses
-   `config.ts` and entries; it never executes anything from the repository.
+1. **Files are the source of truth.** `content_files` holds them;
+   everything else about content is either derived from them in the same
+   write (the index) or operational state that is not content: sessions,
+   autosaved working copies, schedules.
+2. **Content files are data, never code, at runtime.** The server parses
+   `config.ts` and entries; it never executes anything from them.
 3. **One contract.** Every wire shape is defined once, in Effect Schema, in
    `@venda/contract`. The server, admin, Nuxt module, CLI and MCP server all
    use it; no package re-declares an `Entry` type.
 4. **The core knows nothing about its host.** Domain logic depends on Effect
-   services. Nitro, Cloudflare and GitHub appear only in adapters.
+   services. Nitro and Cloudflare appear only in adapters.
 5. **The admin is a shell; almost everything else is a plugin.** Editors
    (including the Ghost-style writer), blocks, fields, browse views, pages
    and settings sections ship as a default preset built through the same API
    third-party plugins use.
-6. **Every background job is bounded.** Sync, scheduled work and retries have
-   per-run limits and resumable cursors.
+6. **Every write and job is bounded.** A write takes at most 200 files, and
+   scheduled work and retries have per-run limits and resumable cursors.
 
-## Content on disk
+## Content files
+
+The files keep this layout in D1, in exports and in `venda pull`:
 
 ```
 venda.config.ts               instance settings and plugins (build time)
@@ -106,8 +111,8 @@ export default defineSite({
 });
 ```
 
-- Read as data under the same rules as `config.ts`, synced into the index
-  with the configs, and reported in Content problems when invalid. Every
+- Read as data under the same rules as `config.ts`, indexed in the write
+  that changes it, and reported in Content problems when invalid. Every
   setting is optional; an invalid or missing file leaves all of them empty.
 - `name` (at most 60 characters) replaces Venda's mark in the sidebar and
   names the window titles ("People · SAFT"). Without it they say Venda.
@@ -152,11 +157,11 @@ For three years every page on our site was rendered in a single region.
 
 | Fact | Source of truth | Copy |
 | --- | --- | --- |
-| Collection models | `content/*/config.ts` | `collections` index table |
-| Site name, address and admin copy | `content/site.ts` | `content_site` index table |
-| Published and file drafts | `.md` / `.mdx` files | `entries` index: frontmatter, body document, search text, references, file SHA |
-| Working copies, owners and publish intents | database | none |
-| Revisions | git history (publishes) and database (saves between publishes) | none |
+| Collection models | `*/config.ts` in `content_files` | `content_collections` |
+| Site name, address and admin copy | `site.ts` in `content_files` | `content_site` |
+| Published and file drafts | `.md` / `.mdx` in `content_files` | `content_entries`: frontmatter, body document, search text, references, file SHA |
+| Every version of every file | `content_revisions` | none |
+| Working copies and owners | `content_work` | none |
 | Schedules, trash tombstones, preview tokens | database | none |
 | Users, roles, invitations, API tokens | database | none |
 | Sessions | key-value store | none |
@@ -165,33 +170,28 @@ For three years every page on our site was rendered in a single region.
 
 ## Flows
 
-1. **Save.** The editor autosaves the working copy to the database. No git.
-2. **Publish.** The core serializes the working copy to a file and commits it
-   through `ContentStore.commit` with the file's last known SHA. The index is
-   updated from the committed content at once, without waiting for a webhook.
-   If the file changed since (an agent pushed meanwhile), the commit fails with
-   `Conflict` and the editor shows the outside change instead of overwriting it.
-3. **Outside edit.** A push to the repository reaches the server's webhook
-   (signature verified), which asks for a sync and answers at once; the
-   minute check catches any push whose webhook never came. Sync runs in
-   bounded passes of at most 200 files, one pass at a time across isolates.
-   Working copies based on an older SHA are flagged "changed outside Venda".
+1. **Save.** The editor autosaves the working copy to `content_work`.
+2. **Publish.** The core serializes the working copy to a file and writes it
+   from the copy's base SHA: the file, its revision, its index rows and the
+   clean copy are one atomic batch. If the file changed since (an agent pushed
+   meanwhile), nothing is written: the answer is `Conflict`, and the editor
+   shows the outside change instead of overwriting it.
+3. **Outside edit.** `venda push` (the files API) writes a set of files the
+   same way, each from the SHA it was pulled at: all of them, or none and
+   `Conflict` naming the first that moved. The index follows in the same
+   batch; working copies based on an older SHA show "Changed outside Venda".
 4. **Schedule.** The minute tick publishes due entries the same way as (2).
-5. **Unpublish** sets `draft: true` in the file. **Trash** deletes the file and
-   keeps a tombstone with its last SHA, so it can be restored for 30 days.
-6. **Edit a model.** The admin rewrites `config.ts` and commits it. Entries
-   are not rewritten; entries that no longer fit are listed in the admin.
-7. **Local development.** The Worker runs on local workerd and reads the
-   working tree through the local content server, re-indexing whenever a file
-   changes; writing back to it arrives with the write path. The developer
-   commits as usual.
-8. **Rebuild.** `venda sync --full` (or the admin) rebuilds the whole index
-   from the files; the index is disposable.
-
-GitHub is the production content store. Venda acts through a GitHub App
-installation, so editors need only Venda accounts; commits are authored as
-"Ann Lee via Venda". Saving keeps working while GitHub is unreachable; publishing
-retries and then reports the outage.
+5. **Unpublish** sets `draft: true` in the file. **Trash** deletes the file;
+   its revisions keep every version, so it can be restored.
+6. **Edit a model.** Writing `config.ts` re-reads every entry of its
+   collection in the same batch. Entries are not rewritten; entries that no
+   longer fit are listed in Content problems.
+7. **Import and export.** `venda import` brings a folder in, 200 files a
+   batch, keeping files the index cannot read as problems; `venda export` and
+   `venda pull` write the files back out in the same layout.
+8. **Local development.** The Worker runs on local workerd with local D1;
+   `pnpm try` and the live suites import their content folder into an empty
+   database.
 
 ## Packages
 
@@ -200,7 +200,7 @@ retries and then reports the outage.
 | `@venda/contract` | Effect Schema entities and the `HttpApi` definition; typed client and OpenAPI. Browser-safe. | `effect` |
 | `@venda/richtext` | Rich-text document types, validation, HTML rendering with block renderers. | none |
 | `@venda/content` | The file format: `config.ts` reader and printer, field definitions, frontmatter, Markdown/MDX to and from documents, block specs. | `@venda/richtext` |
-| `@venda/core` | Domain logic in Effect: content sync and reads today; auth, collections, entries, lifecycle, media and search as their slices land. The index schema is Drizzle (`src/content/schema.ts`), migrations come from `drizzle-kit generate`. | contract, content, `effect`, `drizzle-orm` |
+| `@venda/core` | Domain logic in Effect: the content files, their writes and index, working copies, auth; lifecycle, media and search as their slices land. The schema is Drizzle (`src/*/schema.ts`), migrations come from `drizzle-kit generate`. | contract, content, `effect`, `drizzle-orm` |
 | `@venda/server` | Nitro host on Cloudflare Workers: the contract's routes and the admin as static assets. | core, `nitro`, `@effect/sql-d1` |
 | `@venda/admin` | The browser SDK: the plugin contract, registration and route/access checks, a typed Effect API client and the injected runtime with async screen primitives. | contract |
 | `apps/admin` (`@venda/admin-app`) | The Nuxt 4.6 static shell: sign-in, identity, routing, navigation, theme and shared primitives; chooses a preset and loads a plugin screen only when it is opened. | admin SDK, preset |
@@ -213,7 +213,7 @@ retries and then reports the outage.
 | `@venda/blocks-core` | Paragraph, headings, lists, quote, code, image, divider, callout. | content, admin plugin API |
 | `@venda/fields-core` | Text, textarea, number, toggle, date and time, tags, select, JSON and rich text; image and relation as text until their slices. | editor-kit |
 | `@venda/nuxt` | Site module: typed reads, preview, `<VendaContent>`; can mount the server inside the site's own Nitro. | contract, richtext |
-| `venda` (CLI) | `init`, `sync`, `export`, `types`, `build`, `deploy`. | contract, content |
+| `venda` (CLI) | `login`, `pull`, `push`, `history`, `restore`, `site`, `entry`, `import`, `export`; then `init`, `types`, `build`, `deploy`. Over the files API with an API token. | contract, content |
 
 Dependencies only point down this table. `@venda/core` never imports Nitro,
 Vue or a Cloudflare type; Fallow boundary rules enforce it.
@@ -224,8 +224,8 @@ Vue or a Cloudflare type; Fallow boundary rules enforce it.
 
 | Service | Production | Local and tests |
 | --- | --- | --- |
-| `ContentStore`: list, read, a snapshot pinned for one sync pass, commit with base SHA, message and author | GitHub App (`src/github/`) | a local folder served to the Worker over HTTP; the GitHub simulator; in-memory |
-| `IndexDb`: a Drizzle SQLite database with Effect queries | D1 (`drizzle-orm/effect-d1` over `@effect/sql-d1`) | local D1 under `wrangler dev`; node:sqlite (`@effect/sql-sqlite-node`) in the tests |
+| `Database`: a Drizzle SQLite database with Effect queries, holding the content files, their index and the operational state | D1 (`drizzle-orm/effect-d1` over `@effect/sql-d1`) | local D1 under `wrangler dev`; node:sqlite (`@effect/sql-sqlite-node`) in the tests |
+| `AtomicWrites`: statements all or nothing | a D1 batch | a SQLite transaction |
 | `ObjectStore` | R2 through a Nitro storage mount | filesystem; memory |
 | `KeyValue` | KV through a Nitro storage mount | memory |
 | `Mailer` | provider adapter | captured in memory |
@@ -256,15 +256,14 @@ entries by the collection's kind (`src/content/order.ts`):
 - Posts: drafts first, then the newest publish date, then undated entries.
 - Pages, single and records: A to Z by title, untitled entries last.
 
-Sync stores that order as each entry's `sort_key`, so the admin pages by
+The index stores that order as each entry's `sort_key`, so the admin pages by
 `(sort_key, slug)` with an opaque cursor, and search keeps the same order.
 Changing a collection's kind or title field re-reads its entries, which
 rewrites their keys.
 
-**Bounds:** sync takes at most 200 files per run; GitHub reads retry at most
-3 attempts within 10 seconds, and writes not at all; the tick keeps
-its per-run batch limits; request bodies are capped at 1 MB for entries and
-25 MB for media.
+**Bounds:** a write takes at most 200 files of at most 1 MB each, in a
+request of at most 25 MB; a query binds at most 90 values (D1 allows 100);
+the tick keeps its per-run batch limits; media uploads are capped at 25 MB.
 
 ## Server (Nitro)
 
@@ -272,101 +271,44 @@ its per-run batch limits; request bodies are capped at 1 MB for entries and
 platform: Cloudflare Workers (`cloudflare_module`), in production and locally
 on workerd through `wrangler dev`, with local D1 and KV. Nitro supplies the
 bindings, storage mounts and server assets; `src/cloudflare.ts` names the D1
-client for the Drizzle index and where content comes from. Content comes from
-exactly one source (`src/app.ts` refuses two):
+client for the Drizzle schema, which holds the content too.
 
-- **GitHub:** with every `VENDA_GITHUB_*` variable set, the Worker reads one
-  branch's content folder through a GitHub App installation and publishes by
-  committing to it (`src/github/`). A half-configured repository is refused,
-  never replaced by the bundled copy. Details below.
-- **Bundled:** without a repository, the content folder built into the Worker
-  as server assets is served read-only, and Publish explains why it cannot.
-- **Local development:** a Worker cannot read the disk, so
-  `scripts/content-server.mjs` serves a content folder over HTTP on
-  127.0.0.1, and `VENDA_CONTENT_URL` points the Worker at it
-  (`src/local-content.ts`). Before each request the app asks the server for
-  its version, which moves whenever a file changes; if it moved, the request
-  waits for a re-index first, so an edit on disk is served by the next
-  request, with no rebuild or restart. An unreachable server keeps the last
-  index serving. `pnpm try` creates a per-run `VENDA_CONTENT_TOKEN` for
-  conditional writes; the folder server rejects browser Origins, paths
-  escaping the folder, symlink targets and payloads over 1 MB. A local URL
-  without that token remains read-only.
+**Content in D1** (`core/src/content/files.ts`, `reindex.ts`,
+[plan](plans/d1-content-store.md)). Every write of content (a publish,
+Settings → General, a `venda push`, an import) goes through `writeFiles`,
+one atomic batch:
 
-**The GitHub store** (`src/github/`):
+```sql
+INSERT INTO content_guard (ok) SELECT (SELECT sha FROM content_files WHERE path = ?) IS ?;
+INSERT INTO content_files … ON CONFLICT(path) DO UPDATE SET …;   -- or DELETE
+INSERT INTO content_revisions (path, sha, text, parent_sha, message, author_id, …) VALUES (…);
+INSERT INTO content_entries … ON CONFLICT(path) DO UPDATE SET …;  -- the index, from the files as they will be
+UPDATE content_work SET … WHERE … AND revision = ?;              -- a publish's own statements
+DELETE FROM content_guard;
+```
 
-| Variable | Holds |
-| --- | --- |
-| `VENDA_GITHUB_REPOSITORY`, `VENDA_GITHUB_REPOSITORY_ID` | `owner/name`, and its ID, checked once per isolate |
-| `VENDA_GITHUB_BRANCH`, `VENDA_GITHUB_CONTENT_DIR` | the branch, and the folder within it (default `content`) |
-| `VENDA_GITHUB_CLIENT_ID`, `VENDA_GITHUB_INSTALLATION_ID` | the App and its installation |
-| `VENDA_GITHUB_PRIVATE_KEY` (secret) | the App's key, PKCS#8 (`openssl pkcs8 -topk8 -nocrypt` converts GitHub's download) |
-| `VENDA_GITHUB_AUTHOR_EMAIL` | the git email on every commit, so no editor's address is published |
-| `VENDA_GITHUB_API_URL` | tests and `pnpm try --github` only: a simulator on this machine |
+- `content_guard` never holds a row: its `CHECK (ok = 1)` aborts the whole
+  batch when a guard's condition is false. Each file has one on its base SHA
+  (null: it must not exist); a publish adds one on its copy's revision.
+- A refused batch writes nothing. A file that moved answers `Conflict` with
+  its current SHA; a publish whose copy was saved meanwhile answers
+  `EditedElsewhere`. Bases are also compared before the batch, so a stale
+  write is told so before anything else about it.
+- The index rows come from the files as the write leaves them, so a model and
+  its entries can change in one write; a model change re-reads every entry
+  of its collection. A file the index cannot read is refused in a publish or
+  a push, and kept as a Content problem in an import.
+- Every write records a revision per file, credited to the person (by the
+  name they go by), with a message; a deletion is a revision with no text.
+  Revisions are never pruned.
+- The files API (`/api/admin/files`, `/api/admin/files/read`,
+  `/api/admin/import`) is for administrators and editors (`CanEditFiles`),
+  and import for administrators.
 
-- An RS256 App JWT (Web Crypto) is exchanged for an installation token scoped
-  to the repository's ID and to contents; one renewal runs at a time, five
-  minutes before expiry or half its life, whichever is later.
-- A sync snapshot pins the branch head: one Git tree (walked a level at a
-  time if GitHub truncates it), then blobs by SHA, so a push mid-sync cannot
-  mix two commits. Symlinks, submodules and files over 1 MB are not read;
-  an oversized file is a content problem.
-- Publish reads the file first: its own bytes already there finish a retried
-  intent with no second commit; anything but the base SHA is `Conflict`. It
-  then writes through the Contents API with that base SHA. A 409 or 422 is
-  checked again before it counts as a conflict; any other refusal (branch
-  protection, an outage) fails the request and keeps the intent. Commits read
-  "Publish journal/first-light" by "Ann Lee via Venda", frozen when the intent
-  is made.
-- Reads retry twice within 10 seconds, honouring a short `Retry-After`; writes
-  never retry inside a request. Redirects are refused, so the token is never
-  sent anywhere else.
-- A 409 with the file still at its base means another commit moved the
-  branch under this one; the write, still conditional on the file's SHA, is
-  tried up to three times.
-- `POST /api/webhooks/github` (`VENDA_GITHUB_WEBHOOK_SECRET`) reads at most
-  25 MB, verifies `X-Hub-Signature-256` in constant time, and counts only a
-  push to the configured repository ID and exact branch ref. A push asks for
-  a sync and starts it after the response (`waitUntil`); the answer is 202.
-  A delivery is only a signal, so a late, repeated or reordered one is
-  harmless.
-- `server/tasks/venda/tick.ts` runs every minute (a Cron Trigger): it compares
-  the branch head with the indexed commit, asks for a sync if they differ,
-  and catches the index up.
-- A request waits for the index only before it has ever been built; after
-  that, a repository is followed in the background.
-- `scripts/github-simulator.mjs` answers the same endpoints, statuses, token
-  rules and signed push webhooks on 127.0.0.1. The server tests,
-  `pnpm e2e github` and `pnpm try --github` use it. `pnpm contract:github`
-  runs the built Worker against a real private repository and App
-  (`scripts/github-contract-setup.mjs` creates them; credentials in the
-  git-ignored `.venda-contract.json`), with webhooks through a cloudflared
-  quick tunnel for that run only.
-
-**Sync and concurrency** (`core/src/content/source-state.ts`, `sync.ts`).
-Several editors, tabs and isolates act at once, and webhooks arrive late,
-twice or out of order; nothing older may replace anything newer.
-
-- One `content_source` row holds a `generation` counter, the sync lease
-  (`fence`, `lease_until`, 30 seconds), `requested` and `handled` request
-  counters, the indexed version and progress, and the last error.
-- A pass claims the lease with a conditional update that raises `fence`, and
-  records the generation and `requested` it began at. It then reads one
-  pinned snapshot and indexes at most 200 files, configs first.
-- Each file's index changes are one atomic batch that opens with a guard: an
-  insert into `content_guard`, whose `CHECK (ok = 1)` aborts the batch unless
-  the pass still holds its fence and no newer generation wrote that file. A
-  refused pass ends as `superseded` and asks for another.
-- Publish and Settings → General raise the generation in the same batch as
-  their index writes and stamp it on the file, so a pass that began before
-  them never writes its older read over them. A config change blanks its
-  entries' SHAs to have them read again, keeping their generations.
-- A finished pass records its version and answers the requests before it; a
-  request that arrived meanwhile asks for another pass.
-- Each case has a test: a publish landing mid-pass, a deletion racing a
-  publish, two runners, a runner past its lease, a request mid-pass (core);
-  duplicate and reversed webhooks, a missed webhook, two publishes of
-  different entries and of one entry from two tabs (`pnpm e2e github`).
+Concurrency is the batch's own: two publishes of one copy, a push racing a
+publish, or two pushes touching one file each end with exactly one write and
+`Conflict` or `EditedElsewhere` for the other. Core tests cover each case;
+`pnpm e2e` covers them on workerd.
 
 A Node target was built and tested until slice 2b and then removed: local
 workerd already gives a faithful local runtime, and Venda deploys only to
@@ -376,9 +318,8 @@ and its module runner could not load the unified/unist ESM packages.
 
 On first use the app applies pending drizzle-kit migrations (each one atomic:
 a batch on D1, which has no transactions; a transaction on the tests'
-SQLite), indexes a folder or built-in content before answering, then serves
-the contract. Recurring work runs as Nitro `scheduledTasks` (Cron Triggers on
-Workers): `venda:tick` every minute.
+SQLite), then serves the contract. Recurring work will run as Nitro
+`scheduledTasks` (Cron Triggers on Workers) when a slice needs it.
 
 ## Admin and plugins
 
@@ -395,7 +336,6 @@ import fields from '@venda/fields-core';
 import youtube from 'venda-block-youtube';
 
 export default defineVenda({
-  content: { github: { repo: 'saftapologetics/website', branch: 'main', dir: 'content' } },
   plugins: [writer(), blocks(), fields(), youtube()]
 });
 ```
@@ -522,10 +462,10 @@ site component. An unknown block renders its text content, never raw markup.
 5. Vitest, including contract tests for each adapter.
 6. Fallow audit, including package boundaries.
 
-`pnpm e2e` builds the real Worker and runs it on local workerd, both as
-deployed (content built in) and over a live folder (hot reload, a thousand
-entries), and drives the admin and site once they talk to it; it is
-required before every commit that changes behaviour.
+`pnpm e2e` builds the real Worker and runs it on local workerd and D1, with
+the fixture content (and, for the admin, a thousand more entries) imported,
+and drives the API and the admin; it is required before every commit that
+changes behaviour.
 
 Oxlint with anti-slop (vendored in `tools/oxlint/anti-slop`, provenance in its
 `UPSTREAM.md`) and the Fallow gate (`scripts/fallow-gate.mjs`) cover the
@@ -649,24 +589,31 @@ suites; it does not replace them.
      The bundled store is read-only, with a typed publishing error.
    - `try/slice-3.html`: steps for the real admin, a title-editing console,
      and checks for save, publish, an outside edit, a new entry and General.
-4. **GitHub content store.** App authentication, commits, webhook sync; a
-   contract test against a real throwaway repository
-   ([plan](plans/slice-4-github-store.md)).
-5. **Lifecycle on files.** Scheduling, unpublish, trash and restore, revisions
-   from git, preview, search.
+4. **The D1 content store and the agent CLI**
+   ([plan](plans/d1-content-store.md)). Part 1 **done:**
+   - The files live in `content_files` with every version in
+     `content_revisions`; every write is one guarded batch with its index.
+   - Publish, Settings → General, the files API and import all write that
+     way; the GitHub, folder-server and sync code is removed.
+   - `pnpm try` and the live suites import their content into D1.
+   Part 2: the `venda` CLI (pull, push, history, restore, site, entry) and
+   `try/slice-4.html`.
+5. **Lifecycle on files.** Scheduling, unpublish, trash and restore from
+   revisions, preview, search.
 6. **Finish and freeze the plugin API and the default preset.** Every screen
    arrives as a plugin from slice 2b on. What is left: the model editor that
    writes `config.ts`, any remaining slots, and one external test plugin
    installed from outside this repository, then the API is frozen.
-7. **CLI and deployment.** `init` against a repository, `sync`, `types` from
-   `config.ts`, `deploy`; the hosted deployment moves to `@venda/server`.
+7. **CLI and deployment.** `init`, `types` from `config.ts`, `deploy`; the
+   hosted deployment moves to `@venda/server`.
 
 Roadmap steps 5 to 12 then continue on this base.
 
 ## Content from elsewhere
 
-- The hosted instance's blog posts are written as files once and committed.
-- SAFT's Sanity migration script writes files directly.
+- The hosted instance's blog posts are written as files once and imported.
+- SAFT's Sanity migration script writes a content folder, then
+  `venda import` brings it in.
 
 ## Dependencies (approved)
 
@@ -704,15 +651,17 @@ Development: `prettier` 3.9.9 with `eslint-config-prettier` 10.1.8,
   host serves, and new server code should use `nuxt/server` so it stays
   portable. Do not override Nuxt's Nitro dependency with another major.
 - **Drizzle's Effect drivers are pre-1.0**, pinned to a commit snapshot.
-  They sit behind the `IndexDb` service; the core's tests run on the real
+  They sit behind the `Database` service; the core's tests run on the real
   node:sqlite driver and the live suites on D1. Its type declarations still
   import a beta Effect path (`effect/unstable/sql`) that resolves to nothing,
   which weakens the `SqlError` types it exposes until the next release.
 - **gdp-ts is a 0.1.0.** It is small (no dependencies; names, proofs and lint
   rules), pinned exactly, and only its types reach the core's signatures; if
   it stalls, it can be vendored like anti-slop.
-- **GitHub availability and limits.** An outage blocks publishing, not saving.
-  Installation tokens allow 5,000 requests an hour; sync batches its reads.
+- **D1's limits.** A query binds at most 100 values, a row holds at most
+  2 MB and a database 10 GB. Venda reads in chunks of 90, caps a file at 1 MB
+  and keeps every revision; a pruning rule can follow if a site ever nears
+  the size limit.
 - **Markdown fidelity.** Some editor states have no Markdown form (for example
   overlapping marks); conversion normalises them, and round-trip tests define
   what is kept.

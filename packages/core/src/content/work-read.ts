@@ -9,11 +9,11 @@ import {
   type EntryRef
 } from '@venda/contract';
 import { readEntry } from '@venda/content';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { Effect, Option, Schema } from 'effect';
 import { Database } from '../database';
+import { currentShas, fileAt } from './files';
 import { contentEntries, contentWork, contentProblems } from './schema';
-import { ContentStore, gitBlobSha } from './services';
 import { modelOf } from './tables';
 
 export type WorkRow = typeof contentWork.$inferSelect;
@@ -41,31 +41,22 @@ export const modelFor = (ref: EntryRef) =>
   });
 
 export const currentSha = (path: string) =>
-  Effect.gen(function* () {
-    const store = yield* ContentStore;
-    const files = yield* store.list;
+  Effect.map(currentShas([path]), shas => shas.get(path) ?? null);
 
-    return files.find(file => file.path === path)?.sha ?? null;
-  });
-
+/** The file as a copy starts from it: its fields, and the SHA it was read at. */
 export const snapshot = (ref: EntryRef, path: string) =>
   Effect.gen(function* () {
     const model = yield* modelFor(ref);
-    const store = yield* ContentStore;
+    const found = yield* fileAt(path);
 
-    if ((yield* currentSha(path)) === null)
-      return yield* new EntryNotFound(ref);
+    if (Option.isNone(found)) return yield* new EntryNotFound(ref);
 
-    const text = yield* store.read(path);
-    const entry = yield* readEntry(model, path, text).pipe(
+    const entry = yield* readEntry(model, path, found.value.text).pipe(
       Effect.mapError(error => new InvalidContent({ message: error.message }))
-    );
-    const sha = yield* Effect.promise(() =>
-      gitBlobSha(new TextEncoder().encode(text))
     );
 
     return {
-      baseSha: sha,
+      baseSha: found.value.sha,
       dataJson: JSON.stringify(entry.data),
       extraJson: JSON.stringify(entry.extra),
       publishedAt: entry.publishedAt ?? null
@@ -125,13 +116,7 @@ export const freshWork = (ref: EntryRef) =>
     const row = yield* openWork(ref);
     const sha = yield* currentSha(row.path);
 
-    if (
-      row.dirty ||
-      row.publishText !== null ||
-      sha === row.baseSha ||
-      sha === null
-    )
-      return row;
+    if (row.dirty || sha === row.baseSha || sha === null) return row;
 
     const file = yield* snapshot(ref, row.path);
     const db = yield* Database;
@@ -142,8 +127,7 @@ export const freshWork = (ref: EntryRef) =>
         and(
           workKey(ref),
           eq(contentWork.revision, row.revision),
-          eq(contentWork.dirty, false),
-          isNull(contentWork.publishText)
+          eq(contentWork.dirty, false)
         )
       )
       .returning();
@@ -153,7 +137,6 @@ export const freshWork = (ref: EntryRef) =>
 
 export const presentWork = (row: WorkRow, canPublish: boolean) =>
   Effect.gen(function* () {
-    const store = yield* ContentStore;
     const sha = yield* currentSha(row.path);
     const db = yield* Database;
     const [problem] = yield* db
@@ -169,16 +152,12 @@ export const presentWork = (row: WorkRow, canPublish: boolean) =>
       data: dataFrom(row.dataJson),
       publishedAt: row.publishedAt,
       dirty: row.dirty,
-      publishing: row.publishText !== null,
-      changedOutside:
-        sha !== row.baseSha &&
-        (row.publishSha === null || sha !== row.publishSha),
+      changedOutside: sha !== row.baseSha,
       currentSha: sha,
       ownerId: userIdFrom(row.ownerId),
       updatedBy: userIdFrom(row.updatedBy),
       updatedAt: row.updatedAt,
       canPublish,
-      writable: store.writable,
       indexProblem: problem?.message ?? null
     });
   });

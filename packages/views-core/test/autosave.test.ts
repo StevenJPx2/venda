@@ -17,14 +17,12 @@ const copyAt = (revision: number) =>
     data: {},
     publishedAt: null,
     dirty: true,
-    publishing: false,
     changedOutside: false,
     currentSha: 'abc',
     ownerId: null,
     updatedBy: null,
     updatedAt: null,
     canPublish: true,
-    writable: true,
     indexProblem: null
   });
 

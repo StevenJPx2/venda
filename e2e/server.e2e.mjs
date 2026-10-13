@@ -1,12 +1,10 @@
-// The server on local workerd and D1: first as deployed, with the content
-// built in; then reading a live folder, as `pnpm try` does, where an edit on
-// disk is served by the next request.
-import { writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+// The server on local workerd and D1, with the fixture content imported:
+// the read path, the content surviving a restart, and a file written through
+// the files API served by the next request.
 import {
   buildWorkers,
   check,
-  liveContent,
+  contentFiles,
   startWorkers,
   suite,
   WORKERS,
@@ -57,48 +55,30 @@ async function contentChecks(label, base) {
   );
 }
 
-async function poll(url, test, seconds = 5) {
-  for (let i = 0; i < seconds * 4; i++) {
-    if (await fetch(url).then(test, () => false)) return true;
-
-    await new Promise(r => setTimeout(r, 250));
-  }
-
-  return false;
-}
-
 await suite('server', async () => {
   const state = await workersState();
-  const live = await liveContent();
 
   await buildWorkers();
 
   let stopWorkers = await startWorkers(state);
 
-  await contentChecks('Built-in content', WORKERS);
+  await contentChecks('Workers', WORKERS);
   await stopWorkers();
 
-  // The same database again: migrations already applied must not run twice.
-  stopWorkers = await startWorkers(state, live);
-  await contentChecks('Live folder', WORKERS);
+  // The same database again: the content is kept, and migrations already
+  // applied do not run twice.
+  stopWorkers = await startWorkers(state);
+  await contentChecks('Workers, restarted', WORKERS);
 
-  await writeFile(
-    join(live, 'field-notes/unfinished.md'),
+  const files = await contentFiles();
+
+  await files.write(
+    'field-notes/unfinished.md',
     '---\ntitle: Finished after all\n---\n\nDone.\n'
   );
-
-  const started = Date.now();
-  const served = await poll(
-    `${WORKERS}/api/content/field-notes/unfinished`,
-    response => response.ok,
-    2
-  );
-
   check(
-    'Live folder: an edit on disk is served without a rebuild or restart',
-    served,
-    `not served within 2s`
+    'Workers: a file written through the files API is served by the next request',
+    (await fetch(`${WORKERS}/api/content/field-notes/unfinished`)).ok
   );
-  console.log(`  (served ${Date.now() - started} ms after saving)`);
   await stopWorkers();
 });

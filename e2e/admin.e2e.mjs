@@ -1,14 +1,14 @@
 // The actual static admin, served with the API from the same Worker on local
-// workerd, over a live content folder with a thousand extra entries. Browser
-// contexts are separate people, not mocked credentials.
+// workerd, with the fixture content and a thousand extra entries imported.
+// Browser contexts are separate people, not mocked credentials.
 import { chromium } from 'playwright';
-import { access, mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdtemp } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
   buildWorkers,
   check,
-  liveContent,
+  contentFiles,
   OWNER,
   startWorkers,
   suite,
@@ -325,12 +325,6 @@ async function contentChecks(page, label, base, screenshots) {
   );
 }
 
-const exists = path =>
-  access(path).then(
-    () => true,
-    () => false
-  );
-
 // The status line beside the way back.
 const entryStatus = page =>
   page.locator('.entry-actions .entry-state').innerText();
@@ -346,8 +340,8 @@ const statusIs = (page, text) =>
   );
 
 // Editing saves itself; publishing writes the file; an outside edit is never overwritten.
-async function editChecks(page, label, base, live) {
-  const file = join(live, 'field-notes', 'first-light.md');
+async function editChecks(page, label, base, files) {
+  const file = 'field-notes/first-light.md';
   const title = page.getByRole('textbox', { name: 'Title', exact: true });
 
   await page.goto(`${base}/admin/content/field-notes/first-light`);
@@ -359,14 +353,14 @@ async function editChecks(page, label, base, live) {
   check(
     `${label}: typing saves a working copy that survives a reload, leaving the file alone`,
     (await title.inputValue()) === 'First light, edited' &&
-      !(await readFile(file, 'utf8')).includes('edited')
+      !(await files.read(file)).includes('edited')
   );
 
   await page.getByRole('button', { name: 'Publish changes' }).click();
   await statusIs(page, 'Published');
   check(
     `${label}: Publish writes the file and the public API serves it`,
-    (await readFile(file, 'utf8')).includes('title: First light, edited') &&
+    (await files.read(file)).includes('title: First light, edited') &&
       (
         await (
           await fetch(`${base}/api/content/field-notes/first-light`)
@@ -376,9 +370,9 @@ async function editChecks(page, label, base, live) {
 
   await title.fill('Mine');
   await statusIs(page, 'Saved · not published');
-  await writeFile(
+  await files.write(
     file,
-    (await readFile(file, 'utf8')).replace(
+    (await files.read(file)).replace(
       'title: First light, edited',
       'title: Theirs'
     )
@@ -389,7 +383,7 @@ async function editChecks(page, label, base, live) {
     .waitFor();
   check(
     `${label}: an outside edit stops Publish, keeps the copy, and leaves the file as they wrote it`,
-    (await readFile(file, 'utf8')).includes('title: Theirs') &&
+    (await files.read(file)).includes('title: Theirs') &&
       (await title.inputValue()) === 'Mine'
   );
   await page.getByRole('button', { name: 'Keep editing mine' }).click();
@@ -397,7 +391,7 @@ async function editChecks(page, label, base, live) {
   await statusIs(page, 'Published');
   check(
     `${label}: Keep editing mine then publishes over the outside edit, on purpose`,
-    (await readFile(file, 'utf8')).includes('title: Mine')
+    (await files.read(file)).includes('title: Mine')
   );
 
   // Later checks find the entry by its original title.
@@ -434,7 +428,7 @@ async function editChecks(page, label, base, live) {
 }
 
 // A record and a single entry are created from the admin, then published.
-async function createChecks(page, label, live) {
+async function createChecks(page, label, files) {
   const main = page.locator('#main-content');
 
   await fromSidebar(page, 'Authors');
@@ -451,15 +445,13 @@ async function createChecks(page, label, live) {
   check(
     `${label}: a new record opens in its form as an unpublished copy`,
     (await entryStatus(page)) === 'Saved · not published' &&
-      !(await exists(join(live, 'authors', 'bo-chen.md')))
+      !(await files.exists('authors/bo-chen.md'))
   );
   await page.getByRole('button', { name: 'Publish', exact: true }).click();
   await statusIs(page, 'Published');
   check(
     `${label}: publishing a new record writes its file`,
-    (await readFile(join(live, 'authors', 'bo-chen.md'), 'utf8')).includes(
-      'role: Writer'
-    )
+    (await files.read('authors/bo-chen.md')).includes('role: Writer')
   );
 }
 
@@ -506,7 +498,7 @@ async function kindChecks(page, label) {
 }
 
 // content/site.ts names the site and words its screens; an empty string hides one.
-async function siteChecks(page, label, base, live) {
+async function siteChecks(page, label, base, files) {
   const heading = page.locator('.screen-heading');
 
   await page.goto(`${base}/admin/content`);
@@ -544,7 +536,7 @@ async function siteChecks(page, label, base, live) {
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await page.getByRole('status').filter({ hasText: 'Saved' }).waitFor();
 
-  const written = await readFile(join(live, 'site.ts'), 'utf8');
+  const written = await files.read('site.ts');
   const named = await page
     .getByRole('navigation', { name: 'Main navigation' })
     .locator('xpath=..')
@@ -750,7 +742,7 @@ async function mobileChecks(page, label, screenshots) {
   });
 }
 
-async function uiChecks(browser, label, base, screenshots, live) {
+async function uiChecks(browser, label, base, screenshots, files) {
   const context = await browser.newContext({
     viewport: { width: 1440, height: 960 },
     colorScheme: 'light'
@@ -778,10 +770,10 @@ async function uiChecks(browser, label, base, screenshots, live) {
 
   try {
     await contentChecks(owner, label, base, screenshots);
-    await editChecks(owner, label, base, live);
+    await editChecks(owner, label, base, files);
     await kindChecks(owner, label);
-    await createChecks(owner, label, live);
-    await siteChecks(owner, label, base, live);
+    await createChecks(owner, label, files);
+    await siteChecks(owner, label, base, files);
     await inviteAndJoin(owner, ann, label, base);
     await tokenChecks(owner, label, base);
     await peopleChecks(owner, ann, label);
@@ -816,28 +808,31 @@ await suite('admin', async () => {
   console.log(`Screenshots: ${screenshots}`);
 
   try {
-    const live = await liveContent();
+    // A thousand more entries exercise batched imports, paging and long
+    // unbroken, non-Latin titles.
+    const extra = new Map();
 
-    // Real files exercise bounded sync, paging and long unbroken/non-Latin titles.
     for (let index = 0; index < 1001; index++) {
       const title =
         index === 0 ? '長い名前'.repeat(100) : `Stress entry ${index}`;
 
-      await writeFile(
-        join(
-          live,
-          'field-notes',
-          `zz-stress-${String(index).padStart(4, '0')}.md`
-        ),
+      extra.set(
+        `field-notes/zz-stress-${String(index).padStart(4, '0')}.md`,
         `---\ntitle: ${title}\n---\n\nContent.\n`
       );
     }
 
     await buildWorkers();
 
-    const stopWorkers = await startWorkers(await workersState(), live);
+    const stopWorkers = await startWorkers(await workersState(), extra);
 
-    await uiChecks(browser, 'Workers', WORKERS, screenshots, live);
+    await uiChecks(
+      browser,
+      'Workers',
+      WORKERS,
+      screenshots,
+      await contentFiles()
+    );
     await stopWorkers();
   } finally {
     await browser.close();

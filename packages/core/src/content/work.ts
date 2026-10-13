@@ -2,14 +2,13 @@ import type { Named } from '@gdp-ts/core';
 import {
   EditedElsewhere,
   InvalidContent,
-  PublishInProgress,
   Conflict,
   type EntryRef,
   type UserId
 } from '@venda/contract';
 import { MAX_CONTENT_BYTES, ContentTooLarge } from '@venda/contract';
 import { checkEntryData } from '@venda/content';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { DateTime, Effect, Result, Schema } from 'effect';
 import { canPublishEntry } from '../auth/proofs/can-publish-entry';
 import type { CanEditEntry } from '../auth/proofs/can-edit-entry';
@@ -38,27 +37,17 @@ const withinLimit = (text: string) =>
   new TextEncoder().encode(text).byteLength <= MAX_CONTENT_BYTES;
 
 const revisionIs = (row: WorkRow, expected: number) =>
-  Effect.gen(function* () {
-    if (row.revision !== expected)
-      return yield* new EditedElsewhere({ revision: row.revision });
-    if (row.publishText !== null) return yield* new PublishInProgress();
-  });
+  row.revision === expected
+    ? Effect.void
+    : Effect.fail(new EditedElsewhere({ revision: row.revision }));
 
-export const idleRevision = (ref: EntryRef, revision: number) =>
-  and(
-    workKey(ref),
-    eq(contentWork.revision, revision),
-    isNull(contentWork.publishText)
+const idleRevision = (ref: EntryRef, revision: number) =>
+  and(workKey(ref), eq(contentWork.revision, revision));
+
+const failedUpdate = (ref: EntryRef) =>
+  Effect.flatMap(openWork(ref), row =>
+    Effect.fail(new EditedElsewhere({ revision: row.revision }))
   );
-
-export const failedUpdate = (ref: EntryRef) =>
-  Effect.gen(function* () {
-    const row = yield* openWork(ref);
-
-    if (row.publishText !== null) return yield* new PublishInProgress();
-
-    return yield* new EditedElsewhere({ revision: row.revision });
-  });
 
 const touched = <U>(user: Named<U, UserId>, revision: number) =>
   Effect.map(DateTime.now, now => ({

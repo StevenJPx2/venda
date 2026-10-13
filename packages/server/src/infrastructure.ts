@@ -3,11 +3,9 @@
 // key-value store) are server errors, never a domain answer like "not found".
 import { KeyValue, Owner } from '@venda/core/auth';
 import { AtomicWrites, Database } from '@venda/core/database';
-import { ContentStore } from '@venda/core/content';
 import { Context, Effect } from 'effect';
 
-export type DomainServices =
-  Database | AtomicWrites | ContentStore | KeyValue | Owner;
+export type DomainServices = Database | AtomicWrites | KeyValue | Owner;
 
 /** Captures the domain services once, so handlers can run domain effects with them. */
 export const domainRunner = Effect.map(
@@ -18,17 +16,13 @@ export const domainRunner = Effect.map(
         Effect.catchTags({
           EffectDrizzleQueryError: Effect.die,
           AtomicWriteError: Effect.die,
-          ContentStoreError: Effect.die,
-          KeyValueError: Effect.die
+          KeyValueError: Effect.die,
+          // Only a write with guards of its own can be refused this way; the
+          // handlers that add guards answer it before it gets here.
+          GuardRefused: Effect.die
         }),
         Effect.provideContext(
-          Context.pick(
-            Database,
-            AtomicWrites,
-            ContentStore,
-            KeyValue,
-            Owner
-          )(services)
+          Context.pick(Database, AtomicWrites, KeyValue, Owner)(services)
         )
       )
 );

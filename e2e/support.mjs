@@ -1,13 +1,10 @@
 // Shared harness for live end-to-end checks: builds and starts the real
 // server on local workerd, and reports named checks.
 import { spawn } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
-import { cp, mkdtemp } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { serveContent } from '../scripts/content-server.mjs';
-import { simulateRepository } from '../scripts/github-simulator.mjs';
 
 export const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 
@@ -29,10 +26,7 @@ const OWNER_ENV = {
 
 export const WORKERS = 'http://localhost:8795';
 
-const CONTENT_PORT = 8796;
-
 const children = [];
-const closers = [];
 const results = [];
 const logs = new Map();
 
@@ -116,42 +110,55 @@ export const stop = (child, seconds = 10) =>
     process.kill(-child.pid, 'SIGTERM');
   });
 
-/** Builds the Worker with the fixture content built in. */
-export const buildWorkers = () =>
-  run('pnpm', ['exec', 'nitro', 'build'], {
-    VENDA_CONTENT_DIR: CONTENT_FIXTURES
-  });
+/** Builds the Worker. */
+export const buildWorkers = () => run('pnpm', ['exec', 'nitro', 'build']);
 
 /** A fresh folder of local D1 and KV state; pass it to `startWorkers` again to restart on the same data. */
 export const workersState = () => mkdtemp(join(tmpdir(), 'venda-e2e-'));
 
-/** An editable copy of the fixture content, for a Worker started with `live`. */
-export async function liveContent() {
-  const dir = await mkdtemp(join(tmpdir(), 'venda-content-'));
+/** The fixture content as `{ path, text }`, with `extra` added (path → text). */
+async function fixtureFiles(extra = new Map()) {
+  const entries = await readdir(CONTENT_FIXTURES, {
+    recursive: true,
+    withFileTypes: true
+  });
+  const files = new Map();
 
-  await cp(CONTENT_FIXTURES, dir, { recursive: true });
+  for (const entry of entries.filter(each => each.isFile())) {
+    const path = join(entry.parentPath, entry.name);
 
-  return dir;
+    files.set(
+      relative(CONTENT_FIXTURES, path).split(sep).join('/'),
+      await readFile(path, 'utf8')
+    );
+  }
+
+  for (const [path, text] of extra) files.set(path, text);
+
+  return [...files].map(([path, text]) => ({ path, text }));
+}
+
+/** Imports `files` as the owner, 200 at a time, as `venda import` does. */
+async function importFiles(files) {
+  const api = await signedIn();
+
+  for (let at = 0; at < files.length; at += 200) {
+    const answer = await api('/admin/import', 'POST', {
+      files: files.slice(at, at + 200)
+    });
+
+    if (answer.status !== 200)
+      throw new Error(`Import answered ${answer.status}`);
+  }
 }
 
 /**
- * Starts the built Worker on local workerd over `state`. With `live`, it reads
- * that folder through the content server, as `pnpm try` does, instead of the
- * built-in copy. Resolves to a function that stops both.
+ * Starts the built Worker on local workerd over `state`, with the fixture
+ * content (and `extra` files) imported into an empty database. Resolves to a
+ * function that stops it.
  */
-export async function startWorkers(state, live) {
-  const token = randomUUID();
-  const stopContent = live
-    ? await serveContent(live, CONTENT_PORT, token)
-    : async () => {};
-  const env = live
-    ? {
-        ...OWNER_ENV,
-        VENDA_CONTENT_URL: `http://127.0.0.1:${CONTENT_PORT}/`,
-        VENDA_CONTENT_TOKEN: token
-      }
-    : OWNER_ENV;
-  const vars = Object.entries(env).flatMap(([key, value]) => [
+export async function startWorkers(state, extra) {
+  const vars = Object.entries(OWNER_ENV).flatMap(([key, value]) => [
     '--var',
     `${key}:${value}`
   ]);
@@ -167,14 +174,47 @@ export async function startWorkers(state, live) {
     '8795',
     ...vars
   ]);
-  const stopBoth = async () => {
-    await Promise.all([stop(child), stopContent()]);
-  };
 
-  closers.push(stopContent);
   await waitFor(`${WORKERS}/api/health`, 'Workers');
 
-  return stopBoth;
+  const api = await signedIn();
+
+  if ((await api('/admin/files')).json.length === 0)
+    await importFiles(await fixtureFiles(extra));
+
+  return () => stop(child);
+}
+
+/**
+ * The content files through the files API, as the owner: what the suites
+ * read to see what a publish wrote, and change as someone else would.
+ */
+export async function contentFiles() {
+  const api = await signedIn();
+  const read = async path => {
+    const answer = await api(
+      `/admin/files/read?path=${encodeURIComponent(path)}`
+    );
+
+    return answer.status === 200 ? answer.json : null;
+  };
+
+  return {
+    read: async path => (await read(path))?.text ?? null,
+    exists: async path => (await read(path)) !== null,
+    /** Someone else's change, from whatever the file is now; null deletes. */
+    write: async (path, text) => {
+      const answer = await api('/admin/files', 'POST', {
+        message: 'An outside change',
+        changes: [{ path, text, baseSha: (await read(path))?.sha ?? null }]
+      });
+
+      if (answer.status !== 200)
+        throw new Error(
+          `Write answered ${answer.status}: ${JSON.stringify(answer.json)}`
+        );
+    }
+  };
 }
 
 /** An API client that keeps the session cookie it is given. */
@@ -222,77 +262,6 @@ export const saveBody = (copy, title) => ({
   publishedAt: copy.publishedAt
 });
 
-const GITHUB_PORT = 8797;
-
-export const GITHUB_AUTHOR_EMAIL = 'venda@users.noreply.venda.test';
-
-/**
- * Starts the built Worker reading the fixture content from the GitHub
- * simulator, as a deployment reads its repository. Resolves to the simulator
- * and a function that stops both.
- */
-export async function startGitHubWorkers(state) {
-  const {
-    github,
-    webhookSecret,
-    env: githubEnv
-  } = await simulateRepository({
-    folder: CONTENT_FIXTURES,
-    port: GITHUB_PORT,
-    authorEmail: GITHUB_AUTHOR_EMAIL
-  });
-  const env = { ...OWNER_ENV, ...githubEnv };
-  // --test-scheduled exposes /cdn-cgi/local/scheduled, which runs the Cron Trigger.
-  const child = start('workers', 'npx', [
-    'wrangler',
-    'dev',
-    '--local',
-    '--test-scheduled',
-    '--persist-to',
-    state,
-    '--config',
-    '.output/server/wrangler.json',
-    '--port',
-    '8795',
-    ...Object.entries(env).flatMap(([key, value]) => [
-      '--var',
-      `${key}:${value}`
-    ])
-  ]);
-
-  closers.push(github.stop);
-  await waitFor(`${WORKERS}/api/health`, 'Workers');
-  github.deliverTo(`${WORKERS}/api/webhooks/github`, webhookSecret);
-
-  return {
-    github,
-    webhookSecret,
-    /** Runs the minute check now, as the Cron Trigger would. */
-    tick: () =>
-      fetch(`${WORKERS}/cdn-cgi/local/scheduled?cron=*+*+*+*+*`).then(
-        response => response.text()
-      ),
-    stop: async () => {
-      await Promise.all([stop(child), github.stop()]);
-    }
-  };
-}
-
-/** Polls `read` until `test` passes, for up to `seconds`; resolves to the last read. */
-export async function until(read, test, seconds = 10) {
-  let last;
-
-  for (const deadline = Date.now() + seconds * 1000; Date.now() < deadline;) {
-    last = await read();
-
-    if (test(last)) return last;
-
-    await new Promise(resolvePromise => setTimeout(resolvePromise, 200));
-  }
-
-  return last;
-}
-
 /** Runs a suite, always stopping servers and printing results. */
 export async function suite(name, body) {
   const started = Date.now();
@@ -317,8 +286,6 @@ export async function suite(name, body) {
         /* already exited */
       }
     }
-
-    await Promise.allSettled(closers.map(close => close()));
 
     console.log(
       `# ${name} (${Math.round((Date.now() - started) / 1000)}s)\n${results.join('\n')}`

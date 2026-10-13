@@ -1,10 +1,10 @@
-import { ContentReadOnly } from '@venda/contract';
 import { Effect, Result } from 'effect';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { AtomicWrites, AtomicWriteError } from '../src/database';
-import { ContentStore, getPublished, syncAll } from '../src/content';
+import { getPublished } from '../src/content';
 import {
   assignOwner,
+  BLOG,
   contributor,
   editor,
   post,
@@ -23,33 +23,26 @@ beforeEach(async () => {
 
 afterEach(() => h.close());
 
-it('publishes canonical bytes, preserves unknown frontmatter, and indexes without sync', async () => {
+const failed = async <A, E>(work: Promise<Result.Result<A, E>>) =>
+  Result.isFailure(await work);
+
+it('publishes canonical bytes, keeps unknown frontmatter, indexes them and records a revision', async () => {
   const copy = await h.run(readCopy());
   const saved = await h.run(
     saveCopy(copy.revision, { ...copy.data, title: 'Published edit' })
   );
   const published = await h.run(publishCopy(saved.revision));
 
-  expect(published).toMatchObject({
-    dirty: false,
-    publishing: false,
-    changedOutside: false
-  });
-  expect(h.files.get('blog/hello.md')).toContain('custom: keep-me');
-  expect(h.commits).toEqual([
-    {
-      path: 'blog/hello.md',
-      message: 'Publish blog/hello',
-      author: 'admin via Venda'
-    }
+  expect(published).toMatchObject({ dirty: false, changedOutside: false });
+  expect(await h.file('blog/hello.md')).toContain('custom: keep-me');
+  expect(await h.revisions()).toEqual([
+    { path: 'blog/hello.md', message: 'Publish blog/hello', author: 'admin' }
   ]);
   expect((await h.run(getPublished('blog', 'hello'))).data.title).toBe(
     'Published edit'
   );
   expect(
-    Result.isFailure(
-      await h.run(Effect.result(saveCopy(saved.revision, saved.data)))
-    )
+    await failed(h.run(Effect.result(saveCopy(saved.revision, saved.data))))
   ).toBe(true);
 });
 
@@ -60,15 +53,13 @@ it('refuses incomplete required fields and contributor publishing', async () => 
     saveCopy(owned.revision, { title: '' }, contributor)
   );
 
+  expect(await failed(h.run(Effect.result(publishCopy(saved.revision))))).toBe(
+    true
+  );
   expect(
-    Result.isFailure(await h.run(Effect.result(publishCopy(saved.revision))))
+    await failed(h.run(Effect.result(publishCopy(saved.revision, contributor))))
   ).toBe(true);
-  expect(
-    Result.isFailure(
-      await h.run(Effect.result(publishCopy(saved.revision, contributor)))
-    )
-  ).toBe(true);
-  expect(h.files.get('blog/hello.md')).toBe(post('Hello'));
+  expect(await h.file('blog/hello.md')).toBe(post('Hello'));
 });
 
 it('keeps work on outside changes; rebase acknowledges the exact new SHA', async () => {
@@ -77,12 +68,12 @@ it('keeps work on outside changes; rebase acknowledges the exact new SHA', async
     saveCopy(copy.revision, { ...copy.data, title: 'Mine' })
   );
 
-  h.files.set('blog/hello.md', post('Outside'));
+  await h.outside('blog/hello.md', post('Outside'));
 
-  expect(
-    Result.isFailure(await h.run(Effect.result(publishCopy(saved.revision))))
-  ).toBe(true);
-  expect(h.files.get('blog/hello.md')).toBe(post('Outside'));
+  expect(await failed(h.run(Effect.result(publishCopy(saved.revision))))).toBe(
+    true
+  );
+  expect(await h.file('blog/hello.md')).toBe(post('Outside'));
 
   const conflict = await h.run(readCopy());
 
@@ -92,10 +83,8 @@ it('keeps work on outside changes; rebase acknowledges the exact new SHA', async
     data: { title: 'Mine' }
   });
   expect(
-    Result.isFailure(
-      await h.run(
-        Effect.result(rebaseCopy(conflict.revision, copy.baseSha ?? ''))
-      )
+    await failed(
+      h.run(Effect.result(rebaseCopy(conflict.revision, copy.baseSha ?? '')))
     )
   ).toBe(true);
 
@@ -107,39 +96,12 @@ it('keeps work on outside changes; rebase acknowledges the exact new SHA', async
   expect((await h.run(getPublished('blog', 'hello'))).data.title).toBe('Mine');
 });
 
-it('resumes the same durable intent after a store wrote but its response was lost', async () => {
+it('writes nothing when the batch fails: the copy stays, and publishing again works', async () => {
   const copy = await h.run(readCopy());
   const saved = await h.run(
-    saveCopy(copy.revision, { ...copy.data, title: 'Resumed' })
+    saveCopy(copy.revision, { ...copy.data, title: 'After an outage' })
   );
-
-  h.uncertain();
-
-  expect(
-    Result.isFailure(await h.run(Effect.result(publishCopy(saved.revision))))
-  ).toBe(true);
-  expect((await h.run(readCopy())).publishing).toBe(true);
-  expect(
-    Result.isFailure(
-      await h.run(Effect.result(saveCopy(saved.revision, saved.data)))
-    )
-  ).toBe(true);
-  // Another editor finishes it, still credited to whoever pressed Publish.
-  expect((await h.run(publishCopy(saved.revision, editor))).publishing).toBe(
-    false
-  );
-  expect(h.commits.map(commit => commit.author)).toEqual([
-    'admin via Venda',
-    'admin via Venda'
-  ]);
-});
-
-it('keeps a durable intent when the atomic index finalization fails', async () => {
-  const copy = await h.run(readCopy());
-  const saved = await h.run(
-    saveCopy(copy.revision, { ...copy.data, title: 'Retry index' })
-  );
-  const failed = await h.run(
+  const outage = await h.run(
     Effect.result(
       publishCopy(saved.revision).pipe(
         Effect.provideService(AtomicWrites, {
@@ -149,60 +111,43 @@ it('keeps a durable intent when the atomic index finalization fails', async () =
     )
   );
 
-  expect(Result.isFailure(failed)).toBe(true);
-  expect((await h.run(readCopy())).publishing).toBe(true);
-  expect((await h.run(publishCopy(saved.revision))).dirty).toBe(false);
-  expect((await h.run(getPublished('blog', 'hello'))).data.title).toBe(
-    'Retry index'
-  );
+  expect(Result.isFailure(outage)).toBe(true);
+  expect(await h.file('blog/hello.md')).toBe(post('Hello'));
+  expect(await h.revisions()).toEqual([]);
+  expect((await h.run(readCopy())).dirty).toBe(true);
+  expect((await h.run(publishCopy(saved.revision, editor))).dirty).toBe(false);
+  expect(await h.revisions()).toEqual([
+    { path: 'blog/hello.md', message: 'Publish blog/hello', author: 'editor' }
+  ]);
 });
 
-it('a bundled store refuses publication but still permits working copies', async () => {
+it('one copy published twice at once makes one revision; the other is told it was edited', async () => {
   const copy = await h.run(readCopy());
   const saved = await h.run(
-    saveCopy(copy.revision, { ...copy.data, title: 'Save offline' })
+    saveCopy(copy.revision, { ...copy.data, title: 'Pressed twice' })
   );
-  const result = await h.run(
-    Effect.result(
-      Effect.gen(function* () {
-        const store = yield* ContentStore;
+  const both = await Promise.all([
+    h.run(Effect.result(publishCopy(saved.revision))),
+    h.run(Effect.result(publishCopy(saved.revision, editor)))
+  ]);
 
-        return yield* publishCopy(saved.revision).pipe(
-          Effect.provideService(ContentStore, {
-            ...store,
-            writable: false,
-            commit: () => Effect.fail(new ContentReadOnly())
-          })
-        );
-      })
-    )
-  );
-
-  expect(Result.isFailure(result)).toBe(true);
-  expect((await h.run(readCopy())).dirty).toBe(true);
+  expect(both.filter(Result.isSuccess)).toHaveLength(1);
+  expect(await h.revisions()).toHaveLength(1);
+  expect(await h.file('blog/hello.md')).toContain('title: Pressed twice');
 });
 
-it('finishes an uncertain publish after a model change without indexing invalid fields', async () => {
+it('publishes against the model as it is now: a stricter model refuses it', async () => {
   const copy = await h.run(readCopy());
   const saved = await h.run(
     saveCopy(copy.revision, { ...copy.data, title: 'Long title' })
   );
 
-  h.uncertain();
-  await h.run(Effect.result(publishCopy(saved.revision)));
-  h.files.set(
-    'blog/config.ts',
-    (h.files.get('blog/config.ts') ?? '').replace('max: 40', 'max: 3')
+  await h.outside('blog/config.ts', BLOG.replace('max: 40', 'max: 3'));
+
+  expect(await failed(h.run(Effect.result(publishCopy(saved.revision))))).toBe(
+    true
   );
-  await h.run(syncAll());
-
-  const published = await h.run(publishCopy(saved.revision));
-
-  expect(published).toMatchObject({ dirty: false, publishing: false });
-  expect(published.indexProblem).toBeTruthy();
-  expect(
-    Result.isFailure(await h.run(Effect.result(getPublished('blog', 'hello'))))
-  ).toBe(true);
+  expect(await h.file('blog/hello.md')).toBe(post('Hello'));
 });
 
 it('never recreates a file deleted outside Venda, and keeps the copy flagged', async () => {
@@ -211,12 +156,12 @@ it('never recreates a file deleted outside Venda, and keeps the copy flagged', a
     saveCopy(copy.revision, { ...copy.data, title: 'Keep my work' })
   );
 
-  h.files.delete('blog/hello.md');
+  await h.outside('blog/hello.md', null);
 
-  expect(
-    Result.isFailure(await h.run(Effect.result(publishCopy(saved.revision))))
-  ).toBe(true);
-  expect(h.files.has('blog/hello.md')).toBe(false);
+  expect(await failed(h.run(Effect.result(publishCopy(saved.revision))))).toBe(
+    true
+  );
+  expect(await h.file('blog/hello.md')).toBeUndefined();
   expect(await h.run(readCopy())).toMatchObject({
     dirty: true,
     changedOutside: true,

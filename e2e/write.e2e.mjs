@@ -1,12 +1,10 @@
-// Write-path checks through the real Worker, D1, KV and the local folder server.
+// Write-path checks through the real Worker, D1 and KV.
 import assert from 'node:assert/strict';
-import { readFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import {
   buildWorkers,
   check,
   client,
-  liveContent,
+  contentFiles,
   saveBody,
   signedIn,
   startWorkers,
@@ -17,8 +15,8 @@ import {
 const entry = '/admin/collections/field-notes/entries/first-light';
 const file = 'field-notes/first-light.md';
 
-async function saveAndPublish(api, live) {
-  const original = await readFile(join(live, file), 'utf8');
+async function saveAndPublish(api, files) {
+  const original = await files.read(file);
   const copy = (await api(`${entry}/copy`)).json;
   const saved = await api(
     `${entry}/copy`,
@@ -29,7 +27,7 @@ async function saveAndPublish(api, live) {
   assert.equal(saved.status, 200, JSON.stringify(saved));
   check(
     'Workers: saving persists a working copy without changing the file',
-    saved.json.dirty && (await readFile(join(live, file), 'utf8')) === original
+    saved.json.dirty && (await files.read(file)) === original
   );
   check(
     'Workers: the public API still serves the file while its copy is edited',
@@ -52,34 +50,29 @@ async function saveAndPublish(api, live) {
   check(
     'Workers: publishing writes Markdown and updates the index immediately',
     !published.json.dirty &&
-      (await readFile(join(live, file), 'utf8')).includes(
-        'title: Saved to a copy'
-      ) &&
+      (await files.read(file)).includes('title: Saved to a copy') &&
       (await api('/content/field-notes/first-light')).json.data.title ===
         'Saved to a copy'
   );
 }
 
-async function conflictChecks(api, live) {
+async function conflictChecks(api, files) {
   const copy = (await api(`${entry}/copy`)).json;
   const saved = (await api(`${entry}/copy`, 'PUT', saveBody(copy, 'My change')))
     .json;
-  const before = await readFile(join(live, file), 'utf8');
+  const before = await files.read(file);
 
-  await writeFile(
-    join(live, file),
-    before.replace('Saved to a copy', 'Outside change')
-  );
+  await files.write(file, before.replace('Saved to a copy', 'Outside change'));
 
   const conflict = await api(`${entry}/publish`, 'POST', {
     revision: saved.revision
   });
 
   check(
-    'Workers: a disk edit causes Conflict and is not overwritten',
+    'Workers: a change made through the files API causes Conflict and is not overwritten',
     conflict.status === 409 &&
       conflict.json._tag === 'Conflict' &&
-      (await readFile(join(live, file), 'utf8')).includes('Outside change')
+      (await files.read(file)).includes('Outside change')
   );
 
   const current = (await api(`${entry}/copy`)).json;
@@ -234,6 +227,12 @@ async function roleChecks(api) {
     'Workers: another author cannot read an owned copy',
     (await author.api(`${entry}/copy`)).status === 403
   );
+  check(
+    'Workers: the files API is for administrators and editors',
+    (await author.api('/admin/files')).status === 403 &&
+      (await contributor.api('/admin/import', 'POST', { files: [] })).status ===
+        403
+  );
 
   const reassigned = await api(`${entry}/owner`, 'PUT', {
     revision: saved.json.revision,
@@ -249,20 +248,69 @@ async function roleChecks(api) {
   );
 }
 
+async function filesChecks(api, files) {
+  const listed = (await api('/admin/files')).json;
+  const current = listed.find(each => each.path === file);
+  const stale = await api('/admin/files', 'POST', {
+    message: 'From an old pull',
+    changes: [
+      {
+        path: 'field-notes/new-one.md',
+        text: '---\ntitle: New\n---\n\nHi.\n',
+        baseSha: null
+      },
+      { path: file, text: 'stale', baseSha: '0'.repeat(40) }
+    ]
+  });
+
+  check(
+    'Workers: a write of several files with one stale SHA writes none of them',
+    stale.status === 409 &&
+      stale.json._tag === 'Conflict' &&
+      stale.json.path === file &&
+      !(await files.exists('field-notes/new-one.md'))
+  );
+
+  const both = await api('/admin/files', 'POST', {
+    message: 'Two at once',
+    changes: [
+      {
+        path: 'field-notes/new-one.md',
+        text: '---\ntitle: New\n---\n\nHi.\n',
+        baseSha: null
+      },
+      {
+        path: file,
+        text: (await files.read(file)).replace(/^title: .*$/m, 'title: Pushed'),
+        baseSha: current.sha
+      }
+    ]
+  });
+
+  check(
+    'Workers: a write of several files lands as one, and the index follows',
+    both.status === 200 &&
+      (await api('/content/field-notes/new-one')).status === 200 &&
+      (await api('/content/field-notes/first-light')).json.data.title ===
+        'Pushed'
+  );
+}
+
 await suite('write path', async () => {
   const state = await workersState();
-  const live = await liveContent();
 
   await buildWorkers();
 
-  let stop = await startWorkers(state, live);
+  let stop = await startWorkers(state);
   const api = await signedIn();
+  const files = await contentFiles();
 
-  await saveAndPublish(api, live);
-  await conflictChecks(api, live);
+  await saveAndPublish(api, files);
+  await conflictChecks(api, files);
   await revisionChecks(api);
   await sizeChecks(api);
   await roleChecks(api);
+  await filesChecks(api, files);
 
   const copy = (await api(`${entry}/copy`)).json;
   const saved = await api(
@@ -272,7 +320,7 @@ await suite('write path', async () => {
   );
 
   await stop();
-  stop = await startWorkers(state, live);
+  stop = await startWorkers(state);
 
   check(
     'Workers: copy revisions, fields and ownership survive a restart',
@@ -280,16 +328,14 @@ await suite('write path', async () => {
       saved.json.revision === (await api(`${entry}/copy`)).json.revision
   );
 
-  await stop();
-  stop = await startWorkers(state);
-
-  const bundled = await api(`${entry}/publish`, 'POST', {
+  const published = await api(`${entry}/publish`, 'POST', {
     revision: saved.json.revision
   });
 
   check(
-    'Workers: the bundled store refuses publish with a typed read-only reason',
-    bundled.status === 409 && bundled.json._tag === 'ContentReadOnly'
+    'Workers: the copy publishes after a restart',
+    published.status === 200 &&
+      (await files.read(file)).includes('title: Survives a restart')
   );
   await stop();
 });

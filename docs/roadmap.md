@@ -134,7 +134,7 @@ loop. Slice 6 finishes and freezes the plugin API.
 1. Server, file format and read path (architecture slices 0 and 1). **Done.**
 2. Users, roles, sessions, API tokens, because every later feature records who did what (slice 2). **Done.**
 3. Structured rich text editing and the write path (slice 3). **Done.**
-4. GitHub content store, then the content lifecycle: drafts vs live, revisions, scheduling, preview, trash, search (slices 4 and 5); then freeze the plugin API and finish the CLI (slices 6 and 7).
+4. The D1 content store with every revision kept, and the agent CLI (pull, push, history, restore); then the content lifecycle: drafts vs live, scheduling, preview, trash, search (slices 4 and 5); then freeze the plugin API and finish the CLI (slices 6 and 7).
 5. Content model: new field types, relations, singletons, i18n, typegen.
 6. Media library.
 7. Site structure: taxonomies, menus, widgets, sections, settings, redirects, SEO.

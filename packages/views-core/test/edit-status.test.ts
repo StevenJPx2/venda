@@ -10,23 +10,17 @@ import {
 it('lets an editor change a loaded, idle copy only', () => {
   const idle = { forbidden: false, elsewhere: false, busy: false };
 
-  expect(isReadonly({ publishing: false }, idle)).toBe(false);
-  expect(isReadonly(undefined, idle)).toBe(true);
-  expect(isReadonly({ publishing: true }, idle)).toBe(true);
-  expect(isReadonly({ publishing: false }, { ...idle, busy: true })).toBe(true);
-  expect(isReadonly({ publishing: false }, { ...idle, forbidden: true })).toBe(
-    true
-  );
-  expect(isReadonly({ publishing: false }, { ...idle, elsewhere: true })).toBe(
-    true
-  );
+  expect(isReadonly(true, idle)).toBe(false);
+  expect(isReadonly(false, idle)).toBe(true);
+  expect(isReadonly(true, { ...idle, busy: true })).toBe(true);
+  expect(isReadonly(true, { ...idle, forbidden: true })).toBe(true);
+  expect(isReadonly(true, { ...idle, elsewhere: true })).toBe(true);
 });
 
 const clean: EditState = {
   loaded: true,
   forbidden: false,
   elsewhere: false,
-  publishing: false,
   saving: false,
   changedOutside: false,
   dirty: false,
@@ -45,9 +39,6 @@ it('says the one thing that matters most about an entry being edited', () => {
   expect(editStatus({ ...clean, dirty: true, changedOutside: true })).toBe(
     'Changed outside Venda'
   );
-  expect(editStatus({ ...clean, publishing: true, saving: true })).toBe(
-    'Publishing…'
-  );
   expect(editStatus({ ...clean, elsewhere: true })).toBe('Edited elsewhere');
   expect(editStatus({ ...clean, loaded: false })).toBe('');
   expect(editStatus({ ...clean, loaded: false, forbidden: true })).toBe(
@@ -65,14 +56,12 @@ it('reads the state from a loaded copy, and from none', () => {
     data: {},
     publishedAt: null,
     dirty: true,
-    publishing: false,
     changedOutside: true,
     currentSha: 'def',
     ownerId: null,
     updatedBy: null,
     updatedAt: null,
     canPublish: true,
-    writable: true,
     indexProblem: null
   });
 
@@ -87,7 +76,6 @@ it('reads the state from a loaded copy, and from none', () => {
     forbidden: false,
     elsewhere: false,
     saving: true,
-    publishing: false,
     changedOutside: false,
     dirty: false,
     canPublish: false,

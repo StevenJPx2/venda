@@ -16,10 +16,12 @@ import {
   signedInInPerson,
   updateUser
 } from '../src/auth';
-import { canEditEntry } from '../src/auth';
+import { canEditEntry, canEditFiles } from '../src/auth';
 import { canBrowseContent } from '../src/auth/proofs/can-browse-content';
 import {
   getIndexedEntry,
+  importFiles,
+  pushFiles,
   saveWorkingCopy,
   publishWorkingCopy
 } from '../src/content';
@@ -121,6 +123,22 @@ export const mistakes = [
         data: {},
         publishedAt: null
       })
+    )
+  ),
+
+  // Importing over everything needs an administrator, not just an editor.
+  name(actor.userId, user =>
+    Effect.flatMap(canEditFiles(user), proof =>
+      // @ts-expect-error import needs IsAdministrator
+      importFiles(user, [], proof)
+    )
+  ),
+
+  // Writing files credited to someone else with your own proof.
+  name(actor.userId, other.userId, (me, them) =>
+    Effect.flatMap(canEditFiles(me), proof =>
+      // @ts-expect-error the proof is about `me`, not `them`
+      pushFiles(them, 'Not mine', [], proof)
     )
   )
 ];

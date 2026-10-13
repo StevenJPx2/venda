@@ -17,7 +17,7 @@ import { users } from '../src/auth/schema';
 import { eq } from 'drizzle-orm';
 import { name } from '@gdp-ts/core';
 import { canBrowseContent } from '../src/auth';
-import { listIndexedEntries, syncAll } from '../src/content';
+import { listIndexedEntries } from '../src/content';
 
 let h: Awaited<ReturnType<typeof writeHarness>>;
 
@@ -52,14 +52,13 @@ it('editors publish unowned entries, while disabling them revokes their proof', 
 });
 
 it('authors and contributors browse owned file drafts, without seeing somebody else’s drafts', async () => {
-  h.files.set(
+  await h.outside(
     'blog/hello.md',
-    (h.files.get('blog/hello.md') ?? '').replace(
+    ((await h.file('blog/hello.md')) ?? '').replace(
       'title: Hello',
       'title: Hello\ndraft: true'
     )
   );
-  await h.run(syncAll());
 
   const copy = await h.run(readCopy());
 
@@ -81,7 +80,7 @@ it('authors and contributors browse owned file drafts, without seeing somebody e
 });
 
 it('saves a shared copy without touching its file or public content', async () => {
-  const file = h.files.get('blog/hello.md');
+  const file = await h.file('blog/hello.md');
   const copy = await h.run(readCopy());
   const saved = await h.run(
     saveCopy(copy.revision, { ...copy.data, title: 'My edit' })
@@ -92,7 +91,7 @@ it('saves a shared copy without touching its file or public content', async () =
     revision: copy.revision + 1,
     data: { title: 'My edit' }
   });
-  expect(h.files.get('blog/hello.md')).toBe(file);
+  expect(await h.file('blog/hello.md')).toBe(file);
   expect((await h.run(readCopy())).data.title).toBe('My edit');
 });
 

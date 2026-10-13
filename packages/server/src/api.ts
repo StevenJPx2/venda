@@ -12,6 +12,7 @@ import {
   UsersHandlers
 } from './api/accounts';
 import { AdminContentHandlers } from './api/content-admin';
+import { ContentFilesHandlers } from './api/content-files';
 import { ContentWriteHandlers } from './api/content-write';
 import { domainRunner, type DomainServices } from './infrastructure';
 
@@ -53,6 +54,7 @@ const ApiRoutes = HttpApiBuilder.layer(VendaApi).pipe(
     ContentHandlers,
     AdminContentHandlers,
     ContentWriteHandlers,
+    ContentFilesHandlers,
     AuthHandlers,
     UsersHandlers,
     InvitationsHandlers,

@@ -50,7 +50,7 @@ it('writes site.ts canonically, indexes it at once, and refuses a stale base', a
   );
 
   expect(saved.sha).not.toBeNull();
-  expect(h.files.get('site.ts')).toContain("name: 'Hill Notes'");
+  expect(await h.file('site.ts')).toContain("name: 'Hill Notes'");
   expect(await h.run(getSite)).toMatchObject({ name: 'Hill Notes', url: null });
 
   const stale = await h.run(
@@ -75,8 +75,8 @@ it('writes site.ts canonically, indexes it at once, and refuses a stale base', a
   ).toBe(true);
 });
 
-it('reads settings and their SHA from the same file, even before sync notices a disk edit', async () => {
-  h.files.set(
+it('reads settings and their SHA from the file as it is now', async () => {
+  await h.outside(
     'site.ts',
     "export default defineSite({ name: 'Latest on disk' });"
   );
