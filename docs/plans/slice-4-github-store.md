@@ -297,7 +297,7 @@ blocker, not permission to declare the slice done with only a simulator.
   - Commit attribution is frozen with the publish intent (`publish_author`).
   - `scripts/github-simulator.mjs`; server tests (25), `pnpm e2e github` (8
     checks on workerd) and `try/slice-4.html` (4 checks) run against it.
-- Commit 2 (**done**, real run pending): durable sync, fencing, verified
+- Commit 2 (**done**): durable sync, fencing, verified
   webhook ingress, the minute task and outage-safe startup, with the
   concurrency matrix above as tests.
   - Core concurrency tests (6) fail with either half of the guard removed.
@@ -307,7 +307,10 @@ blocker, not permission to declare the slice done with only a simulator.
     `StevenJPx2/venda-contract-test` and an App owned by StevenJPx2, created
     by `scripts/github-contract-setup.mjs` from a manifest page (credentials
     in the git-ignored `.venda-contract.json`), with a cloudflared quick tunnel
-    for real webhooks during the run only. It runs once the App is created.
+    for real webhooks during the run only. It passes 5 checks against real
+    GitHub: reading, an attributed commit, a conflict with an outside push,
+    that push's webhook through the tunnel, and two entries published at once.
+    It restores every file it touched and resets the App's webhook URL.
 - Commit 3: repository contract/proofs and Settings → Repository; browser and
   try-page coverage, plus setup documentation.
 - Commit 4: real App/repository validation, fixes found there and final

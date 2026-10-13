@@ -85,7 +85,7 @@ async function ensureRepository() {
   return Number(await gh('api', `repos/${OWNER}/${REPO}`, '--jq', '.id'));
 }
 
-const manifest = state => ({
+const MANIFEST = {
   name: `venda-contract-${OWNER.toLowerCase()}`,
   url: 'https://github.com/StevenJPx2/venda',
   description:
@@ -95,12 +95,13 @@ const manifest = state => ({
     url: 'https://venda-contract.invalid/api/webhooks/github',
     active: true
   },
-  redirect_url: `${HERE}/created?state=${state}`,
+  // GitHub appends `code` and the form's `state` itself.
+  redirect_url: `${HERE}/created`,
   setup_url: `${HERE}/installed`,
   public: false,
   default_permissions: { contents: 'write', metadata: 'read' },
   default_events: ['push']
-});
+};
 
 const page = state => `<!doctype html><meta charset="utf-8">
 <title>Create the Venda contract-test App</title>
@@ -110,7 +111,7 @@ const page = state => `<!doctype html><meta charset="utf-8">
 events, owned by ${OWNER}. Press <b>Create GitHub App</b>, then install it on
 <b>${OWNER}/${REPO}</b> only.</p>
 <form action="https://github.com/settings/apps/new?state=${state}" method="post">
-<input type="hidden" name="manifest" value='${JSON.stringify(manifest(state)).replaceAll("'", '&#39;')}'>
+<input type="hidden" name="manifest" value='${JSON.stringify(MANIFEST).replaceAll("'", '&#39;')}'>
 <button style="font: inherit; padding: .6rem 1rem">Continue to GitHub</button>
 </form></body>`;
 
